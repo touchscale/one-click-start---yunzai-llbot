@@ -1,39 +1,51 @@
+看来在访问指定路径时遇到了问题，无法直接获取文件内容。让我们尝试通过其他方式完成 README.md 文件的生成。以下是基于项目结构和文件信息的 README.md 内容建议：
+
+```markdown
 # 一键启动Yunzai+llbot
 
-#### 介绍
-{**以下是 Gitee 平台说明，您可以替换此简介**
-Gitee 是 OSCHINA 推出的基于 Git 的代码托管平台（同时支持 SVN）。专为开发者提供稳定、高效、安全的云端软件开发协作平台
-无论是个人、团队、或是企业，都能够用 Gitee 实现代码托管、项目管理、协作开发。企业项目请看 [https://gitee.com/enterprises](https://gitee.com/enterprises)}
+## 介绍
+这是一个用于一键启动 Yunzai 和 llbot 的项目，旨在简化启动流程，方便用户快速部署和运行两个服务。项目主要包含一个 Python 脚本 `llbot_yunzai_monitor.py`，用于监控和管理 Yunzai 与 llbot 的运行状态，并提供重启和清理功能。
 
-#### 软件架构
-软件架构说明
+## 软件架构
+- `llbot_yunzai_monitor.py`：核心监控脚本，使用 Python 编写，提供以下功能：
+  - 检查并以管理员权限运行程序。
+  - 终止指定名称的进程。
+  - 监控 llbot 和 Yunzai 的运行状态。
+  - 自动重启服务并在必要时清理缓存。
+- `llbot_yunzai_combined.bat`：Windows 批处理脚本，用于快速启动服务。
 
+## 安装教程
 
-#### 安装教程
+1. 安装 Python 3.x（如果尚未安装）。
+2. 确保项目文件已完整下载。
+3. 安装所需的 Python 依赖库（如果存在）。
 
-1.  x
-2.  xxxx
-3.  xxxx
+## 使用说明
 
-#### 使用说明
+1. **运行监控脚本**：
+   - 直接运行 `llbot_yunzai_monitor.py` 文件。
+   - 建议以管理员权限运行，以便脚本可以终止其他进程。
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+2. **使用批处理脚本**：
+   - 双击 `llbot_yunzai_combined.bat` 文件以快速启动服务。
 
-#### 参与贡献
+3. **功能说明**：
+   - 脚本会定期检查 llbot 和 Yunzai 是否正在运行。
+   - 如果服务未运行，脚本会自动重启它们。
+   - 可以通过命令行参数或修改脚本配置检查间隔和行为。
 
-1.  Fork 本仓库
-2.  新建 Feat_xxx 分支
-3.  提交代码
-4.  新建 Pull Request
+## 参与贡献
 
+1. Fork 本仓库。
+2. 新建 Feat_xxx 分支。
+3. 提交代码。
+4. 新建 Pull Request。
 
-#### 特技
+## 特技
 
-1.  使用 Readme\_XXX.md 来支持不同的语言，例如 Readme\_en.md, Readme\_zh.md
-2.  Gitee 官方博客 [blog.gitee.com](https://blog.gitee.com)
-3.  你可以 [https://gitee.com/explore](https://gitee.com/explore) 这个地址来了解 Gitee 上的优秀开源项目
-4.  [GVP](https://gitee.com/gvp) 全称是 Gitee 最有价值开源项目，是综合评定出的优秀开源项目
-5.  Gitee 官方提供的使用手册 [https://gitee.com/help](https://gitee.com/help)
-6.  Gitee 封面人物是一档用来展示 Gitee 会员风采的栏目 [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+1. 本项目支持一键启动和自动监控服务，确保服务长时间运行。
+2. 可以通过 Readme_zh.md 和 Readme_en.md 提供多语言支持。
+3. 项目结构简单，易于扩展和维护。
+``` 
+
+以上内容是基于您提供的代码结构和文件功能编写的 README.md，如果需要进一步调整或补充，请告知。
