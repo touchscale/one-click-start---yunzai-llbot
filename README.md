@@ -67,7 +67,6 @@ yunzai:
   git_bash_path: ""         # Git Bash路径
   bash_directory: ""        # Yunzai目录
   wait_seconds: 5          # 检查间隔秒数
-  process_name: "git-bash.exe"  # 进程名（默认值，无需配置）
 
 # Redis配置
 redis:
@@ -75,7 +74,7 @@ redis:
 
 # HTTP检查设置
 http_check:
-  url: "http://localhost:3080"  # HTTP检查地址
+  url: ""  # HTTP检查地址
   timeout: 5               # HTTP检查超时秒数
 ```
 
