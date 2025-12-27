@@ -42,8 +42,8 @@ def interactive_config():
     }
     
     print("\n【llbot配置】")
-    config['llbot']['path'] = input("llbot.exe路径: ").strip()
-    config['llbot']['directory'] = input("llbot目录: ").strip()
+    config['llbot']['path'] = input("llbot.exe路径 (例: D:\\\\path\\\\to\\\\llbot.exe): ").strip()
+    config['llbot']['directory'] = input("llbot目录 (例: D:\\\\path\\\\to\\\\llbot): ").strip()
     
     wait_seconds_input = input(f"llbot检查间隔秒数 (默认: {config['llbot']['wait_seconds']}，留空使用默认值): ").strip()
     if wait_seconds_input:
@@ -53,8 +53,8 @@ def interactive_config():
             print("无效输入，使用默认值")
     
     print("\n【Yunzai配置】")
-    config['yunzai']['git_bash_path'] = input("Git Bash路径: ").strip()
-    config['yunzai']['bash_directory'] = input("Yunzai目录: ").strip()
+    config['yunzai']['git_bash_path'] = input("Git Bash路径 (例: D:\\\\Git\\\\git-bash.exe): ").strip()
+    config['yunzai']['bash_directory'] = input("Yunzai目录 (例: D:\\\\path\\\\to\\\\yunzai): ").strip()
     
     wait_seconds_input = input(f"Yunzai检查间隔秒数 (默认: {config['yunzai']['wait_seconds']}，留空使用默认值): ").strip()
     if wait_seconds_input:
@@ -63,14 +63,14 @@ def interactive_config():
         except ValueError:
             print("无效输入，使用默认值")
     
-    config['yunzai']['process_name'] = input("Yunzai进程名: ").strip()
+    config['yunzai']['process_name'] = input("Yunzai进程名 (例: git-bash.exe): ").strip()
     
     print("\n【Redis配置】")
     config['redis'] = {}
-    config['redis']['path'] = input("Redis服务器路径: ").strip()
+    config['redis']['path'] = input("Redis服务器路径 (例: D:\\\\path\\\\to\\\\redis-server.exe): ").strip()
     
     print("\n【HTTP检查配置】")
-    config['http_check']['url'] = input("HTTP检查地址: ").strip()
+    config['http_check']['url'] = input("HTTP检查地址 (例: http://localhost:3080): ").strip()
     
     timeout_input = input(f"HTTP检查超时秒数 (默认: {config['http_check']['timeout']}，留空使用默认值): ").strip()
     if timeout_input:
@@ -110,33 +110,35 @@ def load_config():
         if 'http_check' not in config:
             config['http_check'] = {}
         
-        # 只为wait_seconds和timeout设置默认值
-        if 'wait_seconds' not in config['llbot']:
+        # 只为wait_seconds和timeout设置默认值（如果未提供或为空）
+        if 'wait_seconds' not in config['llbot'] or not config['llbot']['wait_seconds']:
             config['llbot']['wait_seconds'] = DEFAULT_CONFIG['llbot'].get('wait_seconds', 5)
-        if 'wait_seconds' not in config['yunzai']:
+        if 'wait_seconds' not in config['yunzai'] or not config['yunzai']['wait_seconds']:
             config['yunzai']['wait_seconds'] = DEFAULT_CONFIG['yunzai'].get('wait_seconds', 5)
-        if 'timeout' not in config['http_check']:
+        if 'timeout' not in config['http_check'] or not config['http_check']['timeout']:
             config['http_check']['timeout'] = DEFAULT_CONFIG['http_check'].get('timeout', 5)
+        if 'url' not in config['http_check'] or not config['http_check']['url']:
+            config['http_check']['url'] = "http://localhost:3080"
         
         return config
 
 def save_default_config(config_path):
     """保存默认配置到文件"""
-    # 创建完整的默认配置
+    # 创建默认配置，只保留wait_seconds和timeout的默认值，其他留空
     full_default_config = {
         "llbot": {
-            "path": r"D:\idm\qqnt\LLBot-Desktop-win-x64\llbot.exe",
-            "directory": r"D:\idm\qqnt\LLBot-Desktop-win-x64",
+            "path": "",
+            "directory": "",
             "wait_seconds": 5
         },
         "yunzai": {
-            "git_bash_path": r"D:\Git\git-bash.exe",
-            "bash_directory": r"D:\idm\Yunzai",
+            "git_bash_path": "",
+            "bash_directory": "",
             "wait_seconds": 5,
-            "process_name": "git-bash.exe"
+            "process_name": ""
         },
         "redis": {
-            "path": r"D:\idm\Redis-7.2.5-Windows-x64-msys2\Redis-7.2.5-Windows-x64-msys2\redis-server.exe"
+            "path": ""
         },
         "http_check": {
             "url": "http://localhost:3080",
@@ -213,12 +215,21 @@ def terminate_processes_by_powershell(names):
 def check_and_manage_llbot(config):
     """检查并管理llbot进程"""
     try:
+        # 检查必要配置项是否为空
+        if not config['http_check']['url']:
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: HTTP检查地址未配置")
+            return
+        
         # 检查http://localhost:3080是否可访问
         response = requests.get(config['http_check']['url'], timeout=config['http_check']['timeout'])
         if response.status_code == 200:
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {config['http_check']['url']} 可访问...")
             
             # 检查llbot.exe是否仍在运行
+            if not config['llbot']['path']:
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: llbot路径未配置")
+                return
+                
             llbot_running = False
             for proc in psutil.process_iter(['name']):
                 if proc.info['name'].lower() == os.path.basename(config['llbot']['path']).lower():
@@ -270,10 +281,18 @@ def restart_llbot_with_cleanup(config):
 def restart_llbot(config):
     """重启llbot"""
     try:
+        if not config['llbot']['path']:
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: llbot路径未配置")
+            return
+            
         process_name = os.path.basename(config['llbot']['path'])
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 启动 {process_name}...")
         
         if os.path.exists(config['llbot']['path']):
+            if not config['llbot']['directory']:
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: llbot目录未配置")
+                return
+                
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 找到 {process_name}，正在目录中启动: {config['llbot']['directory']}")
             os.chdir(config['llbot']['directory'])
             subprocess.Popen([config['llbot']['path']])
@@ -288,6 +307,10 @@ def check_and_manage_yunzai(config):
     """检查并管理Yunzai进程"""
     try:
         # 检查Redis是否运行
+        if not config['redis']['path']:
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: Redis路径未配置")
+            return
+            
         redis_running = False
         redis_process_name = os.path.basename(config['redis']['path'])
         for proc in psutil.process_iter(['name']):
@@ -313,6 +336,10 @@ def check_and_manage_yunzai(config):
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {redis_process_name} 已在运行...")
         
         # 检查Yunzai是否运行
+        if not config['yunzai']['process_name']:
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: Yunzai进程名未配置")
+            return
+            
         yunzai_running = False
         for proc in psutil.process_iter(['name']):
             if proc.info['name'].lower() == config['yunzai']['process_name'].lower():
@@ -322,6 +349,13 @@ def check_and_manage_yunzai(config):
         if not yunzai_running:
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 启动Yunzai进程...")
             try:
+                if not config['yunzai']['git_bash_path']:
+                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: Git Bash路径未配置")
+                    return
+                if not config['yunzai']['bash_directory']:
+                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: Yunzai目录未配置")
+                    return
+                    
                 # 使用git-bash启动Yunzai，使用固定命令"node app"
                 subprocess.Popen([
                     config['yunzai']['git_bash_path'],
