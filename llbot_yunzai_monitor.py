@@ -118,6 +118,18 @@ def load_config():
         if 'url' not in config['http_check'] or not config['http_check']['url']:
             config['http_check']['url'] = "http://localhost:3080"
         
+        # 确保其他必要配置项不为空
+        if 'path' not in config['llbot']:
+            config['llbot']['path'] = ""
+        if 'directory' not in config['llbot']:
+            config['llbot']['directory'] = ""
+        if 'git_bash_path' not in config['yunzai']:
+            config['yunzai']['git_bash_path'] = ""
+        if 'bash_directory' not in config['yunzai']:
+            config['yunzai']['bash_directory'] = ""
+        if 'path' not in config['redis']:
+            config['redis']['path'] = ""
+        
         return config
 
 def save_default_config(config_path):
@@ -333,7 +345,7 @@ def check_and_manage_yunzai(config):
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {redis_process_name} 已在运行...")
         
         # 检查Yunzai是否运行
-        # 使用默认的process_name
+        # 使用固定的process_name而不从配置中获取
         process_name = 'git-bash.exe'
         
         yunzai_running = False
