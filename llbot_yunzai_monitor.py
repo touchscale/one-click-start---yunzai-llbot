@@ -15,8 +15,7 @@ DEFAULT_CONFIG = {
         "wait_seconds": 5
     },
     "yunzai": {
-        "wait_seconds": 5,
-        "process_name": "git-bash.exe"
+        "wait_seconds": 5
     },
     "http_check": {
         "timeout": 5
@@ -35,8 +34,7 @@ def interactive_config():
             'wait_seconds': DEFAULT_CONFIG['llbot'].get('wait_seconds', 5)
         },
         'yunzai': {
-            'wait_seconds': DEFAULT_CONFIG['yunzai'].get('wait_seconds', 5),
-            'process_name': DEFAULT_CONFIG['yunzai'].get('process_name', 'git-bash.exe')
+            'wait_seconds': DEFAULT_CONFIG['yunzai'].get('wait_seconds', 5)
         },
         'http_check': {
             'timeout': DEFAULT_CONFIG['http_check'].get('timeout', 5)
@@ -110,13 +108,11 @@ def load_config():
         if 'http_check' not in config:
             config['http_check'] = {}
         
-        # 为wait_seconds、process_name和timeout设置默认值（如果未提供或为空）
+        # 为wait_seconds和timeout设置默认值（如果未提供或为空）
         if 'wait_seconds' not in config['llbot'] or not config['llbot']['wait_seconds']:
             config['llbot']['wait_seconds'] = DEFAULT_CONFIG['llbot'].get('wait_seconds', 5)
         if 'wait_seconds' not in config['yunzai'] or not config['yunzai']['wait_seconds']:
             config['yunzai']['wait_seconds'] = DEFAULT_CONFIG['yunzai'].get('wait_seconds', 5)
-        if 'process_name' not in config['yunzai'] or not config['yunzai']['process_name']:
-            config['yunzai']['process_name'] = DEFAULT_CONFIG['yunzai'].get('process_name', 'git-bash.exe')
         if 'timeout' not in config['http_check'] or not config['http_check']['timeout']:
             config['http_check']['timeout'] = DEFAULT_CONFIG['http_check'].get('timeout', 5)
         if 'url' not in config['http_check'] or not config['http_check']['url']:
@@ -338,7 +334,7 @@ def check_and_manage_yunzai(config):
         
         # 检查Yunzai是否运行
         # 使用默认的process_name
-        process_name = config['yunzai'].get('process_name', 'git-bash.exe')
+        process_name = 'git-bash.exe'
         
         yunzai_running = False
         for proc in psutil.process_iter(['name']):
