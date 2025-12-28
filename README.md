@@ -44,7 +44,7 @@ python llbot_yunzai_monitor.py
 - Redis服务器路径：Redis服务器可执行文件的路径
 
 #### HTTP检查配置
-- HTTP检查地址：用于检查服务状态的HTTP地址（默认http://localhost:3080）
+- HTTP检查地址：用于检查服务状态的HTTP地址
 - HTTP检查超时秒数：HTTP请求的超时时间（默认5秒）
 
 ### 2. 后续运行
