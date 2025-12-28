@@ -53,7 +53,7 @@ def interactive_config():
             print("无效输入，使用默认值")
     
     print("\n【Yunzai配置】")
-    config['yunzai']['git_bash_path'] = input("Git Bash路径 (例: D:\\\\Git\\\\git-bash.exe): ").strip()
+    config['yunzai']['git_bash_path'] = input("Git Bash路径 (例: D:\\\\path\\\\git-bash.exe): ").strip()
     config['yunzai']['bash_directory'] = input("Yunzai目录 (例: D:\\\\path\\\\to\\\\yunzai): ").strip()
     
     wait_seconds_input = input(f"Yunzai检查间隔秒数 (默认: {config['yunzai']['wait_seconds']}，留空使用默认值): ").strip()
