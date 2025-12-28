@@ -115,8 +115,6 @@ def load_config():
             config['yunzai']['wait_seconds'] = DEFAULT_CONFIG['yunzai'].get('wait_seconds', 5)
         if 'timeout' not in config['http_check'] or not config['http_check']['timeout']:
             config['http_check']['timeout'] = DEFAULT_CONFIG['http_check'].get('timeout', 5)
-        if 'url' not in config['http_check'] or not config['http_check']['url']:
-            config['http_check']['url'] = "http://localhost:3080"
         
         # 确保其他必要配置项不为空
         if 'path' not in config['llbot']:
@@ -129,6 +127,8 @@ def load_config():
             config['yunzai']['bash_directory'] = ""
         if 'path' not in config['redis']:
             config['redis']['path'] = ""
+        if 'url' not in config['http_check']:
+            config['http_check']['url'] = ""
         
         return config
 
@@ -150,7 +150,7 @@ def save_default_config(config_path):
             "path": ""
         },
         "http_check": {
-            "url": "http://localhost:3080",
+            "url": "",
             "timeout": 5
         }
     }
