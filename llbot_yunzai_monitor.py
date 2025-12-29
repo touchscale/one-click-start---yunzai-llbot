@@ -234,22 +234,26 @@ def check_and_manage_llbot(config):
         if response.status_code == 200:
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {config['http_check']['url']} 可访问...")
             
-            # 检查llbot.exe是否仍在运行
+            # 检查llbot.exe或lucky-lillia-desktop.exe是否仍在运行
             if not config['llbot']['path']:
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: llbot路径未配置")
                 return
                 
             llbot_running = False
+            llbot_process_name = os.path.basename(config['llbot']['path']).lower()
+            # 同时检查原进程名和新进程名
+            possible_names = [llbot_process_name, 'lucky-lillia-desktop.exe']
+            
             for proc in psutil.process_iter(['name']):
-                if proc.info['name'].lower() == os.path.basename(config['llbot']['path']).lower():
+                if proc.info['name'].lower() in possible_names:
                     llbot_running = True
                     break
             
             if llbot_running:
-                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {os.path.basename(config['llbot']['path'])} 进程正在运行...")
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {(llbot_process_name or 'llbot')} 进程正在运行...")
             else:
                 # llbot.exe未运行但网站应该可访问，清理相关进程后重新启动它
-                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {os.path.basename(config['llbot']['path'])} 进程未运行但网站应该可访问，正在清理相关进程并重启...")
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {(llbot_process_name or 'llbot')} 进程未运行但网站应该可访问，正在清理相关进程并重启...")
                 restart_llbot_with_cleanup(config)
         else:
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {config['http_check']['url']} 不可访问，正在终止相关进程并重启llbot...")
