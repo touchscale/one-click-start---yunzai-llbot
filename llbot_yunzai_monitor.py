@@ -33,6 +33,10 @@ DEFAULT_CONFIG = {
     },
     "http_check": {
         "timeout": 5
+    },
+    "auto_restart": {
+        "enabled": True,
+        "respect_manual_stop": True
     }
 }
 
@@ -89,6 +93,13 @@ class EventManager:
         """停止事件处理器"""
         self.running = False
 
+# 全局手动停止状态跟踪 - 记录通过Web界面手动停止的进程
+global_manual_stop_status = {
+    'llbot': False,
+    'yunzai': False,
+    'redis': False
+}
+
 # 全局事件管理器
 event_manager = EventManager()
 
@@ -104,6 +115,13 @@ if flask_available:
         'yunzai': {'running': False, 'pid': None},
         'redis': {'running': False, 'pid': None},
         'http_check': {'accessible': False}
+    }
+    
+    # 手动停止状态跟踪 - 记录通过Web界面手动停止的进程
+    manual_stop_status = {
+        'llbot': False,
+        'yunzai': False,
+        'redis': False
     }
     
     # 存储最近的日志
@@ -443,30 +461,96 @@ if flask_available:
                 if action == 'start':
                     # 启动llbot
                     restart_llbot(current_config)
+                    # 清除手动停止状态
+                    manual_stop_status['llbot'] = False
+                    global global_manual_stop_status
+                    global_manual_stop_status['llbot'] = False
+                    logger.info(f"通过Web界面启动llbot", extra={
+                        'event_type': EventType.PROCESS_START,
+                        'process': 'llbot',
+                        'source': 'web_interface',
+                        'action': 'start'
+                    })
                     return jsonify({'message': 'llbot启动命令已发送'})
                 elif action == 'stop':
                     # 停止llbot
                     terminate_process_by_name(os.path.basename(current_config['llbot']['path']) if current_config.get('llbot', {}).get('path') else 'llbot.exe')
+                    # 设置手动停止状态
+                    manual_stop_status['llbot'] = True
+                    global global_manual_stop_status
+                    global_manual_stop_status['llbot'] = True
+                    logger.info(f"通过Web界面停止llbot", extra={
+                        'event_type': EventType.PROCESS_STOP,
+                        'process': 'llbot',
+                        'source': 'web_interface',
+                        'action': 'stop'
+                    })
                     return jsonify({'message': 'llbot停止命令已发送'})
             elif process == 'yunzai':
                 if action == 'start':
                     # 启动yunzai
                     check_and_manage_yunzai_async(current_config)
+                    # 清除手动停止状态
+                    manual_stop_status['yunzai'] = False
+                    global global_manual_stop_status
+                    global_manual_stop_status['yunzai'] = False
+                    logger.info(f"通过Web界面启动yunzai", extra={
+                        'event_type': EventType.PROCESS_START,
+                        'process': 'yunzai',
+                        'source': 'web_interface',
+                        'action': 'start'
+                    })
                     return jsonify({'message': 'Yunzai启动命令已发送'})
                 elif action == 'stop':
                     # 停止yunzai
                     terminate_process_by_name('git-bash.exe')
+                    # 设置手动停止状态
+                    manual_stop_status['yunzai'] = True
+                    global global_manual_stop_status
+                    global_manual_stop_status['yunzai'] = True
+                    logger.info(f"通过Web界面停止yunzai", extra={
+                        'event_type': EventType.PROCESS_STOP,
+                        'process': 'yunzai',
+                        'source': 'web_interface',
+                        'action': 'stop'
+                    })
                     return jsonify({'message': 'Yunzai停止命令已发送'})
             elif process == 'redis':
                 if action == 'start':
                     # 启动redis
                     check_and_manage_yunzai_async(current_config)  # 这会启动Redis
+                    # 清除手动停止状态
+                    manual_stop_status['redis'] = False
+                    global global_manual_stop_status
+                    global_manual_stop_status['redis'] = False
+                    logger.info(f"通过Web界面启动redis", extra={
+                        'event_type': EventType.PROCESS_START,
+                        'process': 'redis',
+                        'source': 'web_interface',
+                        'action': 'start'
+                    })
                     return jsonify({'message': 'Redis启动命令已发送'})
                 elif action == 'stop':
                     # 停止redis
                     terminate_process_by_name(os.path.basename(current_config['redis']['path']) if current_config.get('redis', {}).get('path') else 'redis-server.exe')
+                    # 设置手动停止状态
+                    manual_stop_status['redis'] = True
+                    global global_manual_stop_status
+                    global_manual_stop_status['redis'] = True
+                    logger.info(f"通过Web界面停止redis", extra={
+                        'event_type': EventType.PROCESS_STOP,
+                        'process': 'redis',
+                        'source': 'web_interface',
+                        'action': 'stop'
+                    })
                     return jsonify({'message': 'Redis停止命令已发送'})
         except Exception as e:
+            logger.error(f"Web界面控制进程失败: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'process': process,
+                'action': action,
+                'error': str(e)
+            })
             return jsonify({'message': f'操作失败: {str(e)}'})
         
         return jsonify({'message': '操作完成'})
@@ -709,6 +793,8 @@ def load_config():
             config['redis'] = {}
         if 'http_check' not in config:
             config['http_check'] = {}
+        if 'auto_restart' not in config:
+            config['auto_restart'] = {}
         
         # 为wait_seconds和timeout设置默认值（如果未提供或为空）
         if 'wait_seconds' not in config['llbot'] or not config['llbot']['wait_seconds']:
@@ -717,6 +803,12 @@ def load_config():
             config['yunzai']['wait_seconds'] = DEFAULT_CONFIG['yunzai'].get('wait_seconds', 5)
         if 'timeout' not in config['http_check'] or not config['http_check']['timeout']:
             config['http_check']['timeout'] = DEFAULT_CONFIG['http_check'].get('timeout', 5)
+        
+        # 为auto_restart设置默认值（如果未提供或为空）
+        if 'enabled' not in config['auto_restart'] or config['auto_restart']['enabled'] is None:
+            config['auto_restart']['enabled'] = DEFAULT_CONFIG['auto_restart'].get('enabled', True)
+        if 'respect_manual_stop' not in config['auto_restart'] or config['auto_restart']['respect_manual_stop'] is None:
+            config['auto_restart']['respect_manual_stop'] = DEFAULT_CONFIG['auto_restart'].get('respect_manual_stop', True)
         
         # 确保其他必要配置项不为空
         if 'path' not in config['llbot']:
@@ -755,6 +847,10 @@ def save_default_config(config_path):
         "http_check": {
             "url": "",
             "timeout": 5
+        },
+        "auto_restart": {
+            "enabled": True,
+            "respect_manual_stop": True
         }
     }
     with open(config_path, 'w', encoding='utf-8') as file:
@@ -959,6 +1055,28 @@ def async_http_check(url, timeout=5):
 def check_and_manage_llbot_async(config):
     """异步检查并管理llbot进程"""
     try:
+        # 检查自动重启配置
+        auto_restart_enabled = config.get('auto_restart', {}).get('enabled', True)
+        respect_manual_stop = config.get('auto_restart', {}).get('respect_manual_stop', True)
+        
+        # 检查是否手动停止了llbot进程
+        # 优先使用全局变量，如果不可用则使用局部变量
+        try:
+            global global_manual_stop_status
+            is_manual_stop = global_manual_stop_status.get('llbot', False)
+        except:
+            is_manual_stop = manual_stop_status.get('llbot', False) if 'manual_stop_status' in globals() else False
+        
+        if respect_manual_stop and auto_restart_enabled and is_manual_stop:
+            logger.debug("llbot被手动停止，跳过自动重启", extra={
+                'event_type': 'debug',
+                'process': 'llbot',
+                'manual_stop': True,
+                'auto_restart_enabled': auto_restart_enabled,
+                'respect_manual_stop': respect_manual_stop
+            })
+            return  # 如果是手动停止且配置为尊重手动停止，则跳过自动重启
+        
         # 检查必要配置项是否为空
         if not config['http_check']['url']:
             logger.warning("HTTP检查地址未配置", extra={'event_type': EventType.WARNING, 'check_type': 'http_url', 'details': '配置中缺少HTTP检查地址，无法进行连通性检查'})
@@ -1284,6 +1402,9 @@ def restart_llbot(config):
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 找到 {process_name}，正在目录中启动: {config['llbot']['directory']}")
             os.chdir(config['llbot']['directory'])
             subprocess.Popen([config['llbot']['path']])
+            # 清除手动停止状态
+            global global_manual_stop_status
+            global_manual_stop_status['llbot'] = False
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {process_name} 启动成功")
         else:
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {process_name} 未找到，请验证路径: {config['llbot']['path']}")
@@ -1294,6 +1415,42 @@ def restart_llbot(config):
 def check_and_manage_yunzai_async(config):
     """异步检查并管理Yunzai进程"""
     try:
+        # 检查自动重启配置
+        auto_restart_enabled = config.get('auto_restart', {}).get('enabled', True)
+        respect_manual_stop = config.get('auto_restart', {}).get('respect_manual_stop', True)
+        
+        # 检查是否手动停止了yunzai或redis进程
+        # 优先使用全局变量，如果不可用则使用局部变量
+        try:
+            global global_manual_stop_status
+            yunzai_manual_stop = global_manual_stop_status.get('yunzai', False)
+            redis_manual_stop = global_manual_stop_status.get('redis', False)
+        except:
+            yunzai_manual_stop = manual_stop_status.get('yunzai', False) if 'manual_stop_status' in globals() else False
+            redis_manual_stop = manual_stop_status.get('redis', False) if 'manual_stop_status' in globals() else False
+        
+        if respect_manual_stop and auto_restart_enabled:
+            if yunzai_manual_stop:
+                logger.debug("yunzai被手动停止，跳过自动重启", extra={
+                    'event_type': 'debug',
+                    'process': 'yunzai',
+                    'manual_stop': True,
+                    'auto_restart_enabled': auto_restart_enabled,
+                    'respect_manual_stop': respect_manual_stop
+                })
+            if redis_manual_stop:
+                logger.debug("redis被手动停止，跳过自动重启", extra={
+                    'event_type': 'debug',
+                    'process': 'redis',
+                    'manual_stop': True,
+                    'auto_restart_enabled': auto_restart_enabled,
+                    'respect_manual_stop': respect_manual_stop
+                })
+            
+            # 如果yunzai和redis都被手动停止，则跳过整个检查
+            if yunzai_manual_stop and redis_manual_stop:
+                return
+        
         # 检查Redis是否运行
         if not config['redis']['path']:
             logger.warning("Redis路径未配置", extra={
@@ -1445,6 +1602,10 @@ def check_and_manage_yunzai_async(config):
                 })
                 
                 time.sleep(3)  # 等待Redis启动
+                # 清除手动停止状态
+                global global_manual_stop_status
+                global_manual_stop_status['redis'] = False
+                
                 logger.info("Redis服务器启动成功", extra={
                     'event_type': EventType.PROCESS_START, 
                     'process_name': redis_process_name,
@@ -1667,6 +1828,10 @@ def check_and_manage_yunzai_async(config):
                     'command': start_command
                 })
                 
+                # 清除手动停止状态
+                global global_manual_stop_status
+                global_manual_stop_status['yunzai'] = False
+                
                 logger.info("Yunzai进程已启动", extra={
                     'event_type': EventType.PROCESS_START, 
                     'process_name': process_name,
@@ -1845,6 +2010,13 @@ def run_monitor_loop(config):
                         current_status['http_check'] = {'accessible': is_accessible}
                     except:
                         current_status['http_check'] = {'accessible': False}
+                
+                # 同步手动停止状态 - 从Flask应用同步到全局变量
+                try:
+                    global global_manual_stop_status
+                    global_manual_stop_status.update(manual_stop_status)
+                except:
+                    pass  # 如果同步失败，继续运行
                 
                 time.sleep(3)  # 每3秒更新一次状态
             except Exception as e:
