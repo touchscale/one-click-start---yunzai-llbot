@@ -139,11 +139,7 @@ def schedule_log_cleanup():
     # 启动清理线程
     cleanup_thread = threading.Thread(target=run_daily_cleanup, daemon=True)
     cleanup_thread.start()
-    logger.info("日志清理任务已调度", extra={
-        'event_type': 'log_cleanup',
-        'action': 'scheduled',
-        'schedule_time': 'daily_at_00:00'
-    })
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 日志清理任务已调度")
 
 def setup_structured_logging():
     """设置结构化日志记录"""
