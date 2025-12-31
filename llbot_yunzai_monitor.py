@@ -15,6 +15,14 @@ import queue
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import glob
 
+# Web界面相关
+try:
+    from flask import Flask, render_template_string, jsonify, request
+    flask_available = True
+except ImportError:
+    flask_available = False
+    print("警告: Flask未安装，Web管理界面功能不可用。请运行 'pip install Flask' 安装。")
+
 # 默认配置
 DEFAULT_CONFIG = {
     "llbot": {
@@ -83,6 +91,407 @@ class EventManager:
 
 # 全局事件管理器
 event_manager = EventManager()
+
+# Web服务器
+if flask_available:
+    # 创建Flask应用
+    app = Flask(__name__)
+    
+    # 存储配置和状态的全局变量
+    current_config = {}
+    current_status = {
+        'llbot': {'running': False, 'pid': None},
+        'yunzai': {'running': False, 'pid': None},
+        'redis': {'running': False, 'pid': None},
+        'http_check': {'accessible': False}
+    }
+    
+    # 存储最近的日志
+    recent_logs = queue.Queue(maxsize=100)
+    
+    def add_log_entry(log_entry):
+        """向日志队列添加日志条目"""
+        try:
+            recent_logs.put(log_entry, block=False)
+        except queue.Full:
+            # 如果队列满了，简单地丢弃最旧的日志条目
+            pass
+    
+    class WebLogHandler(logging.Handler):
+        """自定义日志处理器，用于将日志发送到Web界面"""
+        def emit(self, record):
+            # 使用record的内置方法来获取格式化时间
+            import time
+            timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(record.created))
+            
+            log_entry = {
+                'timestamp': timestamp,
+                'level': record.levelname,
+                'message': record.getMessage(),
+                'module': record.module,
+                'function': record.funcName
+            }
+            add_log_entry(log_entry)
+    
+    # 添加Web日志处理器
+    web_log_handler = WebLogHandler()
+    web_log_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(funcName)s:%(lineno)d - %(message)s'))
+    logging.getLogger().addHandler(web_log_handler)
+    
+    @app.route('/')
+    def index():
+        """主页"""
+        html_template = '''
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>llbot Yunzai 监控系统</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .status-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            background: #fafafa;
+        }
+        .status-card h3 {
+            margin-top: 0;
+            color: #444;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-running {
+            background-color: #4CAF50;
+        }
+        .status-stopped {
+            background-color: #f44336;
+        }
+        .control-buttons {
+            margin: 10px 0;
+        }
+        button {
+            background-color: #008CBA;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #007B9A;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .logs-section {
+            margin-top: 30px;
+        }
+        #logs {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background: #000;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            white-space: pre-wrap;
+        }
+        .log-info { color: #87ceeb; }
+        .log-warning { color: #ffa500; }
+        .log-error { color: #ff6b6b; }
+        .log-debug { color: #98fb98; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>llbot Yunzai 监控系统</h1>
+        
+        <div class="status-grid">
+            <div class="status-card">
+                <h3>llbot 状态</h3>
+                <p><span id="llbot-status-indicator" class="status-indicator status-stopped"></span>
+                <span id="llbot-status">未知</span></p>
+                <div class="control-buttons">
+                    <button onclick="controlProcess('llbot', 'start')">启动 llbot</button>
+                    <button onclick="controlProcess('llbot', 'stop')">停止 llbot</button>
+                </div>
+            </div>
+            
+            <div class="status-card">
+                <h3>Yunzai 状态</h3>
+                <p><span id="yunzai-status-indicator" class="status-indicator status-stopped"></span>
+                <span id="yunzai-status">未知</span></p>
+                <div class="control-buttons">
+                    <button onclick="controlProcess('yunzai', 'start')">启动 Yunzai</button>
+                    <button onclick="controlProcess('yunzai', 'stop')">停止 Yunzai</button>
+                </div>
+            </div>
+            
+            <div class="status-card">
+                <h3>Redis 状态</h3>
+                <p><span id="redis-status-indicator" class="status-indicator status-stopped"></span>
+                <span id="redis-status">未知</span></p>
+                <div class="control-buttons">
+                    <button onclick="controlProcess('redis', 'start')">启动 Redis</button>
+                    <button onclick="controlProcess('redis', 'stop')">停止 Redis</button>
+                </div>
+            </div>
+            
+            <div class="status-card">
+                <h3>HTTP 检查</h3>
+                <p><span id="http-status-indicator" class="status-indicator status-stopped"></span>
+                <span id="http-status">未知</span></p>
+                <div class="control-buttons">
+                    <button onclick="manualHttpCheck()">手动检查</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="logs-section">
+            <h3>实时日志</h3>
+            <div id="logs"></div>
+        </div>
+    </div>
+
+    <script>
+        // 自动更新状态
+        function updateStatus() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    updateProcessStatus('llbot', data.llbot);
+                    updateProcessStatus('yunzai', data.yunzai);
+                    updateProcessStatus('redis', data.redis);
+                    
+                    const httpStatus = document.getElementById('http-status');
+                    const httpIndicator = document.getElementById('http-status-indicator');
+                    
+                    if (data.http_check.accessible) {
+                        httpStatus.textContent = '可访问';
+                        httpIndicator.className = 'status-indicator status-running';
+                    } else {
+                        httpStatus.textContent = '不可访问';
+                        httpIndicator.className = 'status-indicator status-stopped';
+                    }
+                })
+                .catch(error => console.error('获取状态失败:', error));
+        }
+        
+        function updateProcessStatus(process, status) {
+            const statusElement = document.getElementById(process + '-status');
+            const indicatorElement = document.getElementById(process + '-status-indicator');
+            
+            if (status.running) {
+                statusElement.textContent = '运行中 (PID: ' + status.pid + ')';
+                indicatorElement.className = 'status-indicator status-running';
+            } else {
+                statusElement.textContent = '已停止';
+                indicatorElement.className = 'status-indicator status-stopped';
+            }
+        }
+        
+        // 更新日志
+        function updateLogs() {
+            fetch('/api/logs')
+                .then(response => response.json())
+                .then(data => {
+                    const logsDiv = document.getElementById('logs');
+                    logsDiv.innerHTML = '';
+                    
+                    data.logs.forEach(log => {
+                        const logElement = document.createElement('div');
+                        logElement.className = 'log-entry log-' + log.level.toLowerCase();
+                        logElement.textContent = log.timestamp + ' [' + log.level + '] ' + log.module + ':' + log.function + ' - ' + log.message;
+                        logsDiv.appendChild(logElement);
+                    });
+                    
+                    // 滚动到最新日志
+                    logsDiv.scrollTop = logsDiv.scrollHeight;
+                })
+                .catch(error => console.error('获取日志失败:', error));
+        }
+        
+        // 控制进程
+        function controlProcess(process, action) {
+            fetch('/api/control', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    process: process,
+                    action: action
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                updateStatus();
+            })
+            .catch(error => {
+                alert('操作失败: ' + error);
+            });
+        }
+        
+        // 手动HTTP检查
+        function manualHttpCheck() {
+            fetch('/api/manual-check', {
+                method: 'POST',
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                updateStatus();
+            })
+            .catch(error => {
+                alert('检查失败: ' + error);
+            });
+        }
+        
+        // 定期更新
+        setInterval(updateStatus, 5000);  // 每5秒更新一次状态
+        setInterval(updateLogs, 2000);    // 每2秒更新一次日志
+        
+        // 初始加载
+        updateStatus();
+        updateLogs();
+    </script>
+</body>
+</html>
+        '''
+        return render_template_string(html_template)
+    
+    @app.route('/api/status')
+    def api_status():
+        """获取当前状态"""
+        return jsonify(current_status)
+    
+    @app.route('/api/logs')
+    def api_logs():
+        """获取最近的日志"""
+        logs = []
+        temp_list = []
+        while not recent_logs.empty():
+            try:
+                log_entry = recent_logs.get_nowait()
+                temp_list.append(log_entry)
+                logs.append(log_entry)
+            except queue.Empty:
+                break
+        
+        # 重新放回队列
+        for item in temp_list:
+            try:
+                recent_logs.put(item, block=False)
+            except queue.Full:
+                pass
+        
+        # 只返回最近的50条日志
+        logs = logs[-50:] if len(logs) > 50 else logs
+        return jsonify({'logs': logs})
+    
+    @app.route('/api/control', methods=['POST'])
+    def api_control():
+        """控制进程"""
+        data = request.get_json()
+        process = data.get('process')
+        action = data.get('action')
+        
+        try:
+            if process == 'llbot':
+                if action == 'start':
+                    # 启动llbot
+                    restart_llbot(current_config)
+                    return jsonify({'message': 'llbot启动命令已发送'})
+                elif action == 'stop':
+                    # 停止llbot
+                    terminate_process_by_name(os.path.basename(current_config['llbot']['path']) if current_config.get('llbot', {}).get('path') else 'llbot.exe')
+                    return jsonify({'message': 'llbot停止命令已发送'})
+            elif process == 'yunzai':
+                if action == 'start':
+                    # 启动yunzai
+                    check_and_manage_yunzai_async(current_config)
+                    return jsonify({'message': 'Yunzai启动命令已发送'})
+                elif action == 'stop':
+                    # 停止yunzai
+                    terminate_process_by_name('git-bash.exe')
+                    return jsonify({'message': 'Yunzai停止命令已发送'})
+            elif process == 'redis':
+                if action == 'start':
+                    # 启动redis
+                    check_and_manage_yunzai_async(current_config)  # 这会启动Redis
+                    return jsonify({'message': 'Redis启动命令已发送'})
+                elif action == 'stop':
+                    # 停止redis
+                    terminate_process_by_name(os.path.basename(current_config['redis']['path']) if current_config.get('redis', {}).get('path') else 'redis-server.exe')
+                    return jsonify({'message': 'Redis停止命令已发送'})
+        except Exception as e:
+            return jsonify({'message': f'操作失败: {str(e)}'})
+        
+        return jsonify({'message': '操作完成'})
+    
+    @app.route('/api/manual-check', methods=['POST'])
+    def api_manual_check():
+        """手动HTTP检查"""
+        try:
+            if current_config.get('http_check', {}).get('url'):
+                result = async_http_check(current_config['http_check']['url'], current_config['http_check'].get('timeout', 5))
+                return jsonify({'message': f'HTTP检查完成，结果: {"成功" if result else "失败"}'})
+            else:
+                return jsonify({'message': 'HTTP检查URL未配置'})
+        except Exception as e:
+            return jsonify({'message': f'HTTP检查失败: {str(e)}'})
+
+    def start_web_server(host='127.0.0.1', port=5000):
+        """启动Web服务器"""
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Web管理界面启动在 http://{host}:{port}")
+        logger.info(f"Web管理界面启动", extra={
+            'event_type': 'web_server',
+            'action': 'started',
+            'address': f'http://{host}:{port}'
+        })
+        app.run(host=host, port=port, debug=False, use_reloader=False)
 
 def clean_old_log_files():
     """清理超过一天的旧日志文件"""
@@ -1385,6 +1794,67 @@ def check_and_manage_yunzai_async(config):
 
 def run_monitor_loop(config):
     """运行监控循环 - 使用多线程并行监控"""
+    def update_status_periodically():
+        """定期更新状态信息"""
+        while getattr(run_monitor_loop, 'running', True):
+            try:
+                # 检查llbot进程状态
+                if config['llbot'].get('path'):
+                    llbot_process_name = os.path.basename(config['llbot']['path']).lower()
+                    possible_names = [llbot_process_name, 'lucky-lillia-desktop.exe']
+                    
+                    llbot_running = False
+                    llbot_pid = None
+                    for proc in psutil.process_iter(['name', 'pid']):
+                        if proc.info['name'].lower() in possible_names:
+                            llbot_running = True
+                            llbot_pid = proc.info['pid']
+                            break
+                    
+                    current_status['llbot'] = {'running': llbot_running, 'pid': llbot_pid}
+                
+                # 检查yunzai进程状态 (git-bash.exe)
+                yunzai_running = False
+                yunzai_pid = None
+                for proc in psutil.process_iter(['name', 'pid']):
+                    if proc.info['name'].lower() == 'git-bash.exe':
+                        yunzai_running = True
+                        yunzai_pid = proc.info['pid']
+                        break
+                
+                current_status['yunzai'] = {'running': yunzai_running, 'pid': yunzai_pid}
+                
+                # 检查redis进程状态
+                if config['redis'].get('path'):
+                    redis_process_name = os.path.basename(config['redis']['path']).lower()
+                    
+                    redis_running = False
+                    redis_pid = None
+                    for proc in psutil.process_iter(['name', 'pid']):
+                        if proc.info['name'].lower() == redis_process_name:
+                            redis_running = True
+                            redis_pid = proc.info['pid']
+                            break
+                    
+                    current_status['redis'] = {'running': redis_running, 'pid': redis_pid}
+                
+                # 检查HTTP状态
+                if config['http_check'].get('url'):
+                    try:
+                        is_accessible = async_http_check(config['http_check']['url'], config['http_check'].get('timeout', 5))
+                        current_status['http_check'] = {'accessible': is_accessible}
+                    except:
+                        current_status['http_check'] = {'accessible': False}
+                
+                time.sleep(3)  # 每3秒更新一次状态
+            except Exception as e:
+                logger.error(f"更新状态时出错: {str(e)}", extra={
+                    'event_type': EventType.ERROR,
+                    'error': str(e),
+                    'error_type': 'status_update_error'
+                })
+                time.sleep(5)
+    
     def llbot_monitor():
         """llbot监控线程"""
         while getattr(run_monitor_loop, 'running', True):
@@ -1438,9 +1908,16 @@ def run_monitor_loop(config):
     # 启动监控线程
     llbot_thread = threading.Thread(target=llbot_monitor, daemon=True)
     yunzai_thread = threading.Thread(target=yunzai_monitor, daemon=True)
+    status_thread = threading.Thread(target=update_status_periodically, daemon=True)
     
     llbot_thread.start()
     yunzai_thread.start()
+    status_thread.start()
+    
+    # 启动Web服务器（如果Flask可用）
+    if flask_available:
+        web_thread = threading.Thread(target=start_web_server, daemon=True)
+        web_thread.start()
     
     # 保持主线程运行
     try:
@@ -1476,6 +1953,11 @@ def main():
             'action': 'load_config_start'
         })
         config = load_config()
+        
+        # 更新全局配置变量
+        global current_config
+        current_config = config
+        
         logger.info("配置加载完成", extra={
             'event_type': EventType.CONFIG_LOAD,
             'action': 'load_config_complete',
