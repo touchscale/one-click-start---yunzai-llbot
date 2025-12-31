@@ -4,3 +4,5 @@ config.yaml
 *.config.yaml
 config.yaml.bak
 config.yaml~
+logs
+__pycache__
