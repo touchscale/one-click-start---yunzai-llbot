@@ -331,28 +331,81 @@ def check_admin():
 def terminate_process_by_name(process_name):
     """通过名称终止进程"""
     try:
+        start_time = time.time()
         terminated_pids = []
-        for proc in psutil.process_iter(['pid', 'name']):
+        searched_processes = []
+        
+        for proc in psutil.process_iter(['pid', 'name', 'create_time', 'exe']):
+            current_process_info = {
+                'pid': proc.info['pid'],
+                'name': proc.info['name'],
+                'create_time': datetime.fromtimestamp(proc.info['create_time']).isoformat() if proc.info['create_time'] else 'unknown',
+                'exe': proc.info['exe'] if proc.info['exe'] else 'unknown'
+            }
+            searched_processes.append(current_process_info)
+            
             if proc.info['name'].lower() == process_name.lower():
                 pid = proc.info['pid']
-                logger.info(f"终止进程 {process_name} (PID: {pid})", extra={'event_type': EventType.PROCESS_STOP, 'process_name': process_name, 'pid': pid})
+                logger.info(f"终止进程 {process_name} (PID: {pid})", extra={
+                    'event_type': EventType.PROCESS_STOP, 
+                    'process_name': process_name, 
+                    'pid': pid,
+                    'create_time': current_process_info['create_time'],
+                    'exe': current_process_info['exe']
+                })
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 正在终止进程 {process_name} (PID: {pid})")
                 proc.kill()
                 terminated_pids.append(pid)
-                
+        
+        end_time = time.time()
+        search_duration = end_time - start_time
+        
         if terminated_pids:
-            logger.info(f"成功终止进程 {process_name}", extra={'event_type': EventType.PROCESS_STOP, 'process_name': process_name, 'pids': terminated_pids})
+            logger.info(f"成功终止进程 {process_name}", extra={
+                'event_type': EventType.PROCESS_STOP, 
+                'process_name': process_name, 
+                'pids': terminated_pids,
+                'terminated_count': len(terminated_pids),
+                'search_duration': f"{search_duration:.3f}s",
+                'total_processes_searched': len(searched_processes)
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 成功终止进程 {process_name} (PIDs: {terminated_pids})")
         else:
-            logger.info(f"未找到进程 {process_name}", extra={'event_type': EventType.PROCESS_CHECK, 'process_name': process_name})
+            logger.info(f"未找到进程 {process_name}", extra={
+                'event_type': EventType.PROCESS_CHECK, 
+                'process_name': process_name,
+                'search_duration': f"{search_duration:.3f}s",
+                'total_processes_searched': len(searched_processes),
+                'processes_found': [p['name'] for p in searched_processes[:10]]  # 只记录前10个找到的进程名
+            })
     except psutil.AccessDenied as e:
-        logger.error(f"访问被拒绝，无法终止进程 {process_name}: {str(e)}", extra={'event_type': EventType.ERROR, 'process_name': process_name, 'error': str(e), 'error_type': 'access_denied'})
+        logger.error(f"访问被拒绝，无法终止进程 {process_name}: {str(e)}", extra={
+            'event_type': EventType.ERROR, 
+            'process_name': process_name, 
+            'error': str(e), 
+            'error_type': 'access_denied',
+            'error_class': type(e).__name__,
+            'suggestion': '请以管理员权限运行脚本'
+        })
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 访问被拒绝，无法终止进程 {process_name}: {str(e)}")
     except psutil.NoSuchProcess as e:
-        logger.warning(f"进程不存在，无法终止 {process_name}: {str(e)}", extra={'event_type': EventType.WARNING, 'process_name': process_name, 'error': str(e), 'error_type': 'no_such_process'})
+        logger.warning(f"进程不存在，无法终止 {process_name}: {str(e)}", extra={
+            'event_type': EventType.WARNING, 
+            'process_name': process_name, 
+            'error': str(e), 
+            'error_type': 'no_such_process',
+            'error_class': type(e).__name__
+        })
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 进程不存在，无法终止 {process_name}: {str(e)}")
     except Exception as e:
-        logger.error(f"终止进程 {process_name} 时出错: {str(e)}", extra={'event_type': EventType.ERROR, 'process_name': process_name, 'error': str(e), 'error_type': 'terminate_error'})
+        logger.error(f"终止进程 {process_name} 时出错: {str(e)}", extra={
+            'event_type': EventType.ERROR, 
+            'process_name': process_name, 
+            'error': str(e), 
+            'error_type': 'terminate_error',
+            'error_class': type(e).__name__,
+            'traceback': __import__('traceback').format_exc()
+        })
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 终止进程 {process_name} 时出错: {str(e)}")
 
 def terminate_processes_by_powershell(names):
@@ -374,11 +427,43 @@ def terminate_processes_by_powershell(names):
 def async_http_check(url, timeout=5):
     """使用线程池异步HTTP检查函数"""
     def check():
+        start_time = time.time()
         try:
+            logger.debug(f"开始HTTP检查", extra={
+                'event_type': 'debug',
+                'url': url,
+                'timeout': timeout,
+                'start_time': datetime.fromtimestamp(start_time).isoformat()
+            })
+            
             response = requests.get(url, timeout=timeout)
-            return response.status_code == 200
-        except Exception:
-            return False
+            end_time = time.time()
+            response_time = end_time - start_time
+            
+            result = response.status_code == 200
+            logger.debug(f"HTTP检查完成", extra={
+                'event_type': 'debug',
+                'url': url,
+                'status_code': response.status_code,
+                'response_time': f"{response_time:.3f}s",
+                'result': result,
+                'end_time': datetime.fromtimestamp(end_time).isoformat()
+            })
+            
+            return result
+        except Exception as e:
+            end_time = time.time()
+            response_time = end_time - start_time
+            
+            logger.debug(f"HTTP检查异常", extra={
+                'event_type': 'debug',
+                'url': url,
+                'response_time': f"{response_time:.3f}s",
+                'error_type': type(e).__name__,
+                'error': str(e),
+                'end_time': datetime.fromtimestamp(end_time).isoformat()
+            })
+            raise  # 重新抛出异常，让调用者处理
     
     # 使用线程池运行HTTP请求，避免阻塞主线程
     with ThreadPoolExecutor(max_workers=1) as executor:
@@ -386,7 +471,14 @@ def async_http_check(url, timeout=5):
         try:
             result = future.result(timeout=timeout+2)  # 设置额外超时
             return result
-        except:
+        except Exception as e:
+            logger.warning(f"HTTP检查执行超时或出错", extra={
+                'event_type': EventType.WARNING,
+                'url': url,
+                'error_type': type(e).__name__,
+                'error': str(e),
+                'timeout_setting': timeout+2
+            })
             return False
 
 def check_and_manage_llbot_async(config):
@@ -394,71 +486,127 @@ def check_and_manage_llbot_async(config):
     try:
         # 检查必要配置项是否为空
         if not config['http_check']['url']:
-            logger.warning("HTTP检查地址未配置", extra={'event_type': EventType.WARNING, 'check_type': 'http_url'})
+            logger.warning("HTTP检查地址未配置", extra={'event_type': EventType.WARNING, 'check_type': 'http_url', 'details': '配置中缺少HTTP检查地址，无法进行连通性检查'})
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: HTTP检查地址未配置")
             event_manager.publish(EventType.WARNING, {
                 'message': 'HTTP检查地址未配置',
-                'config_item': 'http_url'
+                'config_item': 'http_url',
+                'details': '配置中缺少HTTP检查地址，无法进行连通性检查'
             })
             return
         
         # 异步检查http://localhost:3080是否可访问
         try:
+            start_time = time.time()
             is_accessible = async_http_check(config['http_check']['url'], config['http_check']['timeout'])
-        except requests.exceptions.Timeout:
-            logger.warning(f"HTTP检查超时: {config['http_check']['url']}", extra={'event_type': EventType.WARNING, 'url': config['http_check']['url'], 'error_type': 'timeout'})
+            end_time = time.time()
+            response_time = end_time - start_time
+            
+            logger.info(f"HTTP检查完成", extra={
+                'event_type': EventType.HTTP_CHECK, 
+                'url': config['http_check']['url'], 
+                'status': 'success' if is_accessible else 'failure',
+                'response_time': f"{response_time:.3f}s",
+                'timeout': config['http_check']['timeout']
+            })
+        except requests.exceptions.Timeout as e:
+            logger.warning(f"HTTP检查超时: {config['http_check']['url']}", extra={
+                'event_type': EventType.WARNING, 
+                'url': config['http_check']['url'], 
+                'error_type': 'timeout',
+                'timeout_seconds': config['http_check']['timeout'],
+                'error_details': str(e),
+                'timestamp': time.time()
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] HTTP检查超时: {config['http_check']['url']}")
             event_manager.publish(EventType.WARNING, {
                 'message': f'HTTP检查超时: {config['http_check']['url']}',
                 'url': config['http_check']['url'],
-                'error_type': 'timeout'
+                'error_type': 'timeout',
+                'timeout_seconds': config['http_check']['timeout'],
+                'error_details': str(e)
             })
             restart_llbot_with_cleanup(config)
             return
-        except requests.exceptions.ConnectionError:
-            logger.warning(f"HTTP连接错误: {config['http_check']['url']}", extra={'event_type': EventType.WARNING, 'url': config['http_check']['url'], 'error_type': 'connection_error'})
+        except requests.exceptions.ConnectionError as e:
+            logger.warning(f"HTTP连接错误: {config['http_check']['url']}", extra={
+                'event_type': EventType.WARNING, 
+                'url': config['http_check']['url'], 
+                'error_type': 'connection_error',
+                'error_details': str(e),
+                'timestamp': time.time()
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] HTTP连接错误: {config['http_check']['url']}")
             event_manager.publish(EventType.WARNING, {
                 'message': f'HTTP连接错误: {config['http_check']['url']}',
                 'url': config['http_check']['url'],
-                'error_type': 'connection_error'
+                'error_type': 'connection_error',
+                'error_details': str(e)
             })
             restart_llbot_with_cleanup(config)
             return
         except requests.exceptions.RequestException as e:
-            logger.error(f"HTTP请求异常: {str(e)}", extra={'event_type': EventType.ERROR, 'url': config['http_check']['url'], 'error_type': 'request_error', 'error': str(e)})
+            logger.error(f"HTTP请求异常: {str(e)}", extra={
+                'event_type': EventType.ERROR, 
+                'url': config['http_check']['url'], 
+                'error_type': 'request_error', 
+                'error': str(e),
+                'error_class': type(e).__name__,
+                'timestamp': time.time()
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] HTTP请求异常: {str(e)}")
             event_manager.publish(EventType.ERROR, {
                 'message': f'HTTP请求异常: {str(e)}',
                 'url': config['http_check']['url'],
                 'error_type': 'request_error',
-                'error': str(e)
+                'error': str(e),
+                'error_class': type(e).__name__
             })
             restart_llbot_with_cleanup(config)
             return
         except Exception as e:
-            logger.error(f"HTTP检查未知错误: {str(e)}", extra={'event_type': EventType.ERROR, 'url': config['http_check']['url'], 'error_type': 'unknown_error', 'error': str(e)})
+            logger.error(f"HTTP检查未知错误: {str(e)}", extra={
+                'event_type': EventType.ERROR, 
+                'url': config['http_check']['url'], 
+                'error_type': 'unknown_error', 
+                'error': str(e),
+                'error_class': type(e).__name__,
+                'traceback': __import__('traceback').format_exc(),
+                'timestamp': time.time()
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] HTTP检查未知错误: {str(e)}")
             event_manager.publish(EventType.ERROR, {
                 'message': f'HTTP检查未知错误: {str(e)}',
                 'url': config['http_check']['url'],
                 'error_type': 'unknown_error',
-                'error': str(e)
+                'error': str(e),
+                'error_class': type(e).__name__,
+                'traceback': __import__('traceback').format_exc()
             })
             restart_llbot_with_cleanup(config)
             return
         
         if is_accessible:
-            logger.info(f"HTTP检查成功: {config['http_check']['url']}", extra={'event_type': EventType.HTTP_CHECK, 'url': config['http_check']['url'], 'status': 'success'})
+            logger.info(f"HTTP检查成功: {config['http_check']['url']}", extra={
+                'event_type': EventType.HTTP_CHECK, 
+                'url': config['http_check']['url'], 
+                'status': 'success',
+                'response_time': f"{response_time:.3f}s"
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {config['http_check']['url']} 可访问...")
             event_manager.publish(EventType.HTTP_CHECK, {
                 'url': config['http_check']['url'],
-                'status': 'success'
+                'status': 'success',
+                'response_time': f"{response_time:.3f}s"
             })
             
             # 检查llbot.exe或lucky-lillia-desktop.exe是否仍在运行
             if not config['llbot']['path']:
-                logger.warning("llbot路径未配置", extra={'event_type': EventType.WARNING, 'check_type': 'llbot_path'})
+                logger.warning("llbot路径未配置", extra={
+                    'event_type': EventType.WARNING, 
+                    'check_type': 'llbot_path',
+                    'details': '配置中缺少llbot可执行文件路径，无法检查进程状态'
+                })
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: llbot路径未配置")
                 return
                 
@@ -468,73 +616,151 @@ def check_and_manage_llbot_async(config):
                 # 同时检查原进程名和新进程名
                 possible_names = [llbot_process_name, 'lucky-lillia-desktop.exe']
                 
-                for proc in psutil.process_iter(['name']):
+                # 记录正在搜索的进程名称
+                logger.debug(f"搜索进程: {possible_names}", extra={
+                    'event_type': 'debug', 
+                    'process_names': possible_names,
+                    'search_path': config['llbot']['path']
+                })
+                
+                found_processes = []
+                for proc in psutil.process_iter(['name', 'pid', 'create_time']):
                     if proc.info['name'].lower() in possible_names:
                         llbot_running = True
-                        break
+                        found_processes.append({
+                            'name': proc.info['name'],
+                            'pid': proc.info['pid'],
+                            'create_time': datetime.fromtimestamp(proc.info['create_time']).isoformat()
+                        })
                 
                 if llbot_running:
-                    logger.info(f"llbot进程正在运行", extra={'event_type': EventType.PROCESS_CHECK, 'process_name': llbot_process_name, 'status': 'running'})
+                    logger.info(f"llbot进程正在运行", extra={
+                        'event_type': EventType.PROCESS_CHECK, 
+                        'process_name': llbot_process_name, 
+                        'status': 'running',
+                        'found_processes': found_processes,
+                        'count': len(found_processes)
+                    })
                     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {(llbot_process_name or 'llbot')} 进程正在运行...")
                     event_manager.publish(EventType.PROCESS_CHECK, {
                         'process_name': llbot_process_name,
-                        'status': 'running'
+                        'status': 'running',
+                        'found_processes': found_processes,
+                        'count': len(found_processes)
                     })
                 else:
                     # llbot.exe未运行但网站应该可访问，清理相关进程后重新启动它
-                    logger.warning("llbot进程未运行但网站可访问，正在重启", extra={'event_type': EventType.WARNING, 'process_name': llbot_process_name})
+                    logger.warning("llbot进程未运行但网站可访问，正在重启", extra={
+                        'event_type': EventType.WARNING, 
+                        'process_name': llbot_process_name,
+                        'details': '进程未运行但HTTP服务可访问，需要重启服务',
+                        'config_path': config['llbot']['path'],
+                        'config_directory': config['llbot']['directory']
+                    })
                     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {(llbot_process_name or 'llbot')} 进程未运行但网站应该可访问，正在清理相关进程并重启...")
                     event_manager.publish(EventType.WARNING, {
                         'message': 'llbot进程未运行但网站可访问，正在重启',
-                        'process_name': llbot_process_name
+                        'process_name': llbot_process_name,
+                        'config_path': config['llbot']['path'],
+                        'config_directory': config['llbot']['directory']
                     })
                     restart_llbot_with_cleanup(config)
-            except psutil.AccessDenied:
-                logger.error("访问进程信息被拒绝，可能需要管理员权限", extra={'event_type': EventType.ERROR, 'error_type': 'access_denied'})
+            except psutil.AccessDenied as e:
+                logger.error("访问进程信息被拒绝，可能需要管理员权限", extra={
+                    'event_type': EventType.ERROR, 
+                    'error_type': 'access_denied',
+                    'error_details': str(e),
+                    'process_name': llbot_process_name if 'llbot_process_name' in locals() else 'unknown',
+                    'suggestion': '请以管理员权限运行脚本'
+                })
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 访问进程信息被拒绝，可能需要管理员权限")
                 event_manager.publish(EventType.ERROR, {
                     'message': '访问进程信息被拒绝',
-                    'error_type': 'access_denied'
+                    'error_type': 'access_denied',
+                    'error_details': str(e),
+                    'process_name': llbot_process_name if 'llbot_process_name' in locals() else 'unknown',
+                    'suggestion': '请以管理员权限运行脚本'
                 })
-            except psutil.NoSuchProcess:
-                logger.warning("尝试访问不存在的进程", extra={'event_type': EventType.WARNING, 'error_type': 'no_such_process'})
+            except psutil.NoSuchProcess as e:
+                logger.warning("尝试访问不存在的进程", extra={
+                    'event_type': EventType.WARNING, 
+                    'error_type': 'no_such_process',
+                    'error_details': str(e),
+                    'process_name': llbot_process_name if 'llbot_process_name' in locals() else 'unknown'
+                })
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试访问不存在的进程")
                 event_manager.publish(EventType.WARNING, {
                     'message': '尝试访问不存在的进程',
-                    'error_type': 'no_such_process'
+                    'error_type': 'no_such_process',
+                    'error_details': str(e),
+                    'process_name': llbot_process_name if 'llbot_process_name' in locals() else 'unknown'
                 })
             except Exception as e:
-                logger.error(f"检查llbot进程时发生错误: {str(e)}", extra={'event_type': EventType.ERROR, 'error_type': 'process_check_error', 'error': str(e)})
+                logger.error(f"检查llbot进程时发生错误: {str(e)}", extra={
+                    'event_type': EventType.ERROR, 
+                    'error_type': 'process_check_error', 
+                    'error': str(e),
+                    'error_class': type(e).__name__,
+                    'traceback': __import__('traceback').format_exc(),
+                    'process_name': llbot_process_name if 'llbot_process_name' in locals() else 'unknown'
+                })
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 检查llbot进程时发生错误: {str(e)}")
                 event_manager.publish(EventType.ERROR, {
                     'message': f'检查llbot进程时发生错误: {str(e)}',
                     'error_type': 'process_check_error',
-                    'error': str(e)
+                    'error': str(e),
+                    'error_class': type(e).__name__,
+                    'traceback': __import__('traceback').format_exc()
                 })
         else:
-            logger.warning(f"HTTP检查失败: {config['http_check']['url']}", extra={'event_type': EventType.HTTP_CHECK, 'url': config['http_check']['url'], 'status': 'failure'})
+            logger.warning(f"HTTP检查失败: {config['http_check']['url']}", extra={
+                'event_type': EventType.HTTP_CHECK, 
+                'url': config['http_check']['url'], 
+                'status': 'failure',
+                'response_time': f"{response_time:.3f}s",
+                'action_taken': 'restart_llbot_with_cleanup'
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {config['http_check']['url']} 不可访问，正在终止相关进程并重启llbot...")
             event_manager.publish(EventType.HTTP_CHECK, {
                 'url': config['http_check']['url'],
-                'status': 'failure'
+                'status': 'failure',
+                'response_time': f"{response_time:.3f}s",
+                'action_taken': 'restart_llbot_with_cleanup'
             })
             restart_llbot_with_cleanup(config)
     except KeyError as e:
-        logger.error(f"配置错误: 缺少必需的配置项 {e}", extra={'event_type': EventType.ERROR, 'error_type': 'config_error', 'missing_key': str(e)})
+        logger.error(f"配置错误: 缺少必需的配置项 {e}", extra={
+            'event_type': EventType.ERROR, 
+            'error_type': 'config_error', 
+            'missing_key': str(e),
+            'available_keys': list(config.keys()) if 'config' in locals() else [],
+            'traceback': __import__('traceback').format_exc()
+        })
         event_manager.publish(EventType.ERROR, {
             'message': f'配置错误: 缺少必需的配置项 {e}',
             'missing_key': str(e),
-            'error_type': 'config_error'
+            'error_type': 'config_error',
+            'available_keys': list(config.keys()) if 'config' in locals() else [],
+            'traceback': __import__('traceback').format_exc()
         })
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 配置错误: 缺少必需的配置项 {e}")
         raise
     except Exception as e:
-        logger.error(f"检查llbot时发生未知错误: {str(e)}", extra={'event_type': EventType.ERROR, 'error_type': 'unknown_error', 'error': str(e)})
+        logger.error(f"检查llbot时发生未知错误: {str(e)}", extra={
+            'event_type': EventType.ERROR, 
+            'error_type': 'unknown_error', 
+            'error': str(e),
+            'error_class': type(e).__name__,
+            'traceback': __import__('traceback').format_exc(),
+            'config_keys': list(config.keys()) if 'config' in locals() else []
+        })
         event_manager.publish(EventType.ERROR, {
             'message': f'检查llbot时发生未知错误: {str(e)}',
             'process': 'llbot',
             'error_type': 'unknown_error',
-            'error': str(e)
+            'error': str(e),
+            'error_class': type(e).__name__,
+            'traceback': __import__('traceback').format_exc()
         })
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 检查llbot时发生未知错误: {str(e)}")
         raise
@@ -595,115 +821,234 @@ def check_and_manage_yunzai_async(config):
     try:
         # 检查Redis是否运行
         if not config['redis']['path']:
-            logger.warning("Redis路径未配置", extra={'event_type': EventType.WARNING, 'check_type': 'redis_path'})
+            logger.warning("Redis路径未配置", extra={
+                'event_type': EventType.WARNING, 
+                'check_type': 'redis_path',
+                'details': '配置中缺少Redis可执行文件路径，无法检查Redis进程状态'
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: Redis路径未配置")
             event_manager.publish(EventType.WARNING, {
                 'message': 'Redis路径未配置',
-                'config_item': 'redis_path'
+                'config_item': 'redis_path',
+                'details': '配置中缺少Redis可执行文件路径，无法检查Redis进程状态'
             })
             return
             
         try:
             redis_running = False
             redis_process_name = os.path.basename(config['redis']['path'])
-            for proc in psutil.process_iter(['name']):
+            
+            # 记录正在搜索的Redis进程
+            logger.debug(f"搜索Redis进程: {redis_process_name}", extra={
+                'event_type': 'debug', 
+                'process_name': redis_process_name,
+                'search_path': config['redis']['path']
+            })
+            
+            found_redis_processes = []
+            for proc in psutil.process_iter(['name', 'pid', 'create_time']):
                 if proc.info['name'].lower() == redis_process_name.lower():
                     redis_running = True
-                    break
-        except psutil.AccessDenied:
-            logger.error("访问Redis进程信息被拒绝", extra={'event_type': EventType.ERROR, 'process_name': redis_process_name, 'error_type': 'access_denied'})
+                    found_redis_processes.append({
+                        'name': proc.info['name'],
+                        'pid': proc.info['pid'],
+                        'create_time': datetime.fromtimestamp(proc.info['create_time']).isoformat()
+                    })
+        except psutil.AccessDenied as e:
+            logger.error("访问Redis进程信息被拒绝", extra={
+                'event_type': EventType.ERROR, 
+                'process_name': redis_process_name, 
+                'error_type': 'access_denied',
+                'error_details': str(e),
+                'suggestion': '请以管理员权限运行脚本'
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 访问Redis进程信息被拒绝")
             event_manager.publish(EventType.ERROR, {
                 'message': '访问Redis进程信息被拒绝',
                 'process_name': redis_process_name,
-                'error_type': 'access_denied'
+                'error_type': 'access_denied',
+                'error_details': str(e),
+                'suggestion': '请以管理员权限运行脚本'
             })
             redis_running = False  # 假设Redis未运行
-        except psutil.NoSuchProcess:
-            logger.warning("Redis进程不存在", extra={'event_type': EventType.WARNING, 'process_name': redis_process_name, 'error_type': 'no_such_process'})
+        except psutil.NoSuchProcess as e:
+            logger.warning("Redis进程不存在", extra={
+                'event_type': EventType.WARNING, 
+                'process_name': redis_process_name, 
+                'error_type': 'no_such_process',
+                'error_details': str(e)
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Redis进程不存在")
             event_manager.publish(EventType.WARNING, {
                 'message': 'Redis进程不存在',
                 'process_name': redis_process_name,
-                'error_type': 'no_such_process'
+                'error_type': 'no_such_process',
+                'error_details': str(e)
             })
             redis_running = False
         except Exception as e:
-            logger.error(f"检查Redis进程时出错: {str(e)}", extra={'event_type': EventType.ERROR, 'process_name': redis_process_name, 'error': str(e), 'error_type': 'process_check_error'})
+            logger.error(f"检查Redis进程时出错: {str(e)}", extra={
+                'event_type': EventType.ERROR, 
+                'process_name': redis_process_name, 
+                'error': str(e), 
+                'error_type': 'process_check_error',
+                'error_class': type(e).__name__,
+                'traceback': __import__('traceback').format_exc()
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 检查Redis进程时出错: {str(e)}")
             event_manager.publish(EventType.ERROR, {
                 'message': f'检查Redis进程时出错: {str(e)}',
                 'process_name': redis_process_name,
                 'error': str(e),
-                'error_type': 'process_check_error'
+                'error_type': 'process_check_error',
+                'error_class': type(e).__name__,
+                'traceback': __import__('traceback').format_exc()
             })
             redis_running = False  # 假设Redis未运行
         
         if not redis_running:
-            logger.info(f"Redis未运行，正在启动: {redis_process_name}", extra={'event_type': EventType.PROCESS_START, 'process_name': redis_process_name})
+            logger.info(f"Redis未运行，正在启动: {redis_process_name}", extra={
+                'event_type': EventType.PROCESS_START, 
+                'process_name': redis_process_name,
+                'action': 'start_redis',
+                'config_path': config['redis']['path'],
+                'status_before': 'not_running'
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {redis_process_name} 未运行，正在启动Redis服务器...")
             event_manager.publish(EventType.PROCESS_START, {
                 'process_name': redis_process_name,
-                'action': 'start_redis'
+                'action': 'start_redis',
+                'config_path': config['redis']['path'],
+                'status_before': 'not_running'
             })
             try:
                 redis_dir = os.path.dirname(config['redis']['path'])
                 if not os.path.exists(redis_dir):
-                    logger.error(f"Redis目录不存在: {redis_dir}", extra={'event_type': EventType.ERROR, 'redis_dir': redis_dir, 'error_type': 'dir_not_found'})
+                    logger.error(f"Redis目录不存在: {redis_dir}", extra={
+                        'event_type': EventType.ERROR, 
+                        'redis_dir': redis_dir, 
+                        'error_type': 'dir_not_found',
+                        'config_path': config['redis']['path'],
+                        'suggestion': '请检查Redis路径配置是否正确'
+                    })
                     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Redis目录不存在: {redis_dir}")
                     event_manager.publish(EventType.ERROR, {
                         'message': f'Redis目录不存在: {redis_dir}',
                         'redis_dir': redis_dir,
-                        'error_type': 'dir_not_found'
+                        'error_type': 'dir_not_found',
+                        'config_path': config['redis']['path'],
+                        'suggestion': '请检查Redis路径配置是否正确'
                     })
                     return
                     
+                logger.debug(f"切换到Redis目录: {redis_dir}", extra={
+                    'event_type': 'debug',
+                    'directory': redis_dir,
+                    'current_dir': os.getcwd()
+                })
                 os.chdir(redis_dir)
-                # 使用管理员权限启动Redis
-                result = subprocess.Popen([
+                
+                # 记录启动Redis的命令
+                start_command = [
                     "powershell", 
                     "-Command", 
                     f"Start-Process '{config['redis']['path']}' -WorkingDirectory '{redis_dir}' -Verb RunAs"
-                ])
+                ]
+                logger.debug(f"Redis启动命令: {start_command}", extra={
+                    'event_type': 'debug',
+                    'command': start_command,
+                    'working_directory': redis_dir
+                })
+                
+                # 使用管理员权限启动Redis
+                result = subprocess.Popen(start_command)
+                logger.info(f"Redis启动命令已执行，PID: {result.pid}", extra={
+                    'event_type': EventType.PROCESS_START,
+                    'process_name': redis_process_name,
+                    'pid': result.pid,
+                    'start_time': datetime.now().isoformat()
+                })
+                
                 time.sleep(3)  # 等待Redis启动
-                logger.info("Redis服务器启动成功", extra={'event_type': EventType.PROCESS_START, 'process_name': redis_process_name})
+                logger.info("Redis服务器启动成功", extra={
+                    'event_type': EventType.PROCESS_START, 
+                    'process_name': redis_process_name,
+                    'status': 'success',
+                    'wait_time': 3
+                })
                 event_manager.publish(EventType.PROCESS_START, {
                     'process_name': redis_process_name,
-                    'status': 'success'
+                    'status': 'success',
+                    'pid': result.pid if 'result' in locals() else None
                 })
-            except FileNotFoundError:
-                logger.error(f"Redis可执行文件未找到: {config['redis']['path']}", extra={'event_type': EventType.ERROR, 'process_name': redis_process_name, 'error_type': 'file_not_found', 'file_path': config['redis']['path']})
+            except FileNotFoundError as e:
+                logger.error(f"Redis可执行文件未找到: {config['redis']['path']}", extra={
+                    'event_type': EventType.ERROR, 
+                    'process_name': redis_process_name, 
+                    'error_type': 'file_not_found', 
+                    'file_path': config['redis']['path'],
+                    'error_details': str(e),
+                    'suggestion': '请检查Redis路径配置是否正确'
+                })
                 event_manager.publish(EventType.ERROR, {
                     'message': f'Redis可执行文件未找到: {config['redis']['path']}',
                     'process_name': redis_process_name,
                     'error_type': 'file_not_found',
-                    'file_path': config['redis']['path']
+                    'file_path': config['redis']['path'],
+                    'error_details': str(e),
+                    'suggestion': '请检查Redis路径配置是否正确'
                 })
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Redis可执行文件未找到: {config['redis']['path']}")
             except subprocess.SubprocessError as e:
-                logger.error(f"启动Redis服务器时出错: {str(e)}", extra={'event_type': EventType.ERROR, 'process_name': redis_process_name, 'error': str(e), 'error_type': 'subprocess_error'})
+                logger.error(f"启动Redis服务器时出错: {str(e)}", extra={
+                    'event_type': EventType.ERROR, 
+                    'process_name': redis_process_name, 
+                    'error': str(e), 
+                    'error_type': 'subprocess_error',
+                    'error_class': type(e).__name__,
+                    'traceback': __import__('traceback').format_exc()
+                })
                 event_manager.publish(EventType.ERROR, {
                     'message': f'启动Redis服务器时出错: {str(e)}',
                     'process_name': redis_process_name,
                     'error': str(e),
-                    'error_type': 'subprocess_error'
+                    'error_type': 'subprocess_error',
+                    'error_class': type(e).__name__,
+                    'traceback': __import__('traceback').format_exc()
                 })
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 启动Redis服务器时出错: {str(e)}")
             except Exception as e:
-                logger.error(f"启动Redis服务器时发生未知错误: {str(e)}", extra={'event_type': EventType.ERROR, 'process_name': redis_process_name, 'error': str(e), 'error_type': 'unknown_error'})
+                logger.error(f"启动Redis服务器时发生未知错误: {str(e)}", extra={
+                    'event_type': EventType.ERROR, 
+                    'process_name': redis_process_name, 
+                    'error': str(e), 
+                    'error_type': 'unknown_error',
+                    'error_class': type(e).__name__,
+                    'traceback': __import__('traceback').format_exc()
+                })
                 event_manager.publish(EventType.ERROR, {
                     'message': f'启动Redis服务器时发生未知错误: {str(e)}',
                     'process_name': redis_process_name,
                     'error': str(e),
-                    'error_type': 'unknown_error'
+                    'error_type': 'unknown_error',
+                    'error_class': type(e).__name__,
+                    'traceback': __import__('traceback').format_exc()
                 })
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 启动Redis服务器时发生未知错误: {str(e)}")
         else:
-            logger.info("Redis已在运行", extra={'event_type': EventType.PROCESS_CHECK, 'process_name': redis_process_name, 'status': 'running'})
+            logger.info("Redis已在运行", extra={
+                'event_type': EventType.PROCESS_CHECK, 
+                'process_name': redis_process_name, 
+                'status': 'running',
+                'found_processes': found_redis_processes,
+                'count': len(found_redis_processes)
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {redis_process_name} 已在运行...")
             event_manager.publish(EventType.PROCESS_CHECK, {
                 'process_name': redis_process_name,
-                'status': 'running'
+                'status': 'running',
+                'found_processes': found_redis_processes,
+                'count': len(found_redis_processes)
             })
         
         # 检查Yunzai是否运行
@@ -712,122 +1057,262 @@ def check_and_manage_yunzai_async(config):
         
         try:
             yunzai_running = False
-            for proc in psutil.process_iter(['name']):
+            
+            # 记录正在搜索的Yunzai进程
+            logger.debug(f"搜索Yunzai进程: {process_name}", extra={
+                'event_type': 'debug', 
+                'process_name': process_name
+            })
+            
+            found_yunzai_processes = []
+            for proc in psutil.process_iter(['name', 'pid', 'create_time']):
                 if proc.info['name'].lower() == process_name.lower():
                     yunzai_running = True
-                    break
-        except psutil.AccessDenied:
-            logger.error("访问Yunzai进程信息被拒绝", extra={'event_type': EventType.ERROR, 'process_name': process_name, 'error_type': 'access_denied'})
+                    found_yunzai_processes.append({
+                        'name': proc.info['name'],
+                        'pid': proc.info['pid'],
+                        'create_time': datetime.fromtimestamp(proc.info['create_time']).isoformat()
+                    })
+        except psutil.AccessDenied as e:
+            logger.error("访问Yunzai进程信息被拒绝", extra={
+                'event_type': EventType.ERROR, 
+                'process_name': process_name, 
+                'error_type': 'access_denied',
+                'error_details': str(e),
+                'suggestion': '请以管理员权限运行脚本'
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 访问Yunzai进程信息被拒绝")
             event_manager.publish(EventType.ERROR, {
                 'message': '访问Yunzai进程信息被拒绝',
                 'process_name': process_name,
-                'error_type': 'access_denied'
+                'error_type': 'access_denied',
+                'error_details': str(e),
+                'suggestion': '请以管理员权限运行脚本'
             })
             yunzai_running = False  # 假设Yunzai未运行
-        except psutil.NoSuchProcess:
-            logger.warning("Yunzai进程不存在", extra={'event_type': EventType.WARNING, 'process_name': process_name, 'error_type': 'no_such_process'})
+        except psutil.NoSuchProcess as e:
+            logger.warning("Yunzai进程不存在", extra={
+                'event_type': EventType.WARNING, 
+                'process_name': process_name, 
+                'error_type': 'no_such_process',
+                'error_details': str(e)
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Yunzai进程不存在")
             event_manager.publish(EventType.WARNING, {
                 'message': 'Yunzai进程不存在',
                 'process_name': process_name,
-                'error_type': 'no_such_process'
+                'error_type': 'no_such_process',
+                'error_details': str(e)
             })
             yunzai_running = False
         except Exception as e:
-            logger.error(f"检查Yunzai进程时出错: {str(e)}", extra={'event_type': EventType.ERROR, 'process_name': process_name, 'error': str(e), 'error_type': 'process_check_error'})
+            logger.error(f"检查Yunzai进程时出错: {str(e)}", extra={
+                'event_type': EventType.ERROR, 
+                'process_name': process_name, 
+                'error': str(e), 
+                'error_type': 'process_check_error',
+                'error_class': type(e).__name__,
+                'traceback': __import__('traceback').format_exc()
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 检查Yunzai进程时出错: {str(e)}")
             event_manager.publish(EventType.ERROR, {
                 'message': f'检查Yunzai进程时出错: {str(e)}',
                 'process_name': process_name,
                 'error': str(e),
-                'error_type': 'process_check_error'
+                'error_type': 'process_check_error',
+                'error_class': type(e).__name__,
+                'traceback': __import__('traceback').format_exc()
             })
             yunzai_running = False  # 假设Yunzai未运行
         
         if not yunzai_running:
-            logger.info("Yunzai未运行，正在启动", extra={'event_type': EventType.PROCESS_START, 'process_name': process_name})
+            logger.info("Yunzai未运行，正在启动", extra={
+                'event_type': EventType.PROCESS_START, 
+                'process_name': process_name,
+                'action': 'start_yunzai',
+                'config_git_bash': config['yunzai']['git_bash_path'],
+                'config_bash_directory': config['yunzai']['bash_directory'],
+                'status_before': 'not_running'
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 启动Yunzai进程...")
             event_manager.publish(EventType.PROCESS_START, {
                 'process_name': process_name,
-                'action': 'start_yunzai'
+                'action': 'start_yunzai',
+                'config_git_bash': config['yunzai']['git_bash_path'],
+                'config_bash_directory': config['yunzai']['bash_directory'],
+                'status_before': 'not_running'
             })
             try:
                 if not config['yunzai']['git_bash_path']:
-                    logger.warning("Git Bash路径未配置", extra={'event_type': EventType.WARNING, 'check_type': 'git_bash_path'})
+                    logger.warning("Git Bash路径未配置", extra={
+                        'event_type': EventType.WARNING, 
+                        'check_type': 'git_bash_path',
+                        'details': '配置中缺少Git Bash路径，无法启动Yunzai'
+                    })
                     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: Git Bash路径未配置")
                     return
                 if not config['yunzai']['bash_directory']:
-                    logger.warning("Yunzai目录未配置", extra={'event_type': EventType.WARNING, 'check_type': 'bash_directory'})
+                    logger.warning("Yunzai目录未配置", extra={
+                        'event_type': EventType.WARNING, 
+                        'check_type': 'bash_directory',
+                        'details': '配置中缺少Yunzai目录路径，无法启动Yunzai'
+                    })
                     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: Yunzai目录未配置")
                     return
                 if not os.path.exists(config['yunzai']['bash_directory']):
-                    logger.error(f"Yunzai目录不存在: {config['yunzai']['bash_directory']}", extra={'event_type': EventType.ERROR, 'bash_directory': config['yunzai']['bash_directory'], 'error_type': 'dir_not_found'})
+                    logger.error(f"Yunzai目录不存在: {config['yunzai']['bash_directory']}", extra={
+                        'event_type': EventType.ERROR, 
+                        'bash_directory': config['yunzai']['bash_directory'], 
+                        'error_type': 'dir_not_found',
+                        'suggestion': '请检查Yunzai目录路径配置是否正确'
+                    })
                     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Yunzai目录不存在: {config['yunzai']['bash_directory']}")
                     return
                 
+                logger.debug(f"启动Yunzai命令", extra={
+                    'event_type': 'debug',
+                    'command': f"cd '{config['yunzai']['bash_directory']}' && node app",
+                    'git_bash_path': config['yunzai']['git_bash_path'],
+                    'working_directory': config['yunzai']['bash_directory']
+                })
+                
                 # 使用git-bash启动Yunzai，使用固定命令"node app"
-                result = subprocess.Popen([
+                start_command = [
                     config['yunzai']['git_bash_path'],
                     "-c",
                     f"cd '{config['yunzai']['bash_directory']}' && node app"
-                ])
-                logger.info("Yunzai进程已启动", extra={'event_type': EventType.PROCESS_START, 'process_name': process_name})
+                ]
+                result = subprocess.Popen(start_command)
+                
+                logger.info(f"Yunzai启动命令已执行，PID: {result.pid}", extra={
+                    'event_type': EventType.PROCESS_START,
+                    'process_name': process_name,
+                    'pid': result.pid,
+                    'start_time': datetime.now().isoformat(),
+                    'command': start_command
+                })
+                
+                logger.info("Yunzai进程已启动", extra={
+                    'event_type': EventType.PROCESS_START, 
+                    'process_name': process_name,
+                    'status': 'success',
+                    'pid': result.pid
+                })
                 event_manager.publish(EventType.PROCESS_START, {
                     'process_name': process_name,
-                    'status': 'success'
+                    'status': 'success',
+                    'pid': result.pid,
+                    'command_used': start_command
                 })
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Yunzai进程已启动")
             except FileNotFoundError as e:
-                logger.error(f"Git Bash可执行文件或Yunzai目录未找到: {str(e)}", extra={'event_type': EventType.ERROR, 'process_name': process_name, 'error': str(e), 'error_type': 'file_not_found'})
+                logger.error(f"Git Bash可执行文件或Yunzai目录未找到: {str(e)}", extra={
+                    'event_type': EventType.ERROR, 
+                    'process_name': process_name, 
+                    'error': str(e), 
+                    'error_type': 'file_not_found',
+                    'config_git_bash': config['yunzai']['git_bash_path'],
+                    'config_bash_directory': config['yunzai']['bash_directory'],
+                    'suggestion': '请检查Git Bash路径和Yunzai目录配置是否正确'
+                })
                 event_manager.publish(EventType.ERROR, {
                     'message': f'Git Bash可执行文件或Yunzai目录未找到: {str(e)}',
                     'process_name': process_name,
                     'error': str(e),
-                    'error_type': 'file_not_found'
+                    'error_type': 'file_not_found',
+                    'config_git_bash': config['yunzai']['git_bash_path'],
+                    'config_bash_directory': config['yunzai']['bash_directory'],
+                    'suggestion': '请检查Git Bash路径和Yunzai目录配置是否正确'
                 })
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Git Bash可执行文件或Yunzai目录未找到: {str(e)}")
             except subprocess.SubprocessError as e:
-                logger.error(f"启动Yunzai进程时出错: {str(e)}", extra={'event_type': EventType.ERROR, 'process_name': process_name, 'error': str(e), 'error_type': 'subprocess_error'})
+                logger.error(f"启动Yunzai进程时出错: {str(e)}", extra={
+                    'event_type': EventType.ERROR, 
+                    'process_name': process_name, 
+                    'error': str(e), 
+                    'error_type': 'subprocess_error',
+                    'error_class': type(e).__name__,
+                    'command_used': start_command if 'start_command' in locals() else None,
+                    'working_directory': config['yunzai']['bash_directory'] if 'config' in locals() else None
+                })
                 event_manager.publish(EventType.ERROR, {
                     'message': f'启动Yunzai进程时出错: {str(e)}',
                     'process_name': process_name,
                     'error': str(e),
-                    'error_type': 'subprocess_error'
+                    'error_type': 'subprocess_error',
+                    'error_class': type(e).__name__,
+                    'command_used': start_command if 'start_command' in locals() else None,
+                    'working_directory': config['yunzai']['bash_directory'] if 'config' in locals() else None
                 })
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 启动Yunzai进程时出错: {str(e)}")
             except Exception as e:
-                logger.error(f"启动Yunzai进程时发生未知错误: {str(e)}", extra={'event_type': EventType.ERROR, 'process_name': process_name, 'error': str(e), 'error_type': 'unknown_error'})
+                logger.error(f"启动Yunzai进程时发生未知错误: {str(e)}", extra={
+                    'event_type': EventType.ERROR, 
+                    'process_name': process_name, 
+                    'error': str(e), 
+                    'error_type': 'unknown_error',
+                    'error_class': type(e).__name__,
+                    'traceback': __import__('traceback').format_exc(),
+                    'config_keys': list(config.get('yunzai', {}).keys()) if 'config' in locals() else []
+                })
                 event_manager.publish(EventType.ERROR, {
                     'message': f'启动Yunzai进程时发生未知错误: {str(e)}',
                     'process_name': process_name,
                     'error': str(e),
-                    'error_type': 'unknown_error'
+                    'error_type': 'unknown_error',
+                    'error_class': type(e).__name__,
+                    'traceback': __import__('traceback').format_exc()
                 })
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 启动Yunzai进程时发生未知错误: {str(e)}")
         else:
-            logger.info("Yunzai已在运行", extra={'event_type': EventType.PROCESS_CHECK, 'process_name': process_name, 'status': 'running'})
+            logger.info("Yunzai已在运行", extra={
+                'event_type': EventType.PROCESS_CHECK, 
+                'process_name': process_name, 
+                'status': 'running',
+                'found_processes': found_yunzai_processes,
+                'count': len(found_yunzai_processes)
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Yunzai进程已在运行...")
             event_manager.publish(EventType.PROCESS_CHECK, {
                 'process_name': process_name,
-                'status': 'running'
+                'status': 'running',
+                'found_processes': found_yunzai_processes,
+                'count': len(found_yunzai_processes)
             })
     except KeyError as e:
-        logger.error(f"配置错误: 缺少必需的配置项 {e}", extra={'event_type': EventType.ERROR, 'missing_key': str(e), 'error_type': 'config_error'})
+        logger.error(f"配置错误: 缺少必需的配置项 {e}", extra={
+            'event_type': EventType.ERROR, 
+            'missing_key': str(e), 
+            'error_type': 'config_error',
+            'available_keys': list(config.keys()) if 'config' in locals() else [],
+            'traceback': __import__('traceback').format_exc()
+        })
         event_manager.publish(EventType.ERROR, {
             'message': f'配置错误: 缺少必需的配置项 {e}',
             'missing_key': str(e),
-            'error_type': 'config_error'
+            'error_type': 'config_error',
+            'available_keys': list(config.keys()) if 'config' in locals() else [],
+            'traceback': __import__('traceback').format_exc()
         })
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 配置错误: 缺少必需的配置项 {e}")
         raise
     except Exception as e:
-        logger.error(f"检查Yunzai时发生未知错误: {str(e)}", extra={'event_type': EventType.ERROR, 'error': str(e), 'process': 'yunzai', 'error_type': 'unknown_error'})
+        logger.error(f"检查Yunzai时发生未知错误: {str(e)}", extra={
+            'event_type': EventType.ERROR, 
+            'error': str(e), 
+            'process': 'yunzai', 
+            'error_type': 'unknown_error',
+            'error_class': type(e).__name__,
+            'traceback': __import__('traceback').format_exc(),
+            'config_keys': list(config.keys()) if 'config' in locals() else []
+        })
         event_manager.publish(EventType.ERROR, {
             'message': f'检查Yunzai时发生未知错误: {str(e)}',
             'process': 'yunzai',
             'error': str(e),
-            'error_type': 'unknown_error'
+            'error_type': 'unknown_error',
+            'error_class': type(e).__name__,
+            'traceback': __import__('traceback').format_exc()
         })
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 检查Yunzai时发生未知错误: {str(e)}")
         raise
@@ -907,62 +1392,143 @@ def run_monitor_loop(config):
 
 def main():
     """主函数"""
+    start_time = time.time()
+    logger.info("监控程序开始启动", extra={
+        'event_type': EventType.PROCESS_START,
+        'start_time': datetime.fromtimestamp(start_time).isoformat(),
+        'script_version': '2.0',
+        'python_version': sys.version
+    })
+    
     # 启动事件管理器
     event_manager.start()
     
-    # 加载配置
-    config = load_config()
-
-    # 检查管理员权限，如果未以管理员权限运行则请求权限
-    if not is_admin():
-        logger.info("检查到未以管理员权限运行，请求管理员权限", extra={'event_type': EventType.PROCESS_CHECK, 'status': 'not_admin'})
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 脚本需要管理员权限才能正常工作")
-        if not run_as_admin():
-            logger.error("无法获取管理员权限，脚本退出", extra={'event_type': EventType.ERROR, 'reason': 'cannot_acquire'})
-            event_manager.publish(EventType.ERROR, {
-                'message': '无法获取管理员权限',
-                'reason': 'cannot_acquire'
-            })
-            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 无法获取管理员权限，脚本退出")
-            return
-        # 如果当前进程不是管理员权限，则退出，让新启动的管理员进程继续
-        if not is_admin():
-            return
-    
-    print("=" * 60)
-    print("llbot和Yunzai进程监控脚本")
-    print("=" * 60)
-    
-    # 检查管理员权限
-    admin_status = check_admin()
-    
-    logger.info("开始监控llbot和Yunzai进程", extra={'event_type': EventType.PROCESS_START})
-    event_manager.publish(EventType.PROCESS_START, {
-        'message': '开始监控llbot和Yunzai进程'
-    })
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 开始监控llbot和Yunzai进程...")
-    print("按 Ctrl+C 退出监控")
-    
-    # 设置运行标志
-    run_monitor_loop.running = True
-    
     try:
-        # 运行监控循环
-        run_monitor_loop(config)
-    except KeyboardInterrupt:
-        logger.info("监控已停止 (用户中断)", extra={'event_type': EventType.PROCESS_STOP, 'reason': 'user_interrupt'})
-        event_manager.publish(EventType.PROCESS_STOP, {
-            'message': '监控已停止',
-            'reason': 'user_interrupt'
+        # 加载配置
+        logger.info("开始加载配置", extra={
+            'event_type': EventType.CONFIG_LOAD,
+            'action': 'load_config_start'
         })
-        print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 监控已停止")
+        config = load_config()
+        logger.info("配置加载完成", extra={
+            'event_type': EventType.CONFIG_LOAD,
+            'action': 'load_config_complete',
+            'config_keys': list(config.keys()) if config else [],
+            'load_duration': f"{time.time() - start_time:.3f}s"
+        })
+
+        # 检查管理员权限，如果未以管理员权限运行则请求权限
+        is_admin_now = is_admin()
+        logger.info(f"管理员权限检查", extra={
+            'event_type': EventType.PROCESS_CHECK,
+            'is_admin': is_admin_now,
+            'check_time': datetime.now().isoformat()
+        })
+        
+        if not is_admin_now:
+            logger.info("检查到未以管理员权限运行，请求管理员权限", extra={
+                'event_type': EventType.PROCESS_CHECK, 
+                'status': 'not_admin',
+                'suggestion': '以管理员权限运行以获得完整功能'
+            })
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 脚本需要管理员权限才能正常工作")
+            if not run_as_admin():
+                logger.error("无法获取管理员权限，脚本退出", extra={
+                    'event_type': EventType.ERROR, 
+                    'reason': 'cannot_acquire',
+                    'exit_time': datetime.now().isoformat()
+                })
+                event_manager.publish(EventType.ERROR, {
+                    'message': '无法获取管理员权限',
+                    'reason': 'cannot_acquire'
+                })
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 无法获取管理员权限，脚本退出")
+                return
+            # 如果当前进程不是管理员权限，则退出，让新启动的管理员进程继续
+            if not is_admin():
+                return
+    
+        print("=" * 60)
+        print("llbot和Yunzai进程监控脚本")
+        print("=" * 60)
+        
+        # 检查管理员权限
+        admin_status = check_admin()
+        
+        logger.info("开始监控llbot和Yunzai进程", extra={
+            'event_type': EventType.PROCESS_START,
+            'monitored_processes': ['llbot', 'yunzai', 'redis'],
+            'config_summary': {
+                'llbot_configured': bool(config.get('llbot', {}).get('path')),
+                'yunzai_configured': bool(config.get('yunzai', {}).get('git_bash_path')),
+                'redis_configured': bool(config.get('redis', {}).get('path')),
+                'http_check_configured': bool(config.get('http_check', {}).get('url'))
+            }
+        })
+        event_manager.publish(EventType.PROCESS_START, {
+            'message': '开始监控llbot和Yunzai进程',
+            'monitored_processes': ['llbot', 'yunzai', 'redis'],
+            'config_summary': {
+                'llbot_configured': bool(config.get('llbot', {}).get('path')),
+                'yunzai_configured': bool(config.get('yunzai', {}).get('git_bash_path')),
+                'redis_configured': bool(config.get('redis', {}).get('path')),
+                'http_check_configured': bool(config.get('http_check', {}).get('url'))
+            }
+        })
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 开始监控llbot和Yunzai进程...")
+        print("按 Ctrl+C 退出监控")
+        
+        # 设置运行标志
+        run_monitor_loop.running = True
+        
+        try:
+            # 运行监控循环
+            run_monitor_loop(config)
+        except KeyboardInterrupt:
+            logger.info("监控已停止 (用户中断)", extra={
+                'event_type': EventType.PROCESS_STOP, 
+                'reason': 'user_interrupt',
+                'stop_time': datetime.now().isoformat(),
+                'total_runtime': f"{time.time() - start_time:.3f}s"
+            })
+            event_manager.publish(EventType.PROCESS_STOP, {
+                'message': '监控已停止',
+                'reason': 'user_interrupt',
+                'total_runtime': f"{time.time() - start_time:.3f}s"
+            })
+            print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 监控已停止")
+        except Exception as e:
+            logger.error(f"监控循环中发生错误: {str(e)}", extra={
+                'event_type': EventType.ERROR, 
+                'error': str(e),
+                'error_class': type(e).__name__,
+                'traceback': __import__('traceback').format_exc(),
+                'error_time': datetime.now().isoformat(),
+                'total_runtime_until_error': f"{time.time() - start_time:.3f}s"
+            })
+            event_manager.publish(EventType.ERROR, {
+                'message': f'监控循环中发生错误: {str(e)}',
+                'error': str(e),
+                'error_class': type(e).__name__,
+                'traceback': __import__('traceback').format_exc()
+            })
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 监控循环中发生错误: {str(e)}")
     except Exception as e:
-        logger.error(f"监控循环中发生错误: {str(e)}", extra={'event_type': EventType.ERROR, 'error': str(e)})
-        event_manager.publish(EventType.ERROR, {
-            'message': f'监控循环中发生错误: {str(e)}',
-            'error': str(e)
+        logger.error(f"主程序启动失败: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'error': str(e),
+            'error_class': type(e).__name__,
+            'traceback': __import__('traceback').format_exc(),
+            'startup_duration': f"{time.time() - start_time:.3f}s"
         })
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 监控循环中发生错误: {str(e)}")
+        event_manager.publish(EventType.ERROR, {
+            'message': f'主程序启动失败: {str(e)}',
+            'error': str(e),
+            'error_class': type(e).__name__,
+            'traceback': __import__('traceback').format_exc()
+        })
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 主程序启动失败: {str(e)}")
+        raise
 
 def keep_alive_main():
     """带保活机制的主函数"""
