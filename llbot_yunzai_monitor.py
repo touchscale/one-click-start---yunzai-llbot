@@ -100,6 +100,16 @@ global_manual_stop_status = {
     'redis': False
 }
 
+def update_global_manual_stop_status(process, value):
+    """安全更新全局手动停止状态"""
+    global global_manual_stop_status
+    global_manual_stop_status[process] = value
+
+def get_global_manual_stop_status(process):
+    """安全获取全局手动停止状态"""
+    global global_manual_stop_status
+    return global_manual_stop_status.get(process, False)
+
 # 全局事件管理器
 event_manager = EventManager()
 
@@ -463,8 +473,10 @@ if flask_available:
                     restart_llbot(current_config)
                     # 清除手动停止状态
                     manual_stop_status['llbot'] = False
-                    global global_manual_stop_status
-                    global_manual_stop_status['llbot'] = False
+                    try:
+                        update_global_manual_stop_status('llbot', False)
+                    except:
+                        pass  # 如果全局变量不存在，跳过
                     logger.info(f"通过Web界面启动llbot", extra={
                         'event_type': EventType.PROCESS_START,
                         'process': 'llbot',
@@ -477,8 +489,10 @@ if flask_available:
                     terminate_process_by_name(os.path.basename(current_config['llbot']['path']) if current_config.get('llbot', {}).get('path') else 'llbot.exe')
                     # 设置手动停止状态
                     manual_stop_status['llbot'] = True
-                    global global_manual_stop_status
-                    global_manual_stop_status['llbot'] = True
+                    try:
+                        update_global_manual_stop_status('llbot', True)
+                    except:
+                        pass  # 如果全局变量不存在，跳过
                     logger.info(f"通过Web界面停止llbot", extra={
                         'event_type': EventType.PROCESS_STOP,
                         'process': 'llbot',
@@ -492,8 +506,10 @@ if flask_available:
                     check_and_manage_yunzai_async(current_config)
                     # 清除手动停止状态
                     manual_stop_status['yunzai'] = False
-                    global global_manual_stop_status
-                    global_manual_stop_status['yunzai'] = False
+                    try:
+                        update_global_manual_stop_status('yunzai', False)
+                    except:
+                        pass  # 如果全局变量不存在，跳过
                     logger.info(f"通过Web界面启动yunzai", extra={
                         'event_type': EventType.PROCESS_START,
                         'process': 'yunzai',
@@ -506,8 +522,10 @@ if flask_available:
                     terminate_process_by_name('git-bash.exe')
                     # 设置手动停止状态
                     manual_stop_status['yunzai'] = True
-                    global global_manual_stop_status
-                    global_manual_stop_status['yunzai'] = True
+                    try:
+                        update_global_manual_stop_status('yunzai', True)
+                    except:
+                        pass  # 如果全局变量不存在，跳过
                     logger.info(f"通过Web界面停止yunzai", extra={
                         'event_type': EventType.PROCESS_STOP,
                         'process': 'yunzai',
@@ -521,8 +539,10 @@ if flask_available:
                     check_and_manage_yunzai_async(current_config)  # 这会启动Redis
                     # 清除手动停止状态
                     manual_stop_status['redis'] = False
-                    global global_manual_stop_status
-                    global_manual_stop_status['redis'] = False
+                    try:
+                        update_global_manual_stop_status('redis', False)
+                    except:
+                        pass  # 如果全局变量不存在，跳过
                     logger.info(f"通过Web界面启动redis", extra={
                         'event_type': EventType.PROCESS_START,
                         'process': 'redis',
@@ -535,8 +555,10 @@ if flask_available:
                     terminate_process_by_name(os.path.basename(current_config['redis']['path']) if current_config.get('redis', {}).get('path') else 'redis-server.exe')
                     # 设置手动停止状态
                     manual_stop_status['redis'] = True
-                    global global_manual_stop_status
-                    global_manual_stop_status['redis'] = True
+                    try:
+                        update_global_manual_stop_status('redis', True)
+                    except:
+                        pass  # 如果全局变量不存在，跳过
                     logger.info(f"通过Web界面停止redis", extra={
                         'event_type': EventType.PROCESS_STOP,
                         'process': 'redis',
@@ -1061,11 +1083,16 @@ def check_and_manage_llbot_async(config):
         
         # 检查是否手动停止了llbot进程
         # 优先使用全局变量，如果不可用则使用局部变量
+        is_manual_stop = False
         try:
-            global global_manual_stop_status
-            is_manual_stop = global_manual_stop_status.get('llbot', False)
+            is_manual_stop = get_global_manual_stop_status('llbot')
         except:
-            is_manual_stop = manual_stop_status.get('llbot', False) if 'manual_stop_status' in globals() else False
+            # 如果在Flask应用内部，尝试使用Flask应用的变量
+            try:
+                is_manual_stop = manual_stop_status.get('llbot', False)
+            except:
+                # 如果都不是，使用默认值
+                is_manual_stop = False
         
         if respect_manual_stop and auto_restart_enabled and is_manual_stop:
             logger.debug("llbot被手动停止，跳过自动重启", extra={
@@ -1403,8 +1430,10 @@ def restart_llbot(config):
             os.chdir(config['llbot']['directory'])
             subprocess.Popen([config['llbot']['path']])
             # 清除手动停止状态
-            global global_manual_stop_status
-            global_manual_stop_status['llbot'] = False
+            try:
+                update_global_manual_stop_status('llbot', False)
+            except:
+                pass  # 如果全局变量不存在，跳过
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {process_name} 启动成功")
         else:
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {process_name} 未找到，请验证路径: {config['llbot']['path']}")
@@ -1421,13 +1450,20 @@ def check_and_manage_yunzai_async(config):
         
         # 检查是否手动停止了yunzai或redis进程
         # 优先使用全局变量，如果不可用则使用局部变量
+        yunzai_manual_stop = False
+        redis_manual_stop = False
         try:
-            global global_manual_stop_status
-            yunzai_manual_stop = global_manual_stop_status.get('yunzai', False)
-            redis_manual_stop = global_manual_stop_status.get('redis', False)
+            yunzai_manual_stop = get_global_manual_stop_status('yunzai')
+            redis_manual_stop = get_global_manual_stop_status('redis')
         except:
-            yunzai_manual_stop = manual_stop_status.get('yunzai', False) if 'manual_stop_status' in globals() else False
-            redis_manual_stop = manual_stop_status.get('redis', False) if 'manual_stop_status' in globals() else False
+            # 如果在Flask应用内部，尝试使用Flask应用的变量
+            try:
+                yunzai_manual_stop = manual_stop_status.get('yunzai', False)
+                redis_manual_stop = manual_stop_status.get('redis', False)
+            except:
+                # 如果都不是，使用默认值
+                yunzai_manual_stop = False
+                redis_manual_stop = False
         
         if respect_manual_stop and auto_restart_enabled:
             if yunzai_manual_stop:
@@ -1603,8 +1639,10 @@ def check_and_manage_yunzai_async(config):
                 
                 time.sleep(3)  # 等待Redis启动
                 # 清除手动停止状态
-                global global_manual_stop_status
-                global_manual_stop_status['redis'] = False
+                try:
+                    update_global_manual_stop_status('redis', False)
+                except:
+                    pass  # 如果全局变量不存在，跳过
                 
                 logger.info("Redis服务器启动成功", extra={
                     'event_type': EventType.PROCESS_START, 
@@ -1829,8 +1867,10 @@ def check_and_manage_yunzai_async(config):
                 })
                 
                 # 清除手动停止状态
-                global global_manual_stop_status
-                global_manual_stop_status['yunzai'] = False
+                try:
+                    update_global_manual_stop_status('yunzai', False)
+                except:
+                    pass  # 如果全局变量不存在，跳过
                 
                 logger.info("Yunzai进程已启动", extra={
                     'event_type': EventType.PROCESS_START, 
@@ -2014,7 +2054,8 @@ def run_monitor_loop(config):
                 # 同步手动停止状态 - 从Flask应用同步到全局变量
                 try:
                     global global_manual_stop_status
-                    global_manual_stop_status.update(manual_stop_status)
+                    for key, value in manual_stop_status.items():
+                        global_manual_stop_status[key] = value
                 except:
                     pass  # 如果同步失败，继续运行
                 
