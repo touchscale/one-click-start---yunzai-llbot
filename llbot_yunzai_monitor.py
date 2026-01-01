@@ -827,6 +827,197 @@ def save_config(config, config_path):
     logger.info(f"配置已保存到 {config_path}", extra={'event_type': 'config_save', 'config_path': config_path})
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 配置已保存到 {config_path}")
 
+def validate_config(config, config_path="config.yaml"):
+    """验证配置文件的完整性，检查所有必需的配置项"""
+    required_fields = {
+        'llbot': {
+            'path': str,
+            'directory': str,
+            'wait_seconds': int
+        },
+        'yunzai': {
+            'git_bash_path': str,
+            'bash_directory': str,
+            'wait_seconds': int
+        },
+        'redis': {
+            'path': str
+        },
+        'http_check': {
+            'url': str,
+            'timeout': int
+        },
+        'auto_restart': {
+            'enabled': bool,
+            'respect_manual_stop': bool
+        }
+    }
+    
+    missing_fields = []
+    invalid_types = []
+    
+    # 检查顶级配置项
+    for section, fields in required_fields.items():
+        if section not in config:
+            config[section] = {}  # 创建空字典以避免KeyError
+            for field, expected_type in fields.items():
+                missing_fields.append(f"{section}.{field}")
+                # 为新创建的section设置默认值
+                if expected_type == str:
+                    config[section][field] = ""
+                elif expected_type == int:
+                    if section == 'llbot' and field == 'wait_seconds':
+                        config[section][field] = DEFAULT_CONFIG['llbot'].get('wait_seconds', 5)
+                    elif section == 'yunzai' and field == 'wait_seconds':
+                        config[section][field] = DEFAULT_CONFIG['yunzai'].get('wait_seconds', 5)
+                    elif section == 'http_check' and field == 'timeout':
+                        config[section][field] = DEFAULT_CONFIG['http_check'].get('timeout', 5)
+                elif expected_type == bool:
+                    if section == 'auto_restart' and field == 'enabled':
+                        config[section][field] = DEFAULT_CONFIG['auto_restart'].get('enabled', True)
+                    elif section == 'auto_restart' and field == 'respect_manual_stop':
+                        config[section][field] = DEFAULT_CONFIG['auto_restart'].get('respect_manual_stop', True)
+        else:
+            # 检查该部分中的字段
+            for field, expected_type in fields.items():
+                if field not in config[section]:
+                    missing_fields.append(f"{section}.{field}")
+                    # 设置默认值
+                    if expected_type == str:
+                        config[section][field] = ""
+                    elif expected_type == int:
+                        if section == 'llbot' and field == 'wait_seconds':
+                            config[section][field] = DEFAULT_CONFIG['llbot'].get('wait_seconds', 5)
+                        elif section == 'yunzai' and field == 'wait_seconds':
+                            config[section][field] = DEFAULT_CONFIG['yunzai'].get('wait_seconds', 5)
+                        elif section == 'http_check' and field == 'timeout':
+                            config[section][field] = DEFAULT_CONFIG['http_check'].get('timeout', 5)
+                    elif expected_type == bool:
+                        if section == 'auto_restart' and field == 'enabled':
+                            config[section][field] = DEFAULT_CONFIG['auto_restart'].get('enabled', True)
+                        elif section == 'auto_restart' and field == 'respect_manual_stop':
+                            config[section][field] = DEFAULT_CONFIG['auto_restart'].get('respect_manual_stop', True)
+                else:
+                    # 验证字段类型
+                    actual_value = config[section][field]
+                    if actual_value is None:
+                        # 如果值为None，设置默认值
+                        if expected_type == str:
+                            config[section][field] = ""
+                        elif expected_type == int:
+                            if section == 'llbot' and field == 'wait_seconds':
+                                config[section][field] = DEFAULT_CONFIG['llbot'].get('wait_seconds', 5)
+                            elif section == 'yunzai' and field == 'wait_seconds':
+                                config[section][field] = DEFAULT_CONFIG['yunzai'].get('wait_seconds', 5)
+                            elif section == 'http_check' and field == 'timeout':
+                                config[section][field] = DEFAULT_CONFIG['http_check'].get('timeout', 5)
+                        elif expected_type == bool:
+                            if section == 'auto_restart' and field == 'enabled':
+                                config[section][field] = DEFAULT_CONFIG['auto_restart'].get('enabled', True)
+                            elif section == 'auto_restart' and field == 'respect_manual_stop':
+                                config[section][field] = DEFAULT_CONFIG['auto_restart'].get('respect_manual_stop', True)
+                    elif not isinstance(actual_value, expected_type) or (expected_type == int and isinstance(actual_value, bool)):
+                        # 特别处理：布尔值不是整数，即使Python中bool是int的子类
+                        invalid_types.append(f"{section}.{field} (期望 {expected_type.__name__}，实际 {type(actual_value).__name__})")
+                        # 尝试转换类型或设置默认值
+                        if expected_type == str:
+                            config[section][field] = str(actual_value) if actual_value is not None else ""
+                        elif expected_type == int:
+                            try:
+                                config[section][field] = int(actual_value) if actual_value is not None and not isinstance(actual_value, bool) else (
+                                    DEFAULT_CONFIG[section].get(field, 5) if section in DEFAULT_CONFIG and field in DEFAULT_CONFIG[section] else 5
+                                )
+                                # 如果原始值是布尔值，使用默认值而不是转换
+                                if isinstance(actual_value, bool):
+                                    if section == 'llbot' and field == 'wait_seconds':
+                                        config[section][field] = DEFAULT_CONFIG['llbot'].get('wait_seconds', 5)
+                                    elif section == 'yunzai' and field == 'wait_seconds':
+                                        config[section][field] = DEFAULT_CONFIG['yunzai'].get('wait_seconds', 5)
+                                    elif section == 'http_check' and field == 'timeout':
+                                        config[section][field] = DEFAULT_CONFIG['http_check'].get('timeout', 5)
+                                    else:
+                                        config[section][field] = 5  # 默认整数值
+                            except (ValueError, TypeError):
+                                # 如果转换失败，使用默认值
+                                if section == 'llbot' and field == 'wait_seconds':
+                                    config[section][field] = DEFAULT_CONFIG['llbot'].get('wait_seconds', 5)
+                                elif section == 'yunzai' and field == 'wait_seconds':
+                                    config[section][field] = DEFAULT_CONFIG['yunzai'].get('wait_seconds', 5)
+                                elif section == 'http_check' and field == 'timeout':
+                                    config[section][field] = DEFAULT_CONFIG['http_check'].get('timeout', 5)
+                                else:
+                                    config[section][field] = 5  # 默认整数值
+                        elif expected_type == bool:
+                            # 将各种值转换为布尔值
+                            if isinstance(actual_value, str):
+                                config[section][field] = actual_value.lower() in ['true', '1', 'yes', 'on']
+                            else:
+                                config[section][field] = bool(actual_value)
+    
+    # 记录验证结果
+    if missing_fields:
+        logger.warning(f"配置文件中缺少以下字段，已设置默认值: {', '.join(missing_fields)}", extra={
+            'event_type': EventType.WARNING,
+            'missing_fields': missing_fields,
+            'config_path': config_path,
+            'action': 'set_defaults'
+        })
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 警告: 配置文件中缺少以下字段，已设置默认值: {', '.join(missing_fields)}")
+    
+    if invalid_types:
+        logger.warning(f"配置文件中以下字段类型不正确，已尝试修复: {', '.join(invalid_types)}", extra={
+            'event_type': EventType.WARNING,
+            'invalid_types': invalid_types,
+            'config_path': config_path,
+            'action': 'fix_types'
+        })
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 警告: 配置文件中以下字段类型不正确，已尝试修复: {', '.join(invalid_types)}")
+    
+    # 额外的业务逻辑验证
+    validation_warnings = []
+    
+    # 检查HTTP URL格式
+    http_url = config.get('http_check', {}).get('url', '')
+    # 确保http_url是字符串
+    if not isinstance(http_url, str):
+        http_url = str(http_url) if http_url is not None else ""
+    if http_url and not http_url.startswith(('http://', 'https://')):
+        validation_warnings.append("HTTP检查URL应以http://或https://开头")
+    
+    # 检查路径是否存在（仅对非空路径检查）
+    llbot_path = config.get('llbot', {}).get('path', '')
+    # 确保llbot_path是字符串
+    if not isinstance(llbot_path, str):
+        llbot_path = str(llbot_path) if llbot_path is not None else ""
+    if llbot_path and llbot_path != "" and not os.path.exists(llbot_path):
+        validation_warnings.append(f"llbot路径不存在: {llbot_path}")
+    
+    yunzai_dir = config.get('yunzai', {}).get('bash_directory', '')
+    # 确保yunzai_dir是字符串
+    if not isinstance(yunzai_dir, str):
+        yunzai_dir = str(yunzai_dir) if yunzai_dir is not None else ""
+    if yunzai_dir and yunzai_dir != "" and not os.path.exists(yunzai_dir):
+        validation_warnings.append(f"Yunzai目录不存在: {yunzai_dir}")
+    
+    redis_path = config.get('redis', {}).get('path', '')
+    # 确保redis_path是字符串
+    if not isinstance(redis_path, str):
+        redis_path = str(redis_path) if redis_path is not None else ""
+    if redis_path and redis_path != "" and not os.path.exists(os.path.dirname(redis_path)):
+        validation_warnings.append(f"Redis路径不存在: {redis_path}")
+    
+    if validation_warnings:
+        logger.warning(f"配置文件存在以下问题: {', '.join(validation_warnings)}", extra={
+            'event_type': EventType.WARNING,
+            'validation_warnings': validation_warnings,
+            'config_path': config_path
+        })
+        for warning in validation_warnings:
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 警告: {warning}")
+    
+    return config
+
+
 def load_config():
     """加载配置文件，如果不存在则创建默认配置"""
     config_path = "config.yaml"
@@ -835,50 +1026,15 @@ def load_config():
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 配置文件不存在，正在启动交互式配置...")
         config = interactive_config()
         save_config(config, config_path)
+        # 验证新创建的配置
+        config = validate_config(config, config_path)
         return config
     else:
         with open(config_path, 'r', encoding='utf-8') as file:
             config = yaml.safe_load(file)
             
-        # 确保配置项完整
-        if 'llbot' not in config:
-            config['llbot'] = {}
-        if 'yunzai' not in config:
-            config['yunzai'] = {}
-        if 'redis' not in config:
-            config['redis'] = {}
-        if 'http_check' not in config:
-            config['http_check'] = {}
-        if 'auto_restart' not in config:
-            config['auto_restart'] = {}
-        
-        # 为wait_seconds和timeout设置默认值（如果未提供或为空）
-        if 'wait_seconds' not in config['llbot'] or not config['llbot']['wait_seconds']:
-            config['llbot']['wait_seconds'] = DEFAULT_CONFIG['llbot'].get('wait_seconds', 5)
-        if 'wait_seconds' not in config['yunzai'] or not config['yunzai']['wait_seconds']:
-            config['yunzai']['wait_seconds'] = DEFAULT_CONFIG['yunzai'].get('wait_seconds', 5)
-        if 'timeout' not in config['http_check'] or not config['http_check']['timeout']:
-            config['http_check']['timeout'] = DEFAULT_CONFIG['http_check'].get('timeout', 5)
-        
-        # 为auto_restart设置默认值（如果未提供或为空）
-        if 'enabled' not in config['auto_restart'] or config['auto_restart']['enabled'] is None:
-            config['auto_restart']['enabled'] = DEFAULT_CONFIG['auto_restart'].get('enabled', True)
-        if 'respect_manual_stop' not in config['auto_restart'] or config['auto_restart']['respect_manual_stop'] is None:
-            config['auto_restart']['respect_manual_stop'] = DEFAULT_CONFIG['auto_restart'].get('respect_manual_stop', True)
-        
-        # 确保其他必要配置项不为空
-        if 'path' not in config['llbot']:
-            config['llbot']['path'] = ""
-        if 'directory' not in config['llbot']:
-            config['llbot']['directory'] = ""
-        if 'git_bash_path' not in config['yunzai']:
-            config['yunzai']['git_bash_path'] = ""
-        if 'bash_directory' not in config['yunzai']:
-            config['yunzai']['bash_directory'] = ""
-        if 'path' not in config['redis']:
-            config['redis']['path'] = ""
-        if 'url' not in config['http_check']:
-            config['http_check']['url'] = ""
+        # 验证并完善配置
+        config = validate_config(config, config_path)
         
         logger.info(f"配置文件已加载: {config_path}", extra={'event_type': 'config_load', 'config_path': config_path})
         return config
