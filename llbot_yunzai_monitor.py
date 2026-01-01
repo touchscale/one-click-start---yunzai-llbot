@@ -462,120 +462,150 @@ if flask_available:
     @app.route('/api/control', methods=['POST'])
     def api_control():
         """控制进程"""
-        data = request.get_json()
-        process = data.get('process')
-        action = data.get('action')
-        
         try:
-            if process == 'llbot':
-                if action == 'start':
-                    # 启动llbot
-                    restart_llbot(current_config)
-                    # 清除手动停止状态
-                    manual_stop_status['llbot'] = False
-                    try:
-                        update_global_manual_stop_status('llbot', False)
-                    except:
-                        pass  # 如果全局变量不存在，跳过
-                    logger.info(f"通过Web界面启动llbot", extra={
-                        'event_type': EventType.PROCESS_START,
-                        'process': 'llbot',
-                        'source': 'web_interface',
-                        'action': 'start'
-                    })
-                    return jsonify({'message': 'llbot启动命令已发送'})
-                elif action == 'stop':
-                    # 停止llbot
-                    terminate_process_by_name(os.path.basename(current_config['llbot']['path']) if current_config.get('llbot', {}).get('path') else 'llbot.exe')
-                    # 设置手动停止状态
-                    manual_stop_status['llbot'] = True
-                    try:
-                        update_global_manual_stop_status('llbot', True)
-                    except:
-                        pass  # 如果全局变量不存在，跳过
-                    logger.info(f"通过Web界面停止llbot", extra={
-                        'event_type': EventType.PROCESS_STOP,
-                        'process': 'llbot',
-                        'source': 'web_interface',
-                        'action': 'stop'
-                    })
-                    return jsonify({'message': 'llbot停止命令已发送'})
-            elif process == 'yunzai':
-                if action == 'start':
-                    # 启动yunzai
-                    check_and_manage_yunzai_async(current_config)
-                    # 清除手动停止状态
-                    manual_stop_status['yunzai'] = False
-                    try:
-                        update_global_manual_stop_status('yunzai', False)
-                    except:
-                        pass  # 如果全局变量不存在，跳过
-                    logger.info(f"通过Web界面启动yunzai", extra={
-                        'event_type': EventType.PROCESS_START,
-                        'process': 'yunzai',
-                        'source': 'web_interface',
-                        'action': 'start'
-                    })
-                    return jsonify({'message': 'Yunzai启动命令已发送'})
-                elif action == 'stop':
-                    # 停止yunzai
-                    terminate_process_by_name('git-bash.exe')
-                    # 设置手动停止状态
-                    manual_stop_status['yunzai'] = True
-                    try:
-                        update_global_manual_stop_status('yunzai', True)
-                    except:
-                        pass  # 如果全局变量不存在，跳过
-                    logger.info(f"通过Web界面停止yunzai", extra={
-                        'event_type': EventType.PROCESS_STOP,
-                        'process': 'yunzai',
-                        'source': 'web_interface',
-                        'action': 'stop'
-                    })
-                    return jsonify({'message': 'Yunzai停止命令已发送'})
-            elif process == 'redis':
-                if action == 'start':
-                    # 启动redis
-                    check_and_manage_yunzai_async(current_config)  # 这会启动Redis
-                    # 清除手动停止状态
-                    manual_stop_status['redis'] = False
-                    try:
-                        update_global_manual_stop_status('redis', False)
-                    except:
-                        pass  # 如果全局变量不存在，跳过
-                    logger.info(f"通过Web界面启动redis", extra={
-                        'event_type': EventType.PROCESS_START,
-                        'process': 'redis',
-                        'source': 'web_interface',
-                        'action': 'start'
-                    })
-                    return jsonify({'message': 'Redis启动命令已发送'})
-                elif action == 'stop':
-                    # 停止redis
-                    terminate_process_by_name(os.path.basename(current_config['redis']['path']) if current_config.get('redis', {}).get('path') else 'redis-server.exe')
-                    # 设置手动停止状态
-                    manual_stop_status['redis'] = True
-                    try:
-                        update_global_manual_stop_status('redis', True)
-                    except:
-                        pass  # 如果全局变量不存在，跳过
-                    logger.info(f"通过Web界面停止redis", extra={
-                        'event_type': EventType.PROCESS_STOP,
-                        'process': 'redis',
-                        'source': 'web_interface',
-                        'action': 'stop'
-                    })
-                    return jsonify({'message': 'Redis停止命令已发送'})
+            data = request.get_json()
+            if not data:
+                return jsonify({'message': '无效的JSON数据'}), 400
+                
+            process = data.get('process')
+            action = data.get('action')
+            
+            if not process or not action:
+                return jsonify({'message': '缺少必要的参数'}), 400
+                
+            if process not in ['llbot', 'yunzai', 'redis']:
+                return jsonify({'message': '无效的进程名称'}), 400
+                
+            if action not in ['start', 'stop']:
+                return jsonify({'message': '无效的操作'}), 400
+            
+            try:
+                if process == 'llbot':
+                    if action == 'start':
+                        # 启动llbot
+                        restart_llbot(current_config)
+                        # 清除手动停止状态
+                        manual_stop_status['llbot'] = False
+                        try:
+                            update_global_manual_stop_status('llbot', False)
+                        except:
+                            pass  # 如果全局变量不存在，跳过
+                        logger.info(f"通过Web界面启动llbot", extra={
+                            'event_type': EventType.PROCESS_START,
+                            'target_process': 'llbot',
+                            'source': 'web_interface',
+                            'action': 'start'
+                        })
+                        return jsonify({'message': 'llbot启动命令已发送'})
+                    elif action == 'stop':
+                        # 停止llbot - 同时终止可能的进程名
+                        llbot_process_name = os.path.basename(current_config['llbot']['path']) if current_config.get('llbot', {}).get('path') else 'llbot.exe'
+                        terminate_process_by_name(llbot_process_name)
+                        # 也终止可能的lucky-lillia-desktop.exe进程
+                        terminate_process_by_name('lucky-lillia-desktop.exe')
+                        # 终止flet.exe进程（llbot的GUI组件）
+                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止flet.exe进程...")
+                        terminate_process_by_name("flet.exe")
+                        # 终止QQ相关进程
+                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止QQ相关进程...")
+                        qq_processes = ["QQ", "QQProtect", "QQPCRTP"]
+                        for qq_process in qq_processes:
+                            terminate_process_by_name(qq_process)
+                        # 设置手动停止状态
+                        manual_stop_status['llbot'] = True
+                        try:
+                            update_global_manual_stop_status('llbot', True)
+                        except:
+                            pass  # 如果全局变量不存在，跳过
+                        logger.info(f"通过Web界面停止llbot", extra={
+                            'event_type': EventType.PROCESS_STOP,
+                            'target_process': 'llbot',
+                            'source': 'web_interface',
+                            'action': 'stop'
+                        })
+                        return jsonify({'message': 'llbot停止命令已发送'})
+                elif process == 'yunzai':
+                    if action == 'start':
+                        # 启动yunzai
+                        check_and_manage_yunzai_async(current_config)
+                        # 清除手动停止状态
+                        manual_stop_status['yunzai'] = False
+                        try:
+                            update_global_manual_stop_status('yunzai', False)
+                        except:
+                            pass  # 如果全局变量不存在，跳过
+                        logger.info(f"通过Web界面启动yunzai", extra={
+                            'event_type': EventType.PROCESS_START,
+                            'target_process': 'yunzai',
+                            'source': 'web_interface',
+                            'action': 'start'
+                        })
+                        return jsonify({'message': 'Yunzai启动命令已发送'})
+                    elif action == 'stop':
+                        # 停止yunzai - 终止所有相关进程
+                        terminate_process_by_name('git-bash.exe')
+                        # 也终止可能的node进程
+                        terminate_process_by_name('node.exe')
+                        # 设置手动停止状态
+                        manual_stop_status['yunzai'] = True
+                        try:
+                            update_global_manual_stop_status('yunzai', True)
+                        except:
+                            pass  # 如果全局变量不存在，跳过
+                        logger.info(f"通过Web界面停止yunzai", extra={
+                            'event_type': EventType.PROCESS_STOP,
+                            'target_process': 'yunzai',
+                            'source': 'web_interface',
+                            'action': 'stop'
+                        })
+                        return jsonify({'message': 'Yunzai停止命令已发送'})
+                elif process == 'redis':
+                    if action == 'start':
+                        # 启动redis
+                        check_and_manage_yunzai_async(current_config)  # 这会启动Redis
+                        # 清除手动停止状态
+                        manual_stop_status['redis'] = False
+                        try:
+                            update_global_manual_stop_status('redis', False)
+                        except:
+                            pass  # 如果全局变量不存在，跳过
+                        logger.info(f"通过Web界面启动redis", extra={
+                            'event_type': EventType.PROCESS_START,
+                            'target_process': 'redis',
+                            'source': 'web_interface',
+                            'action': 'start'
+                        })
+                        return jsonify({'message': 'Redis启动命令已发送'})
+                    elif action == 'stop':
+                        # 停止redis
+                        terminate_process_by_name(os.path.basename(current_config['redis']['path']) if current_config.get('redis', {}).get('path') else 'redis-server.exe')
+                        # 设置手动停止状态
+                        manual_stop_status['redis'] = True
+                        try:
+                            update_global_manual_stop_status('redis', True)
+                        except:
+                            pass  # 如果全局变量不存在，跳过
+                        logger.info(f"通过Web界面停止redis", extra={
+                            'event_type': EventType.PROCESS_STOP,
+                            'target_process': 'redis',
+                            'source': 'web_interface',
+                            'action': 'stop'
+                        })
+                        return jsonify({'message': 'Redis停止命令已发送'})
+            except Exception as inner_e:
+                logger.error(f"执行{process} {action}操作时失败: {str(inner_e)}", extra={
+                    'event_type': EventType.ERROR,
+                    'target_process': process,
+                    'action': action,
+                    'error': str(inner_e)
+                })
+                return jsonify({'message': f'执行操作失败: {str(inner_e)}'}), 500
         except Exception as e:
             logger.error(f"Web界面控制进程失败: {str(e)}", extra={
                 'event_type': EventType.ERROR,
-                'process': process,
-                'action': action,
                 'error': str(e)
             })
-            return jsonify({'message': f'操作失败: {str(e)}'})
-        
-        return jsonify({'message': '操作完成'})
+            return jsonify({'message': f'操作失败: {str(e)}'}), 500
     
     @app.route('/api/manual-check', methods=['POST'])
     def api_manual_check():
@@ -587,7 +617,11 @@ if flask_available:
             else:
                 return jsonify({'message': 'HTTP检查URL未配置'})
         except Exception as e:
-            return jsonify({'message': f'HTTP检查失败: {str(e)}'})
+            logger.error(f"手动HTTP检查失败: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'error': str(e)
+            })
+            return jsonify({'message': f'HTTP检查失败: {str(e)}'}), 500
 
     def start_web_server(host='127.0.0.1', port=5000):
         """启动Web服务器"""
@@ -1097,7 +1131,7 @@ def check_and_manage_llbot_async(config):
         if respect_manual_stop and auto_restart_enabled and is_manual_stop:
             logger.debug("llbot被手动停止，跳过自动重启", extra={
                 'event_type': 'debug',
-                'process': 'llbot',
+                'target_process': 'llbot',
                 'manual_stop': True,
                 'auto_restart_enabled': auto_restart_enabled,
                 'respect_manual_stop': respect_manual_stop
@@ -1146,7 +1180,27 @@ def check_and_manage_llbot_async(config):
                 'timeout_seconds': config['http_check']['timeout'],
                 'error_details': str(e)
             })
-            restart_llbot_with_cleanup(config)
+            # 检查是否手动停止了llbot进程
+            is_manual_stop = False
+            try:
+                is_manual_stop = get_global_manual_stop_status('llbot')
+            except:
+                try:
+                    is_manual_stop = manual_stop_status.get('llbot', False)
+                except:
+                    is_manual_stop = False
+            
+            # 只有在未手动停止时才重启
+            if not (respect_manual_stop and auto_restart_enabled and is_manual_stop):
+                restart_llbot_with_cleanup(config)
+            else:
+                logger.debug("llbot被手动停止，跳过自动重启", extra={
+                    'event_type': 'debug',
+                    'target_process': 'llbot',
+                    'manual_stop': True,
+                    'auto_restart_enabled': auto_restart_enabled,
+                    'respect_manual_stop': respect_manual_stop
+                })
             return
         except requests.exceptions.ConnectionError as e:
             logger.warning(f"HTTP连接错误: {config['http_check']['url']}", extra={
@@ -1163,7 +1217,27 @@ def check_and_manage_llbot_async(config):
                 'error_type': 'connection_error',
                 'error_details': str(e)
             })
-            restart_llbot_with_cleanup(config)
+            # 检查是否手动停止了llbot进程
+            is_manual_stop = False
+            try:
+                is_manual_stop = get_global_manual_stop_status('llbot')
+            except:
+                try:
+                    is_manual_stop = manual_stop_status.get('llbot', False)
+                except:
+                    is_manual_stop = False
+            
+            # 只有在未手动停止时才重启
+            if not (respect_manual_stop and auto_restart_enabled and is_manual_stop):
+                restart_llbot_with_cleanup(config)
+            else:
+                logger.debug("llbot被手动停止，跳过自动重启", extra={
+                    'event_type': 'debug',
+                    'target_process': 'llbot',
+                    'manual_stop': True,
+                    'auto_restart_enabled': auto_restart_enabled,
+                    'respect_manual_stop': respect_manual_stop
+                })
             return
         except requests.exceptions.RequestException as e:
             logger.error(f"HTTP请求异常: {str(e)}", extra={
@@ -1182,7 +1256,27 @@ def check_and_manage_llbot_async(config):
                 'error': str(e),
                 'error_class': type(e).__name__
             })
-            restart_llbot_with_cleanup(config)
+            # 检查是否手动停止了llbot进程
+            is_manual_stop = False
+            try:
+                is_manual_stop = get_global_manual_stop_status('llbot')
+            except:
+                try:
+                    is_manual_stop = manual_stop_status.get('llbot', False)
+                except:
+                    is_manual_stop = False
+            
+            # 只有在未手动停止时才重启
+            if not (respect_manual_stop and auto_restart_enabled and is_manual_stop):
+                restart_llbot_with_cleanup(config)
+            else:
+                logger.debug("llbot被手动停止，跳过自动重启", extra={
+                    'event_type': 'debug',
+                    'target_process': 'llbot',
+                    'manual_stop': True,
+                    'auto_restart_enabled': auto_restart_enabled,
+                    'respect_manual_stop': respect_manual_stop
+                })
             return
         except Exception as e:
             logger.error(f"HTTP检查未知错误: {str(e)}", extra={
@@ -1203,7 +1297,27 @@ def check_and_manage_llbot_async(config):
                 'error_class': type(e).__name__,
                 'traceback': __import__('traceback').format_exc()
             })
-            restart_llbot_with_cleanup(config)
+            # 检查是否手动停止了llbot进程
+            is_manual_stop = False
+            try:
+                is_manual_stop = get_global_manual_stop_status('llbot')
+            except:
+                try:
+                    is_manual_stop = manual_stop_status.get('llbot', False)
+                except:
+                    is_manual_stop = False
+            
+            # 只有在未手动停止时才重启
+            if not (respect_manual_stop and auto_restart_enabled and is_manual_stop):
+                restart_llbot_with_cleanup(config)
+            else:
+                logger.debug("llbot被手动停止，跳过自动重启", extra={
+                    'event_type': 'debug',
+                    'target_process': 'llbot',
+                    'manual_stop': True,
+                    'auto_restart_enabled': auto_restart_enabled,
+                    'respect_manual_stop': respect_manual_stop
+                })
             return
         
         if is_accessible:
@@ -1269,22 +1383,41 @@ def check_and_manage_llbot_async(config):
                         'count': len(found_processes)
                     })
                 else:
-                    # llbot.exe未运行但网站应该可访问，清理相关进程后重新启动它
-                    logger.warning("llbot进程未运行但网站可访问，正在重启", extra={
-                        'event_type': EventType.WARNING, 
-                        'process_name': llbot_process_name,
-                        'details': '进程未运行但HTTP服务可访问，需要重启服务',
-                        'config_path': config['llbot']['path'],
-                        'config_directory': config['llbot']['directory']
-                    })
-                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {(llbot_process_name or 'llbot')} 进程未运行但网站应该可访问，正在清理相关进程并重启...")
-                    event_manager.publish(EventType.WARNING, {
-                        'message': 'llbot进程未运行但网站可访问，正在重启',
-                        'process_name': llbot_process_name,
-                        'config_path': config['llbot']['path'],
-                        'config_directory': config['llbot']['directory']
-                    })
-                    restart_llbot_with_cleanup(config)
+                    # 检查是否手动停止了llbot进程
+                    is_manual_stop = False
+                    try:
+                        is_manual_stop = get_global_manual_stop_status('llbot')
+                    except:
+                        try:
+                            is_manual_stop = manual_stop_status.get('llbot', False)
+                        except:
+                            is_manual_stop = False
+                    
+                    if respect_manual_stop and auto_restart_enabled and is_manual_stop:
+                        logger.debug("llbot被手动停止，跳过自动重启", extra={
+                            'event_type': 'debug',
+                            'target_process': 'llbot',
+                            'manual_stop': True,
+                            'auto_restart_enabled': auto_restart_enabled,
+                            'respect_manual_stop': respect_manual_stop
+                        })
+                    else:
+                        # llbot.exe未运行但网站应该可访问，清理相关进程后重新启动它
+                        logger.warning("llbot进程未运行但网站可访问，正在重启", extra={
+                            'event_type': EventType.WARNING, 
+                            'process_name': llbot_process_name,
+                            'details': '进程未运行但HTTP服务可访问，需要重启服务',
+                            'config_path': config['llbot']['path'],
+                            'config_directory': config['llbot']['directory']
+                        })
+                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {(llbot_process_name or 'llbot')} 进程未运行但网站应该可访问，正在清理相关进程并重启...")
+                        event_manager.publish(EventType.WARNING, {
+                            'message': 'llbot进程未运行但网站可访问，正在重启',
+                            'process_name': llbot_process_name,
+                            'config_path': config['llbot']['path'],
+                            'config_directory': config['llbot']['directory']
+                        })
+                        restart_llbot_with_cleanup(config)
             except psutil.AccessDenied as e:
                 logger.error("访问进程信息被拒绝，可能需要管理员权限", extra={
                     'event_type': EventType.ERROR, 
@@ -1376,7 +1509,7 @@ def check_and_manage_llbot_async(config):
         })
         event_manager.publish(EventType.ERROR, {
             'message': f'检查llbot时发生未知错误: {str(e)}',
-            'process': 'llbot',
+            'target_process': 'llbot',
             'error_type': 'unknown_error',
             'error': str(e),
             'error_class': type(e).__name__,
@@ -1466,25 +1599,36 @@ def check_and_manage_yunzai_async(config):
                 redis_manual_stop = False
         
         if respect_manual_stop and auto_restart_enabled:
-            if yunzai_manual_stop:
-                logger.debug("yunzai被手动停止，跳过自动重启", extra={
-                    'event_type': 'debug',
-                    'process': 'yunzai',
-                    'manual_stop': True,
-                    'auto_restart_enabled': auto_restart_enabled,
-                    'respect_manual_stop': respect_manual_stop
-                })
+            # 检查Redis是否被手动停止
             if redis_manual_stop:
                 logger.debug("redis被手动停止，跳过自动重启", extra={
                     'event_type': 'debug',
-                    'process': 'redis',
+                    'target_process': 'redis',
                     'manual_stop': True,
                     'auto_restart_enabled': auto_restart_enabled,
                     'respect_manual_stop': respect_manual_stop
                 })
+                # 标记Redis为已手动停止
+                skip_redis_check = True
+            else:
+                skip_redis_check = False
+                
+            # 检查Yunzai是否被手动停止
+            if yunzai_manual_stop:
+                logger.debug("yunzai被手动停止，跳过自动重启", extra={
+                    'event_type': 'debug',
+                    'target_process': 'yunzai',
+                    'manual_stop': True,
+                    'auto_restart_enabled': auto_restart_enabled,
+                    'respect_manual_stop': respect_manual_stop
+                })
+                # 标记Yunzai为已手动停止
+                skip_yunzai_check = True
+            else:
+                skip_yunzai_check = False
             
             # 如果yunzai和redis都被手动停止，则跳过整个检查
-            if yunzai_manual_stop and redis_manual_stop:
+            if skip_yunzai_check and skip_redis_check:
                 return
         
         # 检查Redis是否运行
@@ -1574,7 +1718,7 @@ def check_and_manage_yunzai_async(config):
             })
             redis_running = False  # 假设Redis未运行
         
-        if not redis_running:
+        if not redis_running and not skip_redis_check:  # 只有在Redis未被手动停止时才启动
             logger.info(f"Redis未运行，正在启动: {redis_process_name}", extra={
                 'event_type': EventType.PROCESS_START, 
                 'process_name': redis_process_name,
@@ -1799,7 +1943,7 @@ def check_and_manage_yunzai_async(config):
             })
             yunzai_running = False  # 假设Yunzai未运行
         
-        if not yunzai_running:
+        if not yunzai_running and not skip_yunzai_check:  # 只有在Yunzai未被手动停止时才启动
             logger.info("Yunzai未运行，正在启动", extra={
                 'event_type': EventType.PROCESS_START, 
                 'process_name': process_name,
@@ -1988,7 +2132,7 @@ def check_and_manage_yunzai_async(config):
         })
         event_manager.publish(EventType.ERROR, {
             'message': f'检查Yunzai时发生未知错误: {str(e)}',
-            'process': 'yunzai',
+            'target_process': 'yunzai',
             'error': str(e),
             'error_type': 'unknown_error',
             'error_class': type(e).__name__,
@@ -2016,6 +2160,16 @@ def run_monitor_loop(config):
                             llbot_pid = proc.info['pid']
                             break
                     
+                    # 检查是否手动停止了llbot，如果是，则状态显示为停止
+                    try:
+                        is_llbot_manually_stopped = get_global_manual_stop_status('llbot')
+                        if is_llbot_manually_stopped:
+                            llbot_running = False
+                            llbot_pid = None
+                    except:
+                        # 如果获取手动停止状态失败，使用默认行为
+                        pass
+                    
                     current_status['llbot'] = {'running': llbot_running, 'pid': llbot_pid}
                 
                 # 检查yunzai进程状态 (git-bash.exe)
@@ -2026,6 +2180,16 @@ def run_monitor_loop(config):
                         yunzai_running = True
                         yunzai_pid = proc.info['pid']
                         break
+                
+                # 检查是否手动停止了yunzai，如果是，则状态显示为停止
+                try:
+                    is_yunzai_manually_stopped = get_global_manual_stop_status('yunzai')
+                    if is_yunzai_manually_stopped:
+                        yunzai_running = False
+                        yunzai_pid = None
+                except:
+                    # 如果获取手动停止状态失败，使用默认行为
+                    pass
                 
                 current_status['yunzai'] = {'running': yunzai_running, 'pid': yunzai_pid}
                 
@@ -2040,6 +2204,16 @@ def run_monitor_loop(config):
                             redis_running = True
                             redis_pid = proc.info['pid']
                             break
+                    
+                    # 检查是否手动停止了redis，如果是，则状态显示为停止
+                    try:
+                        is_redis_manually_stopped = get_global_manual_stop_status('redis')
+                        if is_redis_manually_stopped:
+                            redis_running = False
+                            redis_pid = None
+                    except:
+                        # 如果获取手动停止状态失败，使用默认行为
+                        pass
                     
                     current_status['redis'] = {'running': redis_running, 'pid': redis_pid}
                 
