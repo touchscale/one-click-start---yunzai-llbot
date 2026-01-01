@@ -492,6 +492,9 @@ if flask_available:
                         terminate_process_by_name(llbot_process_name)
                         # 也终止可能的lucky-lillia-desktop.exe进程
                         terminate_process_by_name('lucky-lillia-desktop.exe')
+                        # 终止pmhq-win-x64.exe进程（llbot依赖进程）
+                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止pmhq-win-x64.exe进程...")
+                        terminate_process_by_name("pmhq-win-x64.exe")
                         # 终止flet.exe进程（llbot的GUI组件）
                         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止flet.exe进程...")
                         terminate_process_by_name("flet.exe")
@@ -500,6 +503,7 @@ if flask_available:
                         qq_processes = ["QQ", "QQProtect", "QQPCRTP"]
                         for qq_process in qq_processes:
                             terminate_process_by_name(qq_process)
+                        
                         # 设置手动停止状态
                         manual_stop_status['llbot'] = True
                         try:
@@ -1665,6 +1669,10 @@ def check_and_manage_llbot_async(config):
 
 def restart_llbot_with_cleanup(config):
     """清理相关进程后重启llbot"""
+    # 终止pmhq-win-x64.exe进程
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止pmhq-win-x64.exe进程...")
+    terminate_process_by_name("pmhq-win-x64.exe")
+    
     # 终止flet.exe进程
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止flet.exe进程...")
     terminate_process_by_name("flet.exe")
