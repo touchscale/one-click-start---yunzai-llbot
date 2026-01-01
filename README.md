@@ -55,7 +55,7 @@ python llbot_yunzai_monitor.py
 
 #### 自动重启配置
 - 启用自动重启：控制是否启用自动重启功能（默认true）
-- 尊重手动停止：控制是否尊重手动停止操作，当为true时手动停止的进程不会自动重启（默认true）
+- 尊重手动停止：控制是否尊重手动停止操作，当为true时在Web手动停止的进程不会自动重启（默认true）
 
 ### 2. 后续运行
 
@@ -90,7 +90,7 @@ http_check:
 # 自动重启设置
 auto_restart:
   enabled: true             # 是否启用自动重启功能
-  respect_manual_stop: true # 是否尊重手动停止操作，不自动重启被手动停止的进程
+  respect_manual_stop: true # 是否尊重手动停止操作，不自动重启在Web被手动停止的进程
 ```
 
 ### 4. 管理员权限
