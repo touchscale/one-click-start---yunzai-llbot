@@ -134,16 +134,18 @@ if flask_available:
         'redis': False
     }
     
-    # 存储最近的日志
-    recent_logs = queue.Queue(maxsize=100)
+    # 存储最近的日志 - 使用线程安全的列表
+    import threading
+    recent_logs = []
+    recent_logs_lock = threading.Lock()
     
     def add_log_entry(log_entry):
-        """向日志队列添加日志条目"""
-        try:
-            recent_logs.put(log_entry, block=False)
-        except queue.Full:
-            # 如果队列满了，简单地丢弃最旧的日志条目
-            pass
+        """向日志列表添加日志条目"""
+        with recent_logs_lock:
+            recent_logs.append(log_entry)
+            # 限制日志数量为100条，移除最旧的日志
+            if len(recent_logs) > 100:
+                recent_logs.pop(0)
     
     class WebLogHandler(logging.Handler):
         """自定义日志处理器，用于将日志发送到Web界面"""
@@ -438,22 +440,9 @@ if flask_available:
     @app.route('/api/logs')
     def api_logs():
         """获取最近的日志"""
-        logs = []
-        temp_list = []
-        while not recent_logs.empty():
-            try:
-                log_entry = recent_logs.get_nowait()
-                temp_list.append(log_entry)
-                logs.append(log_entry)
-            except queue.Empty:
-                break
-        
-        # 重新放回队列
-        for item in temp_list:
-            try:
-                recent_logs.put(item, block=False)
-            except queue.Full:
-                pass
+        with recent_logs_lock:
+            # 创建日志副本以避免在序列化时被其他线程修改
+            logs = recent_logs.copy()
         
         # 只返回最近的50条日志
         logs = logs[-50:] if len(logs) > 50 else logs
