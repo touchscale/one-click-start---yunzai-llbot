@@ -764,12 +764,17 @@ if flask_available:
                         const httpStatus = document.getElementById('http-status');
                         const httpIndicator = document.getElementById('http-status-indicator');
                         
-                        if (data.http_check.accessible) {
-                            httpStatus.textContent = '可访问';
-                            httpIndicator.className = 'status-running';
+                        if (data.http_check.configured) {
+                            if (data.http_check.accessible) {
+                                httpStatus.textContent = '可访问';
+                                httpIndicator.className = 'status-running';
+                            } else {
+                                httpStatus.textContent = '不可访问';
+                                httpIndicator.className = 'status-stopped';
+                            }
                         } else {
-                            httpStatus.textContent = '不可访问';
-                            httpIndicator.className = 'status-stopped';
+                            httpStatus.textContent = '未配置';
+                            httpIndicator.className = 'status-unknown';
                         }
                     }
                 })
@@ -3155,9 +3160,11 @@ def run_monitor_loop(config):
                 if config['http_check'].get('url'):
                     try:
                         is_accessible = async_http_check(config['http_check']['url'], config['http_check'].get('timeout', 5))
-                        current_status['http_check'] = {'accessible': is_accessible}
+                        current_status['http_check'] = {'accessible': is_accessible, 'configured': True}
                     except:
-                        current_status['http_check'] = {'accessible': False}
+                        current_status['http_check'] = {'accessible': False, 'configured': True}
+                else:
+                    current_status['http_check'] = {'accessible': False, 'configured': False}
                 
                 # 同步手动停止状态 - 从Flask应用同步到全局变量
                 try:
