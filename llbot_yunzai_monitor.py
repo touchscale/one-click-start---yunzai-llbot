@@ -171,6 +171,34 @@ if flask_available:
             return f(*args, **kwargs)
         return decorated
 
+    @app.errorhandler(404)
+    async def handle_404(e):
+        """处理404错误：重定向到登录页面或返回API错误"""
+        # API 请求返回 JSON 错误
+        if str(request.path).startswith('/api/'):
+            logger.warning(f"API端点不存在: {request.path}", extra={
+                'event_type': EventType.WARNING,
+                'path': request.path,
+                'method': request.method
+            })
+            return jsonify({'error': 'API端点不存在', 'path': request.path}), 404
+        
+        # 重定向到登录页面
+        return redirect('/login')
+
+    @app.errorhandler(500)
+    async def handle_500(e):
+        """处理500错误"""
+        logger.error(f"服务器内部错误: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'error': str(e),
+            'path': request.path,
+            'method': request.method
+        })
+        if str(request.path).startswith('/api/'):
+            return jsonify({'error': '服务器内部错误'}), 500
+        return (await render_template_string(get_login_template("服务器内部错误，已记录。"))), 500
+
     @app.errorhandler(Exception)
     async def handle_exception(e):
         """全局异常处理：记录完整 traceback，并对 API/页面给出友好提示"""
@@ -179,12 +207,15 @@ if flask_available:
         # 将 traceback 直接包含到日志消息中，以便结构化文件记录中可见完整堆栈
         logger.error(f"Unhandled exception: {str(e)}\n{tb}", extra={
             'event_type': EventType.ERROR,
-            'error': str(e)
+            'error': str(e),
+            'path': request.path,
+            'method': request.method,
+            'traceback': tb
         })
         # API 请求返回 JSON 错误
         try:
             if hasattr(request, 'path') and str(request.path).startswith('/api/'):
-                return jsonify({'message': '内部错误，已记录。'}), 500
+                return jsonify({'message': '内部错误，已记录。', 'error': type(e).__name__}), 500
         except Exception:
             pass
         # 页面请求返回友好错误页面（防止二次异常）
@@ -192,6 +223,51 @@ if flask_available:
             return (await render_template_string(get_login_template("内部错误，已记录。"))), 500
         except Exception:
             return "Internal Server Error", 500
+            
+    # 添加请求前处理，用于安全检查
+    @app.after_request
+    async def after_request(response):
+        """添加安全头部"""
+        # 防止点击劫持
+        response.headers['X-Frame-Options'] = 'DENY'
+        # 防止MIME类型嗅探
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        # 防止跨站脚本攻击
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        # 内容安全策略 - 完善CDN资源加载权限
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; img-src 'self' data: https:; connect-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; manifest-src 'self';"
+        return response
+        
+    @app.before_request
+    async def before_request():
+        """请求前处理：安全检查和输入验证"""
+        # 允许访问登录页面、健康检查和静态文件
+        if request.endpoint in ['login', 'static_files', 'health_check'] or request.path.startswith('/api/change-password'):
+            return
+            
+        # 检查认证状态（对于非登录页面）
+        if request.endpoint != 'login' and 'logged_in' not in session and not request.path.startswith('/api/'):
+            return redirect('/login')
+            
+        # 对于API请求，检查认证
+        if request.path.startswith('/api/') and request.endpoint not in ['login', 'api_change_password', 'health_check']:
+            if 'logged_in' not in session:
+                if request.is_json:
+                    return jsonify({'error': '未认证'}), 401
+                else:
+                    return redirect('/login')
+            
+        # 验证输入数据的安全性
+        if request.method == 'POST':
+            # 防止超大请求体
+            content_length = request.content_length
+            if content_length and content_length > 1024 * 1024:  # 1MB
+                logger.warning(f"请求体过大: {content_length} bytes", extra={
+                    'event_type': EventType.WARNING,
+                    'path': request.path,
+                    'method': request.method
+                })
+                return jsonify({'error': '请求体过大'}), 413
     
     # 存储配置和状态的全局变量
     current_config = {}
@@ -199,7 +275,7 @@ if flask_available:
         'llbot': {'running': False, 'pid': None},
         'yunzai': {'running': False, 'pid': None},
         'redis': {'running': False, 'pid': None},
-        'http_check': {'accessible': False}
+        'http_check': {'accessible': False, 'configured': False}
     }
 
     # Web认证配置 - 从全局current_config获取，如果没有则返回默认值
@@ -424,11 +500,20 @@ if flask_available:
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
+        :root {
+            --primary-gradient: linear-gradient(45deg, #007bff, #6610f2);
+            --success-gradient: linear-gradient(45deg, #28a745, #20c997);
+            --danger-gradient: linear-gradient(45deg, #dc3545, #fd7e14);
+            --warning-gradient: linear-gradient(45deg, #ffc107, #fd7e14);
+            --info-gradient: linear-gradient(45deg, #17a2b8, #6f42c1);
+        }
+        
         body {
             background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
             min-height: 100vh;
             padding-top: 20px;
             padding-bottom: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         .main-container {
             background: rgba(255, 255, 255, 0.95);
@@ -436,6 +521,7 @@ if flask_available:
             box-shadow: 0 10px 30px rgba(0,0,0,0.15);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255,255,255,0.2);
+            margin-bottom: 20px;
         }
         .status-card {
             border-radius: 12px;
@@ -444,130 +530,269 @@ if flask_available:
             transition: all 0.3s ease;
             height: 100%;
             background: linear-gradient(145deg, #ffffff, #f8f9fa);
+            overflow: hidden;
         }
         .status-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.2);
         }
         .status-running {
-            background-color: #28a745 !important;
-            width: 12px;
-            height: 12px;
+            background: var(--success-gradient) !important;
+            width: 14px;
+            height: 14px;
             border-radius: 50%;
             display: inline-block;
             margin-right: 8px;
             box-shadow: 0 0 10px rgba(40, 167, 69, 0.5);
+            animation: pulse 2s infinite;
         }
         .status-stopped {
-            background-color: #dc3545 !important;
-            width: 12px;
-            height: 12px;
+            background: var(--danger-gradient) !important;
+            width: 14px;
+            height: 14px;
             border-radius: 50%;
             display: inline-block;
             margin-right: 8px;
         }
         .status-unknown {
-            background-color: #6c757d !important;
-            width: 12px;
-            height: 12px;
+            background: var(--warning-gradient) !important;
+            width: 14px;
+            height: 14px;
             border-radius: 50%;
             display: inline-block;
             margin-right: 8px;
         }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
         .btn-action {
-            border-radius: 8px;
-            padding: 8px 16px;
+            border-radius: 10px;
+            padding: 10px 16px;
             font-weight: 500;
-            transition: all 0.2s ease;
+            transition: all 0.3s ease;
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            border: none;
+            width: 100%;
+            margin-bottom: 8px;
         }
         .btn-action i {
-            margin-right: 5px;
+            margin-right: 8px;
         }
         .btn-start {
-            background: linear-gradient(45deg, #28a745, #20c997);
-            border: none;
+            background: var(--success-gradient);
+            color: white;
         }
         .btn-start:hover {
             background: linear-gradient(45deg, #218838, #1ea085);
             transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
         }
         .btn-stop {
-            background: linear-gradient(45deg, #dc3545, #fd7e14);
-            border: none;
+            background: var(--danger-gradient);
+            color: white;
         }
         .btn-stop:hover {
             background: linear-gradient(45deg, #c82333, #e06b10);
             transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
         }
         .btn-check {
-            background: linear-gradient(45deg, #007bff, #6610f2);
-            border: none;
+            background: var(--primary-gradient);
+            color: white;
         }
         .btn-check:hover {
             background: linear-gradient(45deg, #0056b3, #520dc2);
             transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
         }
         .log-container {
-            background: #1a1a1a;
+            background: #1e1e1e;
             border-radius: 10px;
             padding: 15px;
             height: 400px;
             overflow-y: auto;
-            font-family: 'Courier New', monospace;
+            font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
             font-size: 13px;
-            box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.5);
+            color: #f5f5f5;
+            position: relative;
         }
         .log-entry { 
             margin-bottom: 5px; 
             line-height: 1.4;
+            padding: 2px 0;
+            border-left: 3px solid transparent;
         }
-        .log-info { color: #87ceeb; }
-        .log-warning { color: #ffa500; }
-        .log-error { color: #ff6b6b; }
-        .log-debug { color: #98fb98; }
+        .log-entry:hover {
+            background: rgba(255,255,255,0.05);
+            padding-left: 8px;
+            border-left: 3px solid #4a90e2;
+            border-radius: 2px;
+        }
+        .log-info { 
+            color: #87ceeb; 
+            border-left-color: #87ceeb;
+        }
+        .log-warning { 
+            color: #ffcc00; 
+            border-left-color: #ffcc00;
+        }
+        .log-error { 
+            color: #ff6b6b; 
+            border-left-color: #ff6b6b;
+        }
+        .log-debug { 
+            color: #98fb98; 
+            border-left-color: #98fb98;
+        }
         .header-title {
-            background: linear-gradient(45deg, #007bff, #6610f2);
+            background: var(--primary-gradient);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            font-weight: bold;
+            font-weight: 700;
+            font-size: 1.8rem;
             text-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         .card-header {
-            border-bottom: 1px solid rgba(0,0,0,0.1);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
             background: linear-gradient(to right, #f8f9fa, #e9ecef) !important;
             border-radius: 12px 12px 0 0 !important;
+            padding: 1.2rem 1.5rem !important;
         }
         .card-body {
-            padding: 1.5rem;
+            padding: 1.5rem !important;
         }
         .process-icon {
-            font-size: 24px;
-            margin-right: 10px;
+            font-size: 28px;
+            margin-right: 12px;
             vertical-align: middle;
+            width: 30px;
+            text-align: center;
         }
         .status-text {
-            font-weight: 500;
+            font-weight: 600;
+            font-size: 0.95rem;
         }
         .alert-box {
-            border-radius: 10px;
+            border-radius: 12px;
             border: none;
+            overflow: hidden;
         }
         .counter-badge {
             background: linear-gradient(45deg, #6c757d, #495057);
             border-radius: 20px;
-            padding: 3px 10px;
-            font-size: 0.8em;
+            padding: 5px 12px;
+            font-size: 0.85em;
+            font-weight: 500;
         }
         .dropdown-menu {
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+            border: none;
+            padding: 8px 0;
+        }
+        .dropdown-item {
+            padding: 10px 20px;
+            transition: all 0.2s;
+        }
+        .dropdown-item:hover {
+            background: rgba(0, 123, 255, 0.1);
         }
         .password-modal .form-control {
             border-radius: 8px;
+            border: 2px solid #e9ecef;
+            padding: 10px 15px;
+        }
+        .password-modal .form-control:focus {
+            border-color: #80bdff;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+        .system-stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: rgba(255,255,255,0.7);
+            border-radius: 10px;
+            margin: 5px;
+            min-width: 120px;
+            flex: 1;
+        }
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .stat-label {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        .refresh-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--success-gradient);
+            margin-left: 8px;
+            animation: blink 1.5s infinite;
+        }
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+        .card-title {
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        /* 确保HTTP检查卡片始终可见并覆盖可能遮挡（增强版） */
+        #http-check-container,
+        #http-check-card {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            position: relative !important;
+            z-index: 9999 !important;
+            pointer-events: auto !important;
+            max-height: none !important;
+        }
+
+        /* 强制按钮样式，确保可见且可点击 */
+        #http-check-button,
+        #http-check-card .btn-check {
+            display: inline-flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            position: relative !important;
+            z-index: 10000 !important;
+            pointer-events: auto !important;
+        }
+
+        /* 额外确保HTTP检查卡片及其子元素始终可见（保留以防有其他规则覆盖） */
+        #http-check-card *,
+        #http-check-container * {
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
         }
     </style>
 </head>
@@ -575,18 +800,43 @@ if flask_available:
     <div class="container-fluid">
         <!-- 顶部导航栏 -->
         <div class="d-flex justify-content-between align-items-center mb-4 px-3">
-            <h1 class="header-title mb-0">
-                <i class="fas fa-tachometer-alt"></i> llbot Yunzai 监控系统
-            </h1>
+            <div class="d-flex align-items-center">
+                <h1 class="header-title mb-0 me-3">
+                    <i class="fas fa-tachometer-alt me-2"></i>llbot Yunzai 监控系统
+                </h1>
+                <span class="refresh-indicator" id="refresh-status" title="实时刷新状态"></span>
+            </div>
             <div class="dropdown">
                 <button class="btn btn-outline-primary dropdown-toggle" type="button" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="fas fa-user-circle"></i> 账户
+                    <i class="fas fa-user-circle me-1"></i>账户管理
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
                     <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#passwordModal"><i class="fas fa-key me-2"></i>修改密码</a></li>
                     <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item text-danger" href="/logout"><i class="fas fa-sign-out-alt me-2"></i>退出登录</a></li>
                 </ul>
+            </div>
+        </div>
+
+        <!-- 系统统计信息 -->
+        <div class="container-fluid px-4 mb-4">
+            <div class="system-stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="llbot-stat">0</div>
+                    <div class="stat-label">llbot 状态</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="yunzai-stat">0</div>
+                    <div class="stat-label">Yunzai 状态</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="redis-stat">0</div>
+                    <div class="stat-label">Redis 状态</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="http-stat">0</div>
+                    <div class="stat-label">HTTP 服务</div>
+                </div>
             </div>
         </div>
 
@@ -662,8 +912,8 @@ if flask_available:
                     </div>
                 </div>
                 
-                <div class="col-lg-3 col-md-6">
-                    <div class="card status-card">
+                <div class="col-lg-3 col-md-6 col-sm-12" id="http-check-container">
+                    <div class="card status-card" id="http-check-card">
                         <div class="card-header d-flex align-items-center">
                             <i class="fas fa-plug process-icon text-warning"></i>
                             <h5 class="card-title mb-0">HTTP 检查</h5>
@@ -674,7 +924,7 @@ if flask_available:
                                 <span id="http-status" class="status-text">未知</span>
                             </div>
                             <div class="control-buttons d-grid gap-2">
-                                <button class="btn btn-check btn-action" onclick="manualHttpCheck()">
+                                <button id="http-check-button" class="btn btn-check btn-action" onclick="manualHttpCheck()" style="display:block !important; visibility:visible !important; opacity:1 !important;">
                                     <i class="fas fa-sync-alt"></i> 手动检查
                                 </button>
                             </div>
@@ -688,31 +938,42 @@ if flask_available:
                 <div class="card-header d-flex align-items-center">
                     <i class="fas fa-terminal me-2"></i>
                     <h5 class="card-title mb-0">实时日志</h5>
-                    <span class="ms-auto counter-badge">
-                        <i class="fas fa-list me-1"></i>
-                        <span id="log-count">0</span> 条
-                    </span>
+                    <div class="d-flex align-items-center ms-auto">
+                        <span class="counter-badge me-3">
+                            <i class="fas fa-list me-1"></i>
+                            <span id="log-count">0</span> 条
+                        </span>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="clearLogs()">
+                            <i class="fas fa-trash-alt me-1"></i>清空日志
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body p-0">
                     <div id="logs" class="log-container"></div>
                 </div>
             </div>
         </div>
+        
+        <!-- 页脚 -->
+        <div class="footer">
+            <p>llbot Yunzai 监控系统 v2.0 | 实时监控您的服务状态</p>
+            <p>最后更新: <span id="last-update"></span> | 自动刷新: <span id="refresh-interval">5秒</span></p>
+        </div>
     </div>
 
     <!-- 密码修改模态框 -->
     <div class="modal fade" id="passwordModal" tabindex="-1" aria-labelledby="passwordModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="passwordModalLabel"><i class="fas fa-key me-2"></i>修改密码</h5>
+                    <h5 class="modal-title" id="passwordModalLabel"><i class="fas fa-key me-2 text-primary"></i>修改账户密码</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <form id="passwordForm">
                         <div class="mb-3">
                             <label for="currentPassword" class="form-label">当前密码</label>
-                            <input type="password" class="form-control" id="currentPassword" required>
+                            <input type="password" class="form-control" id="currentPassword" required placeholder="请输入当前密码">
                         </div>
                         <div class="mb-3">
                             <label for="newUsername" class="form-label">新用户名 (可选)</label>
@@ -720,16 +981,16 @@ if flask_available:
                         </div>
                         <div class="mb-3">
                             <label for="newPassword" class="form-label">新密码</label>
-                            <input type="password" class="form-control" id="newPassword" required>
+                            <input type="password" class="form-control" id="newPassword" required placeholder="请输入新密码">
                         </div>
                         <div class="mb-3">
                             <label for="confirmPassword" class="form-label">确认新密码</label>
-                            <input type="password" class="form-control" id="confirmPassword" required>
+                            <input type="password" class="form-control" id="confirmPassword" required placeholder="请再次输入新密码">
                         </div>
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
                     <button type="button" class="btn btn-primary" onclick="changePassword()">保存更改</button>
                 </div>
             </div>
@@ -764,7 +1025,9 @@ if flask_available:
                         const httpStatus = document.getElementById('http-status');
                         const httpIndicator = document.getElementById('http-status-indicator');
                         
-                        if (data.http_check.configured) {
+                        // HTTP检查卡片总是显示，不需要额外的显示控制
+                        // 更新HTTP检查状态
+                        if (data.http_check && data.http_check.configured) {
                             if (data.http_check.accessible) {
                                 httpStatus.textContent = '可访问';
                                 httpIndicator.className = 'status-running';
@@ -776,15 +1039,85 @@ if flask_available:
                             httpStatus.textContent = '未配置';
                             httpIndicator.className = 'status-unknown';
                         }
+                        
+                        // 更新统计信息
+                        updateStats(data);
+                        
+                        // 确保HTTP检查卡片始终可见
+                        ensureHttpCardVisibility();
                     }
                 })
                 .catch(error => {
                     console.error('获取状态失败:', error);
+                    // 即使获取状态失败，也要确保HTTP检查卡片显示
+                    const httpCard = document.getElementById('http-check-card');
+                    const httpContainer = document.getElementById('http-check-container');
+                    
+                    if (httpCard) {
+                        httpCard.style.display = 'block';
+                        httpCard.style.visibility = 'visible';
+                        httpCard.style.opacity = '1';
+                        httpCard.classList.remove('d-none', 'd-hidden', 'hidden', 'invisible');
+                    }
+                    
+                    if (httpContainer) {
+                        httpContainer.style.display = 'block';
+                        httpContainer.style.visibility = 'visible';
+                        httpContainer.style.opacity = '1';
+                        httpContainer.classList.remove('d-none', 'd-hidden', 'hidden', 'invisible');
+                    }
+                    
                     // 检查是否是认证错误
                     if (error.message && error.message.includes('401')) {
                         handleAuthError();
                     }
                 });
+        }
+        
+        // 更新统计信息
+        function updateStats(data) {
+            const llbotStat = document.getElementById('llbot-stat');
+            const yunzaiStat = document.getElementById('yunzai-stat');
+            const redisStat = document.getElementById('redis-stat');
+            const httpStat = document.getElementById('http-stat');
+            
+            if(data.llbot && data.llbot.running) {
+                llbotStat.textContent = '运行';
+                llbotStat.style.color = '#28a745';
+            } else {
+                llbotStat.textContent = '停止';
+                llbotStat.style.color = '#dc3545';
+            }
+            
+            if(data.yunzai && data.yunzai.running) {
+                yunzaiStat.textContent = '运行';
+                yunzaiStat.style.color = '#28a745';
+            } else {
+                yunzaiStat.textContent = '停止';
+                yunzaiStat.style.color = '#dc3545';
+            }
+            
+            if(data.redis && data.redis.running) {
+                redisStat.textContent = '运行';
+                redisStat.style.color = '#28a745';
+            } else {
+                redisStat.textContent = '停止';
+                redisStat.style.color = '#dc3545';
+            }
+            
+            // 确保HTTP检查状态总是更新，不管是否有配置
+            if(data.http_check && data.http_check.configured) {
+                if(data.http_check.accessible) {
+                    httpStat.textContent = '正常';
+                    httpStat.style.color = '#28a745';
+                } else {
+                    httpStat.textContent = '异常';
+                    httpStat.style.color = '#dc3545';
+                }
+            } else {
+                httpStat.textContent = '未配置';
+                httpStat.style.color = '#6c757d';
+            }
         }
         
         function updateProcessStatus(process, status) {
@@ -827,6 +1160,9 @@ if flask_available:
                         
                         // 滚动到最新日志
                         logsDiv.scrollTop = logsDiv.scrollHeight;
+                        
+                        // 更新最后更新时间
+                        document.getElementById('last-update').textContent = new Date().toLocaleString('zh-CN');
                     }
                 })
                 .catch(error => {
@@ -838,9 +1174,34 @@ if flask_available:
                 });
         }
         
-        // 控制进程
+        // 清空日志
+        function clearLogs() {
+            const logsDiv = document.getElementById('logs');
+            logsDiv.innerHTML = '';
+            document.getElementById('log-count').textContent = '0';
+            document.getElementById('last-update').textContent = '已清空';
+            showAlert('日志已清空', 'info');
+        }
+        
+        // 控制进程（已移除确认框，点击立即执行）
         function controlProcess(process, action) {
             const actionText = action === 'start' ? '启动' : '停止';
+            // 不再弹出确认框，直接执行操作以提高体验。
+            
+            // 禁用按钮并显示加载状态
+            const buttons = document.querySelectorAll(`button[onclick*="controlProcess('${process}'"]`);
+            buttons.forEach(btn => {
+                btn.disabled = true;
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${actionText}中...`;
+                
+                // 恢复原始内容的函数
+                setTimeout(() => {
+                    btn.innerHTML = originalHTML;
+                    btn.disabled = false;
+                }, 3000); // 3秒后恢复，即使没有收到响应
+            });
+            
             fetch('/api/control', {
                 method: 'POST',
                 headers: {
@@ -860,6 +1221,12 @@ if flask_available:
             })
             .then(data => {
                 if (data) {
+                    // 重置按钮状态
+                    buttons.forEach(btn => {
+                        btn.disabled = false;
+                        btn.innerHTML = btn.getAttribute('data-original-content') || btn.innerHTML.replace('<i class="fas fa-spinner fa-spin"></i> ', '');
+                    });
+                    
                     // 使用Bootstrap的alert显示消息
                     showAlert(data.message, 'success');
                     updateStatus();
@@ -867,6 +1234,12 @@ if flask_available:
             })
             .catch(error => {
                 console.error('控制进程失败:', error);
+                // 重置按钮状态
+                buttons.forEach(btn => {
+                    btn.disabled = false;
+                    btn.innerHTML = btn.getAttribute('data-original-content') || btn.innerHTML.replace('<i class="fas fa-spinner fa-spin"></i> ', '');
+                });
+                
                 // 检查是否是认证错误
                 if (error.message && error.message.includes('401')) {
                     handleAuthError();
@@ -878,6 +1251,12 @@ if flask_available:
         
         // 手动HTTP检查
         function manualHttpCheck() {
+            // 禁用按钮并显示加载状态
+            const button = document.querySelector('button[onclick="manualHttpCheck()"]');
+            const originalHTML = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = `<i class="fas fa-spinner fa-spin"></i> 检查中...`;
+            
             fetch('/api/manual-check', {
                 method: 'POST',
             })
@@ -890,12 +1269,20 @@ if flask_available:
             })
             .then(data => {
                 if (data) {
+                    // 重置按钮状态
+                    button.disabled = false;
+                    button.innerHTML = originalHTML;
+                    
                     showAlert(data.message, 'info');
                     updateStatus();
                 }
             })
             .catch(error => {
                 console.error('手动检查失败:', error);
+                // 重置按钮状态
+                button.disabled = false;
+                button.innerHTML = originalHTML;
+                
                 // 检查是否是认证错误
                 if (error.message && error.message.includes('401')) {
                     handleAuthError();
@@ -910,20 +1297,26 @@ if flask_available:
             // 创建alert元素
             const alertDiv = document.createElement('div');
             alertDiv.className = 'alert alert-' + type + ' alert-dismissible fade show position-fixed';
-            alertDiv.style.cssText = 'top: 20px; right: 20px; min-width: 300px; z-index: 9999;';
+            alertDiv.style.cssText = 'top: 20px; right: 20px; min-width: 350px; z-index: 9999; max-width: 350px;';
             alertDiv.innerHTML = `
-                <strong>` + (type.charAt(0).toUpperCase() + type.slice(1)) + `:</strong> ` + message + `
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>` + (type.charAt(0).toUpperCase() + type.slice(1)) + `:</strong>
+                        <div>` + message + `</div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" style="margin-left: 10px;"></button>
+                </div>
             `;
             
             document.body.appendChild(alertDiv);
             
-            // 3秒后自动移除
+            // 5秒后自动移除
             setTimeout(() => {
-                if(alertDiv.parentNode) {
-                    alertDiv.parentNode.removeChild(alertDiv);
+                if(alertDiv && alertDiv.parentNode) {
+                    const alertInstance = bootstrap.Alert.getOrCreateInstance(alertDiv);
+                    alertInstance.close();
                 }
-            }, 3000);
+            }, 5000);
         }
 
         // 修改密码功能
@@ -952,6 +1345,12 @@ if flask_available:
                 payload.new_username = newUsername;
             }
 
+            // 禁用按钮并显示加载状态
+            const submitBtn = document.querySelector('#passwordModal .btn-primary');
+            const originalText = submitBtn.textContent;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 处理中...';
+            submitBtn.disabled = true;
+
             fetch('/api/change-password', {
                 method: 'POST',
                 headers: {
@@ -965,6 +1364,9 @@ if flask_available:
                         showAlert(data.message, 'success');
                         // 清空表单
                         document.getElementById('passwordForm').reset();
+                        // 重置按钮
+                        submitBtn.innerHTML = originalText;
+                        submitBtn.disabled = false;
                         // 关闭模态框
                         bootstrap.Modal.getInstance(document.getElementById('passwordModal')).hide();
                         // 提示用户重新登录
@@ -977,11 +1379,17 @@ if flask_available:
                 } else {
                     return response.json().then(data => {
                         showAlert(data.message, 'danger');
+                        // 重置按钮
+                        submitBtn.innerHTML = originalText;
+                        submitBtn.disabled = false;
                     });
                 }
             })
             .catch(error => {
                 showAlert('修改密码失败: ' + error, 'danger');
+                // 重置按钮
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
             });
         }
         
@@ -989,9 +1397,114 @@ if flask_available:
         setInterval(updateStatus, 5000);  // 每5秒更新一次状态
         setInterval(updateLogs, 2000);    // 每2秒更新一次日志
         
+        // 页面初始化
+        function initPage() {
+            // 确保HTTP检查卡片始终显示
+            const httpCard = document.getElementById('http-check-card');
+            const httpContainer = document.getElementById('http-check-container');
+            
+            if (httpCard) {
+                httpCard.style.display = 'block';
+                httpCard.style.visibility = 'visible';
+                httpCard.style.opacity = '1';
+                httpCard.style.maxHeight = 'none';
+                httpCard.classList.remove('d-none', 'd-hidden', 'hidden', 'invisible');
+            }
+            
+            if (httpContainer) {
+                httpContainer.style.display = 'block';
+                httpContainer.style.visibility = 'visible';
+                httpContainer.style.opacity = '1';
+                httpContainer.style.maxHeight = 'none';
+                httpContainer.classList.remove('d-none', 'd-hidden', 'hidden', 'invisible');
+            }
+            
+            // 确保按钮元素存在
+            const httpButton = document.querySelector('#http-check-card .btn-check');
+            if (httpButton) {
+                httpButton.style.display = 'block';
+                httpButton.style.visibility = 'visible';
+                httpButton.style.opacity = '1';
+                httpButton.classList.remove('d-none', 'd-hidden', 'hidden', 'invisible');
+            }
+            
+            // 额外确保所有子元素可见
+            if (httpCard) {
+                const allChildren = httpCard.querySelectorAll('*');
+                allChildren.forEach(child => {
+                    if (child.style) {
+                        child.style.display = 'block';
+                        child.style.visibility = 'visible';
+                        child.style.opacity = '1';
+                        if (child.classList) {
+                            child.classList.remove('d-none', 'd-hidden', 'hidden', 'invisible');
+                        }
+                    }
+                });
+            }
+        }
+        
         // 初始加载
-        updateStatus();
-        updateLogs();
+        document.addEventListener('DOMContentLoaded', function() {
+            // 延迟执行确保DOM完全加载
+            setTimeout(function() {
+                initPage();
+                updateStatus();
+                updateLogs();
+            }, 100); // 延迟100毫秒确保DOM渲染完成
+        });
+        
+        // 额外确保页面完全加载后执行初始化
+        window.onload = function() {
+            // 再次确保HTTP检查卡片显示
+            setTimeout(function() {
+                const httpCard = document.getElementById('http-check-card');
+                const httpContainer = document.getElementById('http-check-container');
+                
+                if (httpCard) {
+                    httpCard.style.display = 'block';
+                    httpCard.style.visibility = 'visible';
+                    httpCard.style.opacity = '1';
+                    httpCard.classList.remove('d-none', 'd-hidden', 'hidden', 'invisible');
+                }
+                
+                if (httpContainer) {
+                    httpContainer.style.display = 'block';
+                    httpContainer.style.visibility = 'visible';
+                    httpContainer.style.opacity = '1';
+                    httpContainer.classList.remove('d-none', 'd-hidden', 'hidden', 'invisible');
+                }
+                
+                // 确保按钮元素存在
+                const httpButton = document.querySelector('#http-check-card .btn-check');
+                if (httpButton) {
+                    httpButton.style.display = 'block';
+                    httpButton.style.visibility = 'visible';
+                    httpButton.style.opacity = '1';
+                    httpButton.classList.remove('d-none', 'd-hidden', 'hidden', 'invisible');
+                }
+            }, 200); // 延迟200毫秒确保所有资源加载完成
+        }
+        
+        // 额外的检查函数，用于在状态更新后确保显示
+        function ensureHttpCardVisibility() {
+            const httpCard = document.getElementById('http-check-card');
+            const httpContainer = document.getElementById('http-check-container');
+            
+            if (httpCard && httpCard.style.display === 'none') {
+                httpCard.style.display = 'block';
+                httpCard.style.visibility = 'visible';
+                httpCard.style.opacity = '1';
+                httpCard.classList.remove('d-none', 'd-hidden', 'hidden', 'invisible');
+            }
+            
+            if (httpContainer && httpContainer.style.display === 'none') {
+                httpContainer.style.display = 'block';
+                httpContainer.style.visibility = 'visible';
+                httpContainer.style.opacity = '1';
+                httpContainer.classList.remove('d-none', 'd-hidden', 'hidden', 'invisible');
+            }
+        }
     </script>
 </body>
 </html>
@@ -999,7 +1512,7 @@ if flask_available:
             return await render_template_string(html_template)
         except Exception as e:
             import traceback as _tb
-            tb = _tb.format_exc()
+            tb = _tb.format_exc();
             logger.error(f"index render error: {str(e)}", extra={
                 'event_type': EventType.ERROR,
                 'error': str(e),
@@ -1184,7 +1697,7 @@ if flask_available:
                 'error': str(e)
             })
             return jsonify({'message': f'操作失败: {str(e)}'}), 500
-    
+
     @app.route('/api/manual-check', methods=['POST'])
     async def api_manual_check():
         """手动HTTP检查"""
@@ -1305,6 +1818,78 @@ if flask_available:
             })
             return jsonify({'message': f'更改密码失败: {str(e)}'}), 500
 
+    # 添加静态文件路由（用于处理CSS、JS等资源）
+    @app.route('/static/<path:filename>')
+    async def static_files(filename):
+        """处理静态文件请求"""
+        if 'logged_in' not in session:
+            return redirect('/login')
+        # 由于我们使用的是内联样式和脚本，返回404
+        return '', 404
+    
+    # 添加系统信息API
+    @app.route('/api/system-info')
+    @requires_auth
+    async def api_system_info():
+        """获取系统信息"""
+        import platform
+        try:
+            system_info = {
+                'platform': platform.system(),
+                'platform_version': platform.version(),
+                'platform_release': platform.release(),
+                'architecture': platform.architecture()[0],
+                'processor': platform.processor(),
+                'python_version': platform.python_version(),
+                'hostname': platform.node(),
+                'timestamp': datetime.now().isoformat()
+            }
+            return jsonify(system_info)
+        except Exception as e:
+            logger.error(f"获取系统信息失败: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'error': str(e)
+            })
+            return jsonify({'error': '获取系统信息失败'}), 500
+    
+    # 添加配置信息API
+    @app.route('/api/config')
+    @requires_auth
+    async def api_config():
+        """获取当前配置信息（敏感信息已脱敏）"""
+        try:
+            # 创建脱敏后的配置副本
+            safe_config = {}
+            for key, value in current_config.items():
+                if isinstance(value, dict):
+                    safe_config[key] = {}
+                    for sub_key, sub_value in value.items():
+                        # 对敏感信息进行脱敏处理
+                        if sub_key in ['password', 'token', 'secret', 'key', 'auth']:
+                            safe_config[key][sub_key] = '***'
+                        else:
+                            safe_config[key][sub_key] = sub_value
+                else:
+                    safe_config[key] = value
+            
+            return jsonify(safe_config)
+        except Exception as e:
+            logger.error(f"获取配置信息失败: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'error': str(e)
+            })
+            return jsonify({'error': '获取配置信息失败'}), 500
+    
+    # 添加健康检查端点
+    @app.route('/health')
+    async def health_check():
+        """健康检查端点，不需要认证"""
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat(),
+            'service': 'llbot-yunzai-monitor'
+        })
+
     def start_web_server(host='127.0.0.1', port=5000):
         """启动Web服务器"""
         import asyncio
@@ -1318,20 +1903,25 @@ if flask_available:
             'address': f'http://{host}:{port}'
         })
         
-        if hasattr(app, 'run_task'):
-            import hypercorn.asyncio, asyncio
+        if hasattr(app, 'run_task'):  # Quart应用
+            import hypercorn.asyncio
+            import asyncio
             from hypercorn.config import Config
+            
             config = Config()
             config.bind = [f"{host}:{port}"]
             config.accesslog = config.errorlog = None
             
-            if os.name == 'nt' and sys.version_info >= (3, 8):
-                try:
-                    from asyncio import WindowsProactorEventLoopPolicy, WindowsSelectorEventLoopPolicy
-                    if isinstance(asyncio.get_event_loop_policy(), WindowsProactorEventLoopPolicy):
-                        asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
-                except ImportError: pass
+            if os.name == 'nt':  # Windows
+                if sys.version_info >= (3, 8):
+                    try:
+                        from asyncio import WindowsProactorEventLoopPolicy, WindowsSelectorEventLoopPolicy
+                        if isinstance(asyncio.get_event_loop_policy(), WindowsProactorEventLoopPolicy):
+                            asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
+                    except ImportError:
+                        pass
                 
+                # 创建新事件循环并禁用信号处理
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 loop.add_signal_handler = lambda *a: None
@@ -3157,7 +3747,7 @@ def run_monitor_loop(config):
                     current_status['redis'] = {'running': redis_running, 'pid': redis_pid}
                 
                 # 检查HTTP状态
-                if config['http_check'].get('url'):
+                if config.get('http_check', {}).get('url'):
                     try:
                         is_accessible = async_http_check(config['http_check']['url'], config['http_check'].get('timeout', 5))
                         current_status['http_check'] = {'accessible': is_accessible, 'configured': True}
