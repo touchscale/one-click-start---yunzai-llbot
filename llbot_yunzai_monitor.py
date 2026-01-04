@@ -17,14 +17,22 @@ import glob
 
 # Web界面相关
 try:
-    from flask import Flask, render_template_string, jsonify, request, session, redirect
-    from flask import Response
+    from quart import Quart, render_template_string, jsonify, request, session, redirect
+    from quart import Response
     from functools import wraps
     import secrets
     flask_available = True
 except ImportError:
-    flask_available = False
-    print("警告: Flask未安装，Web管理界面功能不可用。请运行 'pip install Flask' 安装。")
+    # 尝试Flask作为备选
+    try:
+        from flask import Flask as Quart, render_template_string, jsonify, request, session, redirect
+        from flask import Response
+        from functools import wraps
+        import secrets
+        flask_available = True
+    except ImportError:
+        flask_available = False
+        print("警告: Quart/Flask未安装，Web管理界面功能不可用。请运行 'pip install Quart' 安装。")
 
 # 默认配置
 DEFAULT_CONFIG = {
@@ -122,8 +130,8 @@ event_manager = EventManager()
 
 # Web服务器
 if flask_available:
-    # 创建Flask应用
-    app = Flask(__name__)
+    # 创建Quart应用（异步Flask）
+    app = Quart(__name__)
     # 设置会话密钥
     app.secret_key = secrets.token_hex(16)
     
@@ -162,6 +170,28 @@ if flask_available:
                 return authenticate()
             return f(*args, **kwargs)
         return decorated
+
+    @app.errorhandler(Exception)
+    async def handle_exception(e):
+        """全局异常处理：记录完整 traceback，并对 API/页面给出友好提示"""
+        import traceback as _tb
+        tb = _tb.format_exc()
+        # 将 traceback 直接包含到日志消息中，以便结构化文件记录中可见完整堆栈
+        logger.error(f"Unhandled exception: {str(e)}\n{tb}", extra={
+            'event_type': EventType.ERROR,
+            'error': str(e)
+        })
+        # API 请求返回 JSON 错误
+        try:
+            if hasattr(request, 'path') and str(request.path).startswith('/api/'):
+                return jsonify({'message': '内部错误，已记录。'}), 500
+        except Exception:
+            pass
+        # 页面请求返回友好错误页面（防止二次异常）
+        try:
+            return (await render_template_string(get_login_template("内部错误，已记录。"))), 500
+        except Exception:
+            return "Internal Server Error", 500
     
     # 存储配置和状态的全局变量
     current_config = {}
@@ -192,7 +222,12 @@ if flask_available:
             '''
         else:
             error_html = '<!-- No error messages -->'
-        
+        # 获取当前配置中的 web_auth 用户名以供提示
+        try:
+            username_hint = get_web_auth_config().get('username', 'admin')
+        except Exception:
+            username_hint = 'admin'
+
         return f'''
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -308,7 +343,8 @@ if flask_available:
                 </button>
             </form>
             <div class="text-center mt-3 text-muted" style="font-size: 0.85em;">
-                <p>默认凭据: admin / admin123</p>
+                <p>当前登录用户名: {username_hint}</p>
+                <p>若忘记密码，请编辑 <strong>config.yaml</strong> 中的 <code>web_auth.password</code> 并重启监控程序。</p>
             </div>
         </div>
     </div>
@@ -372,11 +408,12 @@ if flask_available:
     logging.getLogger().addHandler(web_log_handler)
     
     @app.route('/')
-    def index():
+    async def index():
         """主页"""
         if 'logged_in' not in session:
             return redirect('/login')
-        html_template = '''
+        try:
+            html_template = '''
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -954,17 +991,30 @@ if flask_available:
 </body>
 </html>
         '''
-        return render_template_string(html_template)
+            return await render_template_string(html_template)
+        except Exception as e:
+            import traceback as _tb
+            tb = _tb.format_exc()
+            logger.error(f"index render error: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'error': str(e),
+                'traceback': tb
+            })
+            # 返回简短错误页面并确保日志已记录
+            try:
+                return (await render_template_string('<h1>渲染错误</h1><pre>{}</pre>'.format(str(e)))), 500
+            except Exception:
+                return "Internal Server Error", 500
     
     @app.route('/api/status')
-    def api_status():
+    async def api_status():
         """获取当前状态"""
         if 'logged_in' not in session:
             return jsonify({'error': '未认证'}), 401
         return jsonify(current_status)
     
     @app.route('/api/logs')
-    def api_logs():
+    async def api_logs():
         """获取最近的日志"""
         if 'logged_in' not in session:
             return jsonify({'error': '未认证'}), 401
@@ -977,12 +1027,12 @@ if flask_available:
         return jsonify({'logs': logs})
     
     @app.route('/api/control', methods=['POST'])
-    def api_control():
+    async def api_control():
         """控制进程"""
         if 'logged_in' not in session:
             return jsonify({'error': '未认证'}), 401
         try:
-            data = request.get_json()
+            data = await request.get_json()
             if not data:
                 return jsonify({'message': '无效的JSON数据'}), 400
                 
@@ -1131,7 +1181,7 @@ if flask_available:
             return jsonify({'message': f'操作失败: {str(e)}'}), 500
     
     @app.route('/api/manual-check', methods=['POST'])
-    def api_manual_check():
+    async def api_manual_check():
         """手动HTTP检查"""
         if 'logged_in' not in session:
             return jsonify({'error': '未认证'}), 401
@@ -1149,7 +1199,7 @@ if flask_available:
             return jsonify({'message': f'HTTP检查失败: {str(e)}'}), 500
 
     @app.route('/logout')
-    def logout():
+    async def logout():
         """登出功能"""
         session.pop('logged_in', None)
         session.pop('username', None)
@@ -1157,37 +1207,53 @@ if flask_available:
         return redirect('/login')
 
     @app.route('/login', methods=['GET', 'POST'])
-    def login():
+    async def login():
         """自定义登录页面"""
-        if request.method == 'POST':
-            username = request.form['username']
-            password = request.form['password']
-            
-            if check_auth(username, password):
-                session['logged_in'] = True
-                session['username'] = username
-                logger.info(f"用户登录成功: {username}", extra={
-                    'event_type': 'auth',
-                    'action': 'login',
-                    'username': username
-                })
-                return redirect('/')
+        try:
+            if request.method == 'POST':
+                form = await request.form
+                username = (form.get('username') or '').strip()
+                password = form.get('password') or ''
+
+                if not username or not password:
+                    logger.warning("登录失败：缺少用户名或密码", extra={'event_type': 'auth', 'action': 'login_failed'})
+                    return await render_template_string(get_login_template("请输入用户名和密码"))
+
+                if check_auth(username, password):
+                    session['logged_in'] = True
+                    session['username'] = username
+                    logger.info(f"用户登录成功: {username}", extra={
+                        'event_type': 'auth',
+                        'action': 'login',
+                        'username': username
+                    })
+                    return redirect('/')
+                else:
+                    logger.warning(f"登录失败: {username}", extra={
+                        'event_type': 'auth',
+                        'action': 'login_failed',
+                        'username': username
+                    })
+                    return await render_template_string(get_login_template("用户名或密码错误"))
             else:
-                logger.warning(f"登录失败: {username}", extra={
-                    'event_type': 'auth',
-                    'action': 'login_failed',
-                    'username': username
-                })
-                return render_template_string(get_login_template("用户名或密码错误"))
-        else:
-            return render_template_string(get_login_template())
+                return await render_template_string(get_login_template())
+        except Exception as e:
+            import traceback as _tb
+            tb = _tb.format_exc()
+            logger.error(f"登录页面渲染或处理失败: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'error': str(e),
+                'traceback': tb
+            })
+            # 返回用户友好的错误页面
+            return (await render_template_string(get_login_template("内部错误，已记录。"))), 500
 
     @app.route('/api/change-password', methods=['POST'])
     @requires_auth
-    def api_change_password():
+    async def api_change_password():
         """更改密码API端点"""
         try:
-            data = request.get_json()
+            data = await request.get_json()
             if not data:
                 return jsonify({'message': '无效的JSON数据'}), 400
             
@@ -1236,13 +1302,46 @@ if flask_available:
 
     def start_web_server(host='127.0.0.1', port=5000):
         """启动Web服务器"""
+        import asyncio
+        import sys
+        import os
+        
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Web管理界面启动在 http://{host}:{port}")
         logger.info(f"Web管理界面启动", extra={
             'event_type': 'web_server',
             'action': 'started',
             'address': f'http://{host}:{port}'
         })
-        app.run(host=host, port=port, debug=False, use_reloader=False)
+        
+        if hasattr(app, 'run_task'):
+            import hypercorn.asyncio, asyncio
+            from hypercorn.config import Config
+            config = Config()
+            config.bind = [f"{host}:{port}"]
+            config.accesslog = config.errorlog = None
+            
+            if os.name == 'nt' and sys.version_info >= (3, 8):
+                try:
+                    from asyncio import WindowsProactorEventLoopPolicy, WindowsSelectorEventLoopPolicy
+                    if isinstance(asyncio.get_event_loop_policy(), WindowsProactorEventLoopPolicy):
+                        asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
+                except ImportError: pass
+                
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.add_signal_handler = lambda *a: None
+                shutdown_event = asyncio.Event()
+                
+                try:
+                    loop.run_until_complete(
+                        hypercorn.asyncio.serve(app, config, shutdown_trigger=lambda: shutdown_event.wait())
+                    )
+                finally:
+                    loop.close()
+            else:
+                asyncio.run(hypercorn.asyncio.serve(app, config))
+        else:
+            app.run(host=host, port=port, debug=False, use_reloader=False)
 
 def clean_old_log_files():
     """清理超过一天的旧日志文件"""
@@ -1889,6 +1988,55 @@ def async_http_check(url, timeout=5):
                 'timeout_setting': timeout+2
             })
             return False
+
+# 异步HTTP检查函数，使用aiohttp
+async def async_http_check_async(url, timeout=5):
+    """异步HTTP检查函数，使用aiohttp库（如果可用）"""
+    try:
+        import aiohttp
+    except ImportError:
+        # 如果aiohttp不可用，使用原来的线程池方法
+        return async_http_check(url, timeout)
+    
+    start_time = time.time()
+    try:
+        logger.debug(f"开始异步HTTP检查", extra={
+            'event_type': 'debug',
+            'url': url,
+            'timeout': timeout,
+            'start_time': datetime.fromtimestamp(start_time).isoformat()
+        })
+        
+        timeout_obj = aiohttp.ClientTimeout(total=timeout)
+        async with aiohttp.ClientSession(timeout=timeout_obj) as session:
+            async with session.get(url) as response:
+                end_time = time.time()
+                response_time = end_time - start_time
+                
+                result = response.status == 200
+                logger.debug(f"异步HTTP检查完成", extra={
+                    'event_type': 'debug',
+                    'url': url,
+                    'status_code': response.status,
+                    'response_time': f"{response_time:.3f}s",
+                    'result': result,
+                    'end_time': datetime.fromtimestamp(end_time).isoformat()
+                })
+                
+                return result
+    except Exception as e:
+        end_time = time.time()
+        response_time = end_time - start_time
+        
+        logger.debug(f"异步HTTP检查异常", extra={
+            'event_type': 'debug',
+            'url': url,
+            'response_time': f"{response_time:.3f}s",
+            'error_type': type(e).__name__,
+            'error': str(e),
+            'end_time': datetime.fromtimestamp(end_time).isoformat()
+        })
+        return False
 
 def check_and_manage_llbot_async(config):
     """异步检查并管理llbot进程"""
