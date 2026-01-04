@@ -64,6 +64,7 @@ class EventType:
     CONFIG_LOAD = "config_load"
     ERROR = "error"
     WARNING = "warning"
+    DEBUG = "debug"
 
 class EventManager:
     """事件管理器 - 用于异步事件驱动架构"""
