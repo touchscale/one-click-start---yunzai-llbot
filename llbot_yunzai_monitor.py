@@ -2446,8 +2446,16 @@ def terminate_process_by_name(process_name):
                 'exe': proc.info['exe'] if proc.info['exe'] else 'unknown'
             }
             searched_processes.append(current_process_info)
-            
-            if proc.info['name'].lower() == process_name.lower():
+            # 增强匹配逻辑：支持带/不带 .exe，以及部分匹配（例如 QQ -> QQ.exe、qqprotect.exe 等）
+            proc_name = (proc.info['name'] or '').lower()
+            target_name = (process_name or '').lower()
+            matched = False
+            if proc_name == target_name or proc_name == f"{target_name}.exe":
+                matched = True
+            elif target_name in proc_name:
+                matched = True
+
+            if matched:
                 pid = proc.info['pid']
                 logger.info(f"终止进程 {process_name} (PID: {pid})", extra={
                     'event_type': EventType.PROCESS_STOP, 
@@ -2481,6 +2489,19 @@ def terminate_process_by_name(process_name):
                 'total_processes_searched': len(searched_processes),
                 'processes_found': [p['name'] for p in searched_processes[:10]]  # 只记录前10个找到的进程名
             })
+            # 如果未找到明确的进程，但在 Windows 上可能存在带有不同命名或被保护的进程，尝试使用 taskkill 作为兜底
+            try:
+                # 使用 /F 强制结束，/T 同时终止子进程。使用模糊匹配时添加通配符
+                pattern = process_name if process_name.lower().endswith('.exe') else f"{process_name}*.exe"
+                taskkill_cmd = ["taskkill", "/F", "/IM", pattern, "/T"]
+                result = subprocess.run(taskkill_cmd, capture_output=True, text=True)
+                if result.returncode == 0:
+                    logger.info(f"taskkill 成功终止: {pattern}", extra={'event_type': EventType.PROCESS_STOP, 'pattern': pattern})
+                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] taskkill 成功终止: {pattern}")
+                else:
+                    logger.debug(f"taskkill 未找到或终止失败: {pattern} - {result.stderr}", extra={'event_type': EventType.DEBUG})
+            except Exception as tk_e:
+                logger.error(f"使用 taskkill 终止 {process_name} 时出错: {str(tk_e)}", extra={'event_type': EventType.ERROR, 'error': str(tk_e)})
     except psutil.AccessDenied as e:
         logger.error(f"访问被拒绝，无法终止进程 {process_name}: {str(e)}", extra={
             'event_type': EventType.ERROR, 
