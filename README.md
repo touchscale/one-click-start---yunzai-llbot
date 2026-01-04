@@ -57,6 +57,10 @@ python llbot_yunzai_monitor.py
 - 启用自动重启：控制是否启用自动重启功能（默认true）
 - 尊重手动停止：控制是否尊重手动停止操作，当为true时在Web手动停止的进程不会自动重启（默认true）
 
+#### Web认证配置
+- 用户名：Web管理界面的登录用户名（默认admin）
+- 密码：Web管理界面的登录密码（默认admin123）
+
 ### 2. 后续运行
 
 配置完成后，脚本会自动加载配置文件并开始监控。
@@ -91,6 +95,11 @@ http_check:
 auto_restart:
   enabled: true             # 是否启用自动重启功能
   respect_manual_stop: true # 是否尊重手动停止操作，不自动重启在Web被手动停止的进程
+
+# Web认证设置
+web_auth:
+  username: "admin"         # Web管理界面登录用户名
+  password: "admin123"      # Web管理界面登录密码
 ```
 
 ### 4. 管理员权限
@@ -107,6 +116,7 @@ Web管理界面提供以下功能：
 - 实时查看系统日志
 - 执行手动HTTP检查
 - 手动停止的服务不会自动重启，直到再次手动启动
+- 需要通过Web认证后才能访问管理界面
 
 ### 6. 日志管理
 

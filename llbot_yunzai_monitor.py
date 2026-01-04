@@ -17,7 +17,10 @@ import glob
 
 # Web界面相关
 try:
-    from flask import Flask, render_template_string, jsonify, request
+    from flask import Flask, render_template_string, jsonify, request, session, redirect
+    from flask import Response
+    from functools import wraps
+    import secrets
     flask_available = True
 except ImportError:
     flask_available = False
@@ -37,6 +40,10 @@ DEFAULT_CONFIG = {
     "auto_restart": {
         "enabled": True,
         "respect_manual_stop": True
+    },
+    "web_auth": {
+        "username": "admin",
+        "password": "admin123"
     }
 }
 
@@ -117,6 +124,44 @@ event_manager = EventManager()
 if flask_available:
     # 创建Flask应用
     app = Flask(__name__)
+    # 设置会话密钥
+    app.secret_key = secrets.token_hex(16)
+    
+    # Basic Auth认证函数（用于验证凭据）
+    def check_auth(username, password):
+        """检查用户名密码是否正确"""
+        # 在配置中获取认证凭据，如果未配置则使用默认值
+        auth_config = current_config.get('web_auth', {})
+        correct_username = auth_config.get('username', 'admin')
+        correct_password = auth_config.get('password', 'admin123')
+        return username == correct_username and password == correct_password
+
+    def authenticate():
+        """发送认证请求"""
+        return Response(
+        '请提供用户名和密码进行认证。\n'
+        '请使用 "Basic" 认证方案.', 401,
+        {'WWW-Authenticate': 'Basic realm="Login Required"'}
+    )
+
+    def requires_auth(f):
+        """需要认证的装饰器 - 用于API端点"""
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if 'logged_in' not in session:
+                return redirect('/login')
+            return f(*args, **kwargs)
+        return decorated
+
+    def requires_basic_auth(f):
+        """Basic Auth认证装饰器 - 保留用于兼容性"""
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            auth = request.authorization
+            if not auth or not check_auth(auth.username, auth.password):
+                return authenticate()
+            return f(*args, **kwargs)
+        return decorated
     
     # 存储配置和状态的全局变量
     current_config = {}
@@ -126,6 +171,164 @@ if flask_available:
         'redis': {'running': False, 'pid': None},
         'http_check': {'accessible': False}
     }
+
+    # Web认证配置 - 从全局current_config获取，如果没有则返回默认值
+    def get_web_auth_config():
+        """获取Web认证配置，如果不存在则返回默认值"""
+        auth_config = current_config.get('web_auth', {})
+        return {
+            'username': auth_config.get('username', 'admin'),
+            'password': auth_config.get('password', 'admin123')
+        }
+
+    # 登录页面模板
+    def get_login_template(error_msg=None):
+        error_html = ''
+        if error_msg:
+            error_html = f'''
+            <div class="alert alert-danger error-message" role="alert">
+                <i class="fas fa-exclamation-circle"></i> {error_msg}
+            </div>
+            '''
+        else:
+            error_html = '<!-- No error messages -->'
+        
+        return f'''
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - llbot Yunzai 监控系统</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }}
+        .login-container {{
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            overflow: hidden;
+            width: 100%;
+            max-width: 450px;
+        }}
+        .login-header {{
+            background: linear-gradient(45deg, #007bff, #6610f2);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }}
+        .login-header h2 {{
+            margin: 0;
+            font-weight: 600;
+        }}
+        .login-header p {{
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }}
+        .login-body {{
+            padding: 40px;
+        }}
+        .form-control {{
+            border-radius: 10px;
+            padding: 12px 15px;
+            border: 2px solid #e9ecef;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }}
+        .form-control:focus {{
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
+        }}
+        .btn-login {{
+            background: linear-gradient(45deg, #007bff, #6610f2);
+            border: none;
+            border-radius: 10px;
+            padding: 12px;
+            font-weight: 600;
+            font-size: 16px;
+            width: 100%;
+            transition: all 0.3s;
+        }}
+        .btn-login:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,123,255,0.4);
+        }}
+        .error-message {{
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
+        }}
+        .input-group-text {{
+            background: #f8f9fa;
+            border-radius: 10px 0 0 10px;
+            border-right: none;
+        }}
+        .form-control-with-icon {{
+            border-radius: 0 10px 10px 0;
+        }}
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h2><i class="fas fa-lock"></i> 系统登录</h2>
+            <p>请输入您的凭据以访问监控系统</p>
+        </div>
+        <div class="login-body">
+            {error_html}
+            <form method="post" action="/login">
+                <div class="mb-3">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-user"></i></span>
+                        <input type="text" class="form-control form-control-with-icon" name="username" placeholder="用户名" required value="admin">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-key"></i></span>
+                        <input type="password" class="form-control form-control-with-icon" name="password" placeholder="密码" required value="admin123">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-login">
+                    <i class="fas fa-sign-in-alt"></i> 登录
+                </button>
+            </form>
+            <div class="text-center mt-3 text-muted" style="font-size: 0.85em;">
+                <p>默认凭据: admin / admin123</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 如果有错误消息，5秒后自动隐藏
+        document.addEventListener('DOMContentLoaded', function() {{
+            const errorDiv = document.querySelector('.error-message');
+            if (errorDiv) {{
+                setTimeout(function() {{
+                    errorDiv.style.display = 'none';
+                }}, 5000);
+            }}
+        }});
+    </script>
+</body>
+</html>
+        '''
     
     # 手动停止状态跟踪 - 记录通过Web界面手动停止的进程
     manual_stop_status = {
@@ -171,6 +374,8 @@ if flask_available:
     @app.route('/')
     def index():
         """主页"""
+        if 'logged_in' not in session:
+            return redirect('/login')
         html_template = '''
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -178,212 +383,422 @@ if flask_available:
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>llbot Yunzai 监控系统</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding-top: 20px;
+            padding-bottom: 20px;
         }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            padding: 20px;
-        }
-        h1 {
-            color: #333;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .status-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+        .main-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
         }
         .status-card {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 15px;
-            background: #fafafa;
+            border-radius: 12px;
+            border: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            height: 100%;
+            background: linear-gradient(145deg, #ffffff, #f8f9fa);
         }
-        .status-card h3 {
-            margin-top: 0;
-            color: #444;
+        .status-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
         }
-        .status-indicator {
-            display: inline-block;
+        .status-running {
+            background-color: #28a745 !important;
             width: 12px;
             height: 12px;
             border-radius: 50%;
+            display: inline-block;
             margin-right: 8px;
-        }
-        .status-running {
-            background-color: #4CAF50;
+            box-shadow: 0 0 10px rgba(40, 167, 69, 0.5);
         }
         .status-stopped {
-            background-color: #f44336;
-        }
-        .control-buttons {
-            margin: 10px 0;
-        }
-        button {
-            background-color: #008CBA;
-            border: none;
-            color: white;
-            padding: 8px 16px;
-            text-align: center;
-            text-decoration: none;
+            background-color: #dc3545 !important;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
             display: inline-block;
-            font-size: 14px;
-            margin: 4px 2px;
-            cursor: pointer;
-            border-radius: 4px;
+            margin-right: 8px;
         }
-        button:hover {
-            background-color: #007B9A;
+        .status-unknown {
+            background-color: #6c757d !important;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
         }
-        button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
+        .btn-action {
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
-        .logs-section {
-            margin-top: 30px;
+        .btn-action i {
+            margin-right: 5px;
         }
-        #logs {
-            height: 300px;
+        .btn-start {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            border: none;
+        }
+        .btn-start:hover {
+            background: linear-gradient(45deg, #218838, #1ea085);
+            transform: translateY(-2px);
+        }
+        .btn-stop {
+            background: linear-gradient(45deg, #dc3545, #fd7e14);
+            border: none;
+        }
+        .btn-stop:hover {
+            background: linear-gradient(45deg, #c82333, #e06b10);
+            transform: translateY(-2px);
+        }
+        .btn-check {
+            background: linear-gradient(45deg, #007bff, #6610f2);
+            border: none;
+        }
+        .btn-check:hover {
+            background: linear-gradient(45deg, #0056b3, #520dc2);
+            transform: translateY(-2px);
+        }
+        .log-container {
+            background: #1a1a1a;
+            border-radius: 10px;
+            padding: 15px;
+            height: 400px;
             overflow-y: auto;
-            border: 1px solid #ddd;
-            padding: 10px;
-            background: #000;
-            color: #00ff00;
             font-family: 'Courier New', monospace;
-            font-size: 12px;
+            font-size: 13px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
         }
-        .log-entry {
-            margin-bottom: 5px;
-            white-space: pre-wrap;
+        .log-entry { 
+            margin-bottom: 5px; 
+            line-height: 1.4;
         }
         .log-info { color: #87ceeb; }
         .log-warning { color: #ffa500; }
         .log-error { color: #ff6b6b; }
         .log-debug { color: #98fb98; }
+        .header-title {
+            background: linear-gradient(45deg, #007bff, #6610f2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: bold;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .card-header {
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            background: linear-gradient(to right, #f8f9fa, #e9ecef) !important;
+            border-radius: 12px 12px 0 0 !important;
+        }
+        .card-body {
+            padding: 1.5rem;
+        }
+        .process-icon {
+            font-size: 24px;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        .status-text {
+            font-weight: 500;
+        }
+        .alert-box {
+            border-radius: 10px;
+            border: none;
+        }
+        .counter-badge {
+            background: linear-gradient(45deg, #6c757d, #495057);
+            border-radius: 20px;
+            padding: 3px 10px;
+            font-size: 0.8em;
+        }
+        .dropdown-menu {
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .password-modal .form-control {
+            border-radius: 8px;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>llbot Yunzai 监控系统</h1>
-        
-        <div class="status-grid">
-            <div class="status-card">
-                <h3>llbot 状态</h3>
-                <p><span id="llbot-status-indicator" class="status-indicator status-stopped"></span>
-                <span id="llbot-status">未知</span></p>
-                <div class="control-buttons">
-                    <button onclick="controlProcess('llbot', 'start')">启动 llbot</button>
-                    <button onclick="controlProcess('llbot', 'stop')">停止 llbot</button>
-                </div>
-            </div>
-            
-            <div class="status-card">
-                <h3>Yunzai 状态</h3>
-                <p><span id="yunzai-status-indicator" class="status-indicator status-stopped"></span>
-                <span id="yunzai-status">未知</span></p>
-                <div class="control-buttons">
-                    <button onclick="controlProcess('yunzai', 'start')">启动 Yunzai</button>
-                    <button onclick="controlProcess('yunzai', 'stop')">停止 Yunzai</button>
-                </div>
-            </div>
-            
-            <div class="status-card">
-                <h3>Redis 状态</h3>
-                <p><span id="redis-status-indicator" class="status-indicator status-stopped"></span>
-                <span id="redis-status">未知</span></p>
-                <div class="control-buttons">
-                    <button onclick="controlProcess('redis', 'start')">启动 Redis</button>
-                    <button onclick="controlProcess('redis', 'stop')">停止 Redis</button>
-                </div>
-            </div>
-            
-            <div class="status-card">
-                <h3>HTTP 检查</h3>
-                <p><span id="http-status-indicator" class="status-indicator status-stopped"></span>
-                <span id="http-status">未知</span></p>
-                <div class="control-buttons">
-                    <button onclick="manualHttpCheck()">手动检查</button>
-                </div>
+    <div class="container-fluid">
+        <!-- 顶部导航栏 -->
+        <div class="d-flex justify-content-between align-items-center mb-4 px-3">
+            <h1 class="header-title mb-0">
+                <i class="fas fa-tachometer-alt"></i> llbot Yunzai 监控系统
+            </h1>
+            <div class="dropdown">
+                <button class="btn btn-outline-primary dropdown-toggle" type="button" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-user-circle"></i> 账户
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+                    <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#passwordModal"><i class="fas fa-key me-2"></i>修改密码</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="/logout"><i class="fas fa-sign-out-alt me-2"></i>退出登录</a></li>
+                </ul>
             </div>
         </div>
-        
-        <div class="logs-section">
-            <h3>实时日志</h3>
-            <div id="logs"></div>
+
+        <div class="main-container p-4">
+            <!-- 状态卡片区域 -->
+            <div class="row g-4 mb-4">
+                <div class="col-lg-3 col-md-6">
+                    <div class="card status-card">
+                        <div class="card-header d-flex align-items-center">
+                            <i class="fas fa-robot process-icon text-primary"></i>
+                            <h5 class="card-title mb-0">llbot 状态</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <span id="llbot-status-indicator" class="status-unknown"></span>
+                                <span id="llbot-status" class="status-text">未知</span>
+                            </div>
+                            <div class="control-buttons d-grid gap-2">
+                                <button class="btn btn-start btn-action" onclick="controlProcess('llbot', 'start')">
+                                    <i class="fas fa-play"></i> 启动 llbot
+                                </button>
+                                <button class="btn btn-stop btn-action" onclick="controlProcess('llbot', 'stop')">
+                                    <i class="fas fa-stop"></i> 停止 llbot
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-6">
+                    <div class="card status-card">
+                        <div class="card-header d-flex align-items-center">
+                            <i class="fas fa-server process-icon text-success"></i>
+                            <h5 class="card-title mb-0">Yunzai 状态</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <span id="yunzai-status-indicator" class="status-unknown"></span>
+                                <span id="yunzai-status" class="status-text">未知</span>
+                            </div>
+                            <div class="control-buttons d-grid gap-2">
+                                <button class="btn btn-start btn-action" onclick="controlProcess('yunzai', 'start')">
+                                    <i class="fas fa-play"></i> 启动 Yunzai
+                                </button>
+                                <button class="btn btn-stop btn-action" onclick="controlProcess('yunzai', 'stop')">
+                                    <i class="fas fa-stop"></i> 停止 Yunzai
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-6">
+                    <div class="card status-card">
+                        <div class="card-header d-flex align-items-center">
+                            <i class="fas fa-database process-icon text-info"></i>
+                            <h5 class="card-title mb-0">Redis 状态</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <span id="redis-status-indicator" class="status-unknown"></span>
+                                <span id="redis-status" class="status-text">未知</span>
+                            </div>
+                            <div class="control-buttons d-grid gap-2">
+                                <button class="btn btn-start btn-action" onclick="controlProcess('redis', 'start')">
+                                    <i class="fas fa-play"></i> 启动 Redis
+                                </button>
+                                <button class="btn btn-stop btn-action" onclick="controlProcess('redis', 'stop')">
+                                    <i class="fas fa-stop"></i> 停止 Redis
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-6">
+                    <div class="card status-card">
+                        <div class="card-header d-flex align-items-center">
+                            <i class="fas fa-plug process-icon text-warning"></i>
+                            <h5 class="card-title mb-0">HTTP 检查</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <span id="http-status-indicator" class="status-unknown"></span>
+                                <span id="http-status" class="status-text">未知</span>
+                            </div>
+                            <div class="control-buttons d-grid gap-2">
+                                <button class="btn btn-check btn-action" onclick="manualHttpCheck()">
+                                    <i class="fas fa-sync-alt"></i> 手动检查
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 日志区域 -->
+            <div class="card alert-box">
+                <div class="card-header d-flex align-items-center">
+                    <i class="fas fa-terminal me-2"></i>
+                    <h5 class="card-title mb-0">实时日志</h5>
+                    <span class="ms-auto counter-badge">
+                        <i class="fas fa-list me-1"></i>
+                        <span id="log-count">0</span> 条
+                    </span>
+                </div>
+                <div class="card-body p-0">
+                    <div id="logs" class="log-container"></div>
+                </div>
+            </div>
         </div>
     </div>
 
+    <!-- 密码修改模态框 -->
+    <div class="modal fade" id="passwordModal" tabindex="-1" aria-labelledby="passwordModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="passwordModalLabel"><i class="fas fa-key me-2"></i>修改密码</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="passwordForm">
+                        <div class="mb-3">
+                            <label for="currentPassword" class="form-label">当前密码</label>
+                            <input type="password" class="form-control" id="currentPassword" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="newUsername" class="form-label">新用户名 (可选)</label>
+                            <input type="text" class="form-control" id="newUsername" placeholder="保持当前用户名请留空">
+                        </div>
+                        <div class="mb-3">
+                            <label for="newPassword" class="form-label">新密码</label>
+                            <input type="password" class="form-control" id="newPassword" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirmPassword" class="form-label">确认新密码</label>
+                            <input type="password" class="form-control" id="confirmPassword" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="changePassword()">保存更改</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // 检查认证状态的辅助函数
+        function handleAuthError() {
+            // 如果认证失败，重定向到登录页面
+            window.location.href = '/login';
+        }
+        
         // 自动更新状态
         function updateStatus() {
             fetch('/api/status')
-                .then(response => response.json())
+                .then(response => {
+                    if (response.status === 401) {
+                        handleAuthError();
+                        return;
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    updateProcessStatus('llbot', data.llbot);
-                    updateProcessStatus('yunzai', data.yunzai);
-                    updateProcessStatus('redis', data.redis);
-                    
-                    const httpStatus = document.getElementById('http-status');
-                    const httpIndicator = document.getElementById('http-status-indicator');
-                    
-                    if (data.http_check.accessible) {
-                        httpStatus.textContent = '可访问';
-                        httpIndicator.className = 'status-indicator status-running';
-                    } else {
-                        httpStatus.textContent = '不可访问';
-                        httpIndicator.className = 'status-indicator status-stopped';
+                    if (data && typeof data === 'object') {
+                        updateProcessStatus('llbot', data.llbot);
+                        updateProcessStatus('yunzai', data.yunzai);
+                        updateProcessStatus('redis', data.redis);
+                        
+                        const httpStatus = document.getElementById('http-status');
+                        const httpIndicator = document.getElementById('http-status-indicator');
+                        
+                        if (data.http_check.accessible) {
+                            httpStatus.textContent = '可访问';
+                            httpIndicator.className = 'status-running';
+                        } else {
+                            httpStatus.textContent = '不可访问';
+                            httpIndicator.className = 'status-stopped';
+                        }
                     }
                 })
-                .catch(error => console.error('获取状态失败:', error));
+                .catch(error => {
+                    console.error('获取状态失败:', error);
+                    // 检查是否是认证错误
+                    if (error.message && error.message.includes('401')) {
+                        handleAuthError();
+                    }
+                });
         }
         
         function updateProcessStatus(process, status) {
             const statusElement = document.getElementById(process + '-status');
             const indicatorElement = document.getElementById(process + '-status-indicator');
             
-            if (status.running) {
+            if (status && status.running) {
                 statusElement.textContent = '运行中 (PID: ' + status.pid + ')';
-                indicatorElement.className = 'status-indicator status-running';
+                indicatorElement.className = 'status-running';
             } else {
                 statusElement.textContent = '已停止';
-                indicatorElement.className = 'status-indicator status-stopped';
+                indicatorElement.className = 'status-stopped';
             }
         }
         
         // 更新日志
         function updateLogs() {
             fetch('/api/logs')
-                .then(response => response.json())
-                .then(data => {
-                    const logsDiv = document.getElementById('logs');
-                    logsDiv.innerHTML = '';
-                    
-                    data.logs.forEach(log => {
-                        const logElement = document.createElement('div');
-                        logElement.className = 'log-entry log-' + log.level.toLowerCase();
-                        logElement.textContent = log.timestamp + ' [' + log.level + '] ' + log.module + ':' + log.function + ' - ' + log.message;
-                        logsDiv.appendChild(logElement);
-                    });
-                    
-                    // 滚动到最新日志
-                    logsDiv.scrollTop = logsDiv.scrollHeight;
+                .then(response => {
+                    if (response.status === 401) {
+                        handleAuthError();
+                        return;
+                    }
+                    return response.json();
                 })
-                .catch(error => console.error('获取日志失败:', error));
+                .then(data => {
+                    if (data && data.logs) {
+                        const logsDiv = document.getElementById('logs');
+                        logsDiv.innerHTML = '';
+                        
+                        // 更新日志计数
+                        document.getElementById('log-count').textContent = data.logs.length;
+                        
+                        data.logs.forEach(log => {
+                            const logElement = document.createElement('div');
+                            logElement.className = 'log-entry log-' + log.level.toLowerCase();
+                            logElement.textContent = log.timestamp + ' [' + log.level + '] ' + log.module + ':' + log.function + ' - ' + log.message;
+                            logsDiv.appendChild(logElement);
+                        });
+                        
+                        // 滚动到最新日志
+                        logsDiv.scrollTop = logsDiv.scrollHeight;
+                    }
+                })
+                .catch(error => {
+                    console.error('获取日志失败:', error);
+                    // 检查是否是认证错误
+                    if (error.message && error.message.includes('401')) {
+                        handleAuthError();
+                    }
+                });
         }
         
         // 控制进程
         function controlProcess(process, action) {
+            const actionText = action === 'start' ? '启动' : '停止';
             fetch('/api/control', {
                 method: 'POST',
                 headers: {
@@ -394,13 +809,28 @@ if flask_available:
                     action: action
                 })
             })
-            .then(response => response.json())
+            .then(response => {
+                if (response.status === 401) {
+                    handleAuthError();
+                    return;
+                }
+                return response.json();
+            })
             .then(data => {
-                alert(data.message);
-                updateStatus();
+                if (data) {
+                    // 使用Bootstrap的alert显示消息
+                    showAlert(data.message, 'success');
+                    updateStatus();
+                }
             })
             .catch(error => {
-                alert('操作失败: ' + error);
+                console.error('控制进程失败:', error);
+                // 检查是否是认证错误
+                if (error.message && error.message.includes('401')) {
+                    handleAuthError();
+                } else {
+                    showAlert('操作失败: ' + error, 'danger');
+                }
             });
         }
         
@@ -409,13 +839,107 @@ if flask_available:
             fetch('/api/manual-check', {
                 method: 'POST',
             })
-            .then(response => response.json())
+            .then(response => {
+                if (response.status === 401) {
+                    handleAuthError();
+                    return;
+                }
+                return response.json();
+            })
             .then(data => {
-                alert(data.message);
-                updateStatus();
+                if (data) {
+                    showAlert(data.message, 'info');
+                    updateStatus();
+                }
             })
             .catch(error => {
-                alert('检查失败: ' + error);
+                console.error('手动检查失败:', error);
+                // 检查是否是认证错误
+                if (error.message && error.message.includes('401')) {
+                    handleAuthError();
+                } else {
+                    showAlert('检查失败: ' + error, 'danger');
+                }
+            });
+        }
+        
+        // 显示警告消息
+        function showAlert(message, type) {
+            // 创建alert元素
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-' + type + ' alert-dismissible fade show position-fixed';
+            alertDiv.style.cssText = 'top: 20px; right: 20px; min-width: 300px; z-index: 9999;';
+            alertDiv.innerHTML = `
+                <strong>` + (type.charAt(0).toUpperCase() + type.slice(1)) + `:</strong> ` + message + `
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            
+            document.body.appendChild(alertDiv);
+            
+            // 3秒后自动移除
+            setTimeout(() => {
+                if(alertDiv.parentNode) {
+                    alertDiv.parentNode.removeChild(alertDiv);
+                }
+            }, 3000);
+        }
+
+        // 修改密码功能
+        function changePassword() {
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newUsername = document.getElementById('newUsername').value.trim() || null;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            if (newPassword !== confirmPassword) {
+                showAlert('新密码与确认密码不匹配', 'danger');
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                showAlert('新密码长度至少为6位', 'danger');
+                return;
+            }
+
+            const payload = {
+                old_password: currentPassword,
+                new_password: newPassword
+            };
+
+            if (newUsername) {
+                payload.new_username = newUsername;
+            }
+
+            fetch('/api/change-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json().then(data => {
+                        showAlert(data.message, 'success');
+                        // 清空表单
+                        document.getElementById('passwordForm').reset();
+                        // 关闭模态框
+                        bootstrap.Modal.getInstance(document.getElementById('passwordModal')).hide();
+                        // 提示用户重新登录
+                        setTimeout(() => {
+                            if (confirm('密码已更新，是否现在退出登录并使用新凭据重新登录？')) {
+                                window.location.href = '/logout';
+                            }
+                        }, 2000);
+                    });
+                } else {
+                    return response.json().then(data => {
+                        showAlert(data.message, 'danger');
+                    });
+                }
+            })
+            .catch(error => {
+                showAlert('修改密码失败: ' + error, 'danger');
             });
         }
         
@@ -435,11 +959,15 @@ if flask_available:
     @app.route('/api/status')
     def api_status():
         """获取当前状态"""
+        if 'logged_in' not in session:
+            return jsonify({'error': '未认证'}), 401
         return jsonify(current_status)
     
     @app.route('/api/logs')
     def api_logs():
         """获取最近的日志"""
+        if 'logged_in' not in session:
+            return jsonify({'error': '未认证'}), 401
         with recent_logs_lock:
             # 创建日志副本以避免在序列化时被其他线程修改
             logs = recent_logs.copy()
@@ -451,6 +979,8 @@ if flask_available:
     @app.route('/api/control', methods=['POST'])
     def api_control():
         """控制进程"""
+        if 'logged_in' not in session:
+            return jsonify({'error': '未认证'}), 401
         try:
             data = request.get_json()
             if not data:
@@ -603,6 +1133,8 @@ if flask_available:
     @app.route('/api/manual-check', methods=['POST'])
     def api_manual_check():
         """手动HTTP检查"""
+        if 'logged_in' not in session:
+            return jsonify({'error': '未认证'}), 401
         try:
             if current_config.get('http_check', {}).get('url'):
                 result = async_http_check(current_config['http_check']['url'], current_config['http_check'].get('timeout', 5))
@@ -615,6 +1147,92 @@ if flask_available:
                 'error': str(e)
             })
             return jsonify({'message': f'HTTP检查失败: {str(e)}'}), 500
+
+    @app.route('/logout')
+    def logout():
+        """登出功能"""
+        session.pop('logged_in', None)
+        session.pop('username', None)
+        logger.info("用户已登出", extra={'event_type': 'auth', 'action': 'logout'})
+        return redirect('/login')
+
+    @app.route('/login', methods=['GET', 'POST'])
+    def login():
+        """自定义登录页面"""
+        if request.method == 'POST':
+            username = request.form['username']
+            password = request.form['password']
+            
+            if check_auth(username, password):
+                session['logged_in'] = True
+                session['username'] = username
+                logger.info(f"用户登录成功: {username}", extra={
+                    'event_type': 'auth',
+                    'action': 'login',
+                    'username': username
+                })
+                return redirect('/')
+            else:
+                logger.warning(f"登录失败: {username}", extra={
+                    'event_type': 'auth',
+                    'action': 'login_failed',
+                    'username': username
+                })
+                return render_template_string(get_login_template("用户名或密码错误"))
+        else:
+            return render_template_string(get_login_template())
+
+    @app.route('/api/change-password', methods=['POST'])
+    @requires_auth
+    def api_change_password():
+        """更改密码API端点"""
+        try:
+            data = request.get_json()
+            if not data:
+                return jsonify({'message': '无效的JSON数据'}), 400
+            
+            current_username = session.get('username', '')
+            old_password = data.get('old_password')
+            new_username = data.get('new_username', current_username)
+            new_password = data.get('new_password')
+            
+            if not new_password:
+                return jsonify({'message': '新密码不能为空'}), 400
+            
+            # 验证当前凭据
+            if not check_auth(current_username, old_password):
+                return jsonify({'message': '当前密码错误'}), 401
+            
+            # 更新当前配置中的认证信息
+            if 'web_auth' not in current_config:
+                current_config['web_auth'] = {}
+            current_config['web_auth']['username'] = new_username
+            current_config['web_auth']['password'] = new_password
+            
+            # 保存配置到文件
+            try:
+                save_config(current_config, "config.yaml")
+                logger.info(f"密码已更新，新用户名: {new_username}", extra={
+                    'event_type': 'config_update',
+                    'action': 'password_change',
+                    'target_user': new_username
+                })
+                return jsonify({'message': '密码更新成功，请使用新凭据重新登录'})
+            except Exception as e:
+                logger.error(f"保存配置失败: {str(e)}", extra={
+                    'event_type': EventType.ERROR,
+                    'error': str(e),
+                    'action': 'password_save_failure'
+                })
+                return jsonify({'message': f'保存配置失败: {str(e)}'}), 500
+                
+        except Exception as e:
+            logger.error(f"更改密码失败: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'error': str(e),
+                'action': 'password_change_failure'
+            })
+            return jsonify({'message': f'更改密码失败: {str(e)}'}), 500
 
     def start_web_server(host='127.0.0.1', port=5000):
         """启动Web服务器"""
@@ -809,6 +1427,13 @@ def interactive_config():
             logger.warning(f"无效的HTTP检查超时输入: {timeout_input}，使用默认值", 
                           extra={'event_type': 'config_warning'})
     
+    print("\n【Web认证配置】")
+    config['web_auth'] = {}
+    username_input = input("Web管理界面用户名 (默认: admin，留空使用默认值): ").strip()
+    config['web_auth']['username'] = username_input if username_input else "admin"
+    password_input = input("Web管理界面密码 (默认: admin123，留空使用默认值): ").strip()
+    config['web_auth']['password'] = password_input if password_input else "admin123"
+    
     logger.info("交互式配置完成", extra={'event_type': 'config_complete'})
     print("\n配置完成！")
     return config
@@ -843,6 +1468,10 @@ def validate_config(config, config_path="config.yaml"):
         'auto_restart': {
             'enabled': bool,
             'respect_manual_stop': bool
+        },
+        'web_auth': {
+            'username': str,
+            'password': str
         }
     }
     
@@ -1056,6 +1685,10 @@ def save_default_config(config_path):
         "auto_restart": {
             "enabled": True,
             "respect_manual_stop": True
+        },
+        "web_auth": {
+            "username": "admin",
+            "password": "admin123"
         }
     }
     with open(config_path, 'w', encoding='utf-8') as file:
