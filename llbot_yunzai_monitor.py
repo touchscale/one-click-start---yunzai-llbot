@@ -243,7 +243,7 @@ if flask_available:
     async def before_request():
         """请求前处理：安全检查和输入验证"""
         # 允许访问登录页面、健康检查和静态文件
-        if request.endpoint in ['login', 'static_files', 'health_check'] or request.path.startswith('/api/change-password'):
+        if request.endpoint in ['login', 'static_files', 'health_check'] or request.path.startswith('/api/change-password') or request.path.startswith('/api/reset-password'):
             return
             
         # 检查认证状态（对于非登录页面）
@@ -251,7 +251,7 @@ if flask_available:
             return redirect('/login')
             
         # 对于API请求，检查认证
-        if request.path.startswith('/api/') and request.endpoint not in ['login', 'api_change_password', 'health_check']:
+        if request.path.startswith('/api/') and request.endpoint not in ['login', 'api_change_password', 'api_reset_password', 'health_check']:
             if 'logged_in' not in session:
                 if request.is_json:
                     return jsonify({'error': '未认证'}), 401
@@ -376,6 +376,22 @@ if flask_available:
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(0,123,255,0.4);
         }}
+        .btn-forgot-password {{
+            background: linear-gradient(45deg, #6c757d, #5a6268);
+            border: none;
+            border-radius: 10px;
+            padding: 10px;
+            font-weight: 500;
+            font-size: 14px;
+            width: 100%;
+            margin-top: 10px;
+            transition: all 0.3s;
+            color: white;
+        }}
+        .btn-forgot-password:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(108, 117, 125, 0.4);
+        }}
         .error-message {{
             background: #f8d7da;
             color: #721c24;
@@ -419,9 +435,50 @@ if flask_available:
                     <i class="fas fa-sign-in-alt"></i> 登录
                 </button>
             </form>
-            <div class="text-center mt-3 text-muted" style="font-size: 0.85em;">
-                <p>当前登录用户名: {username_hint}</p>
-                <p>若忘记密码，请编辑 <strong>config.yaml</strong> 中的 <code>web_auth.password</code> 并重启监控程序。</p>
+            <div class="d-grid gap-2 mt-3">
+                <button class="btn btn-forgot-password" type="button" data-bs-toggle="modal" data-bs-target="#forgotPasswordModal">
+                    <i class="fas fa-question-circle"></i> 忘记密码?
+                </button>
+            </div>
+                <div class="text-center mt-3 text-muted" style="font-size: 0.85em;">
+                    <p>当前登录用户名: {username_hint}</p>
+                </div>
+        </div>
+    </div>
+
+    <!-- 忘记密码模态框：提供直接在页面重置密码的表单 -->
+    <div class="modal fade" id="forgotPasswordModal" tabindex="-1" aria-labelledby="forgotPasswordModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="forgotPasswordModalLabel"><i class="fas fa-question-circle me-2 text-warning"></i>忘记密码</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="resetAlert"></div>
+                    <form id="resetPasswordForm">
+                        <div class="mb-3">
+                            <label for="new_password" class="form-label">新密码</label>
+                            <input type="password" class="form-control" id="new_password" name="new_password" placeholder="请输入新密码（建议至少6位）" required minlength="4">
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirm_password" class="form-label">确认新密码</label>
+                            <input type="password" class="form-control" id="confirm_password" name="confirm_password" placeholder="请再次输入新密码" required>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" value="1" id="confirmEdit">
+                            <label class="form-check-label" for="confirmEdit">我确认将更新 <strong>config.yaml</strong> 中的密码</label>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">重置密码并保存</button>
+                        </div>
+                    </form>
+                    <hr>
+                    <p class="text-muted">或者手动编辑 <strong>config.yaml</strong> 并重启程序。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
             </div>
         </div>
     </div>
@@ -429,13 +486,63 @@ if flask_available:
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // 如果有错误消息，5秒后自动隐藏
+        // 页面初始化：隐藏错误消息并绑定重置表单提交处理
         document.addEventListener('DOMContentLoaded', function() {{
             const errorDiv = document.querySelector('.error-message');
             if (errorDiv) {{
                 setTimeout(function() {{
                     errorDiv.style.display = 'none';
                 }}, 5000);
+            }}
+
+            const form = document.getElementById('resetPasswordForm');
+            if (form) {{
+                form.addEventListener('submit', async function(event) {{
+                    event.preventDefault();
+                    const new_password = document.getElementById('new_password').value.trim();
+                    const confirm_password = document.getElementById('confirm_password').value.trim();
+                    const confirmEdit = document.getElementById('confirmEdit').checked;
+                    const alertDiv = document.getElementById('resetAlert');
+                    alertDiv.innerHTML = '';
+
+                    if (!new_password || !confirm_password) {{
+                        alertDiv.innerHTML = '<div class="alert alert-warning">请输入新密码并确认</div>';
+                        return;
+                    }}
+                    if (new_password !== confirm_password) {{
+                        alertDiv.innerHTML = '<div class="alert alert-warning">两次密码输入不一致</div>';
+                        return;
+                    }}
+                    if (new_password.length < 4) {{
+                        alertDiv.innerHTML = '<div class="alert alert-warning">密码太短（至少4位）</div>';
+                        return;
+                    }}
+                    if (!confirmEdit) {{
+                        alertDiv.innerHTML = '<div class="alert alert-warning">请确认将更新配置文件</div>';
+                        return;
+                    }}
+
+                    try {{
+                        const resp = await fetch('/api/reset-password', {{
+                            method: 'POST',
+                            headers: {{ 'Content-Type': 'application/json' }},
+                            body: JSON.stringify({{ new_password, confirm_password, confirm_edit: confirmEdit }})
+                        }});
+                        const data = await resp.json();
+                        if (resp.ok) {{
+                            alertDiv.innerHTML = '<div class="alert alert-success">' + (data.message || '密码重置成功') + '</div>';
+                            setTimeout(function() {{
+                                const modalEl = document.getElementById('forgotPasswordModal');
+                                const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                                modal.hide();
+                            }}, 1200);
+                        }} else {{
+                            alertDiv.innerHTML = '<div class="alert alert-danger">' + (data.message || '重置失败') + '</div>';
+                        }}
+                    }} catch (err) {{
+                        alertDiv.innerHTML = '<div class="alert alert-danger">请求失败: ' + err + '</div>';
+                    }}
+                }});
             }}
         }});
     </script>
@@ -1818,6 +1925,51 @@ if flask_available:
                 'action': 'password_change_failure'
             })
             return jsonify({'message': f'更改密码失败: {str(e)}'}), 500
+
+    @app.route('/api/reset-password', methods=['POST'])
+    async def api_reset_password():
+        """未登录情况下通过登录页重置密码（将直接更新 config.yaml）。"""
+        try:
+            data = await request.get_json()
+            if not data:
+                return jsonify({'message': '无效的JSON数据'}), 400
+
+            new_password = data.get('new_password')
+            confirm_password = data.get('confirm_password')
+            confirm_edit = data.get('confirm_edit')
+
+            if not new_password or not confirm_password:
+                return jsonify({'message': '请输入新密码并确认'}), 400
+            if new_password != confirm_password:
+                return jsonify({'message': '两次密码输入不一致'}), 400
+            if len(new_password) < 4:
+                return jsonify({'message': '密码太短（至少4位）'}), 400
+            if not confirm_edit:
+                return jsonify({'message': '请确认将更新配置文件'}), 400
+
+            if 'web_auth' not in current_config:
+                current_config['web_auth'] = {}
+            current_config['web_auth']['password'] = new_password
+
+            try:
+                save_config(current_config, "config.yaml")
+                logger.info('通过重置页面更新密码', extra={'event_type': 'config_update', 'action': 'password_reset_via_web'})
+                return jsonify({'message': '密码重置成功，已保存到 config.yaml，请重启程序或使用新密码登录'})
+            except Exception as e:
+                logger.error(f"保存配置失败: {str(e)}", extra={
+                    'event_type': EventType.ERROR,
+                    'error': str(e),
+                    'action': 'password_reset_save_failure'
+                })
+                return jsonify({'message': f'保存配置失败: {str(e)}'}), 500
+
+        except Exception as e:
+            logger.error(f"重置密码失败: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'error': str(e),
+                'action': 'password_reset_failure'
+            })
+            return jsonify({'message': f'重置密码失败: {str(e)}'}), 500
 
     # 添加静态文件路由（用于处理CSS、JS等资源）
     @app.route('/static/<path:filename>')
