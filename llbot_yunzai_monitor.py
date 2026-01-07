@@ -440,10 +440,9 @@ if flask_available:
                     <i class="fas fa-question-circle"></i> 忘记密码?
                 </button>
             </div>
-            <div class="text-center mt-3 text-muted" style="font-size: 0.85em;">
-                <p>当前登录用户名: {username_hint}</p>
-                <p>若忘记密码，请编辑 <strong>config.yaml</strong> 中的 <code>web_auth.password</code> 并重启监控程序。</p>
-            </div>
+                <div class="text-center mt-3 text-muted" style="font-size: 0.85em;">
+                    <p>当前登录用户名: {username_hint}</p>
+                </div>
         </div>
     </div>
 
