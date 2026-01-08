@@ -15,24 +15,17 @@ import queue
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import glob
 
-# Web界面相关
+# Web界面相关 - 只使用Flask
 try:
-    from quart import Quart, render_template_string, jsonify, request, session, redirect
-    from quart import Response
+    from flask import Flask as Quart, render_template_string, jsonify, request, session, redirect
+    from flask import Response
     from functools import wraps
     import secrets
     flask_available = True
+    print("使用Flask作为Web框架")
 except ImportError:
-    # 尝试Flask作为备选
-    try:
-        from flask import Flask as Quart, render_template_string, jsonify, request, session, redirect
-        from flask import Response
-        from functools import wraps
-        import secrets
-        flask_available = True
-    except ImportError:
-        flask_available = False
-        print("警告: Quart/Flask未安装，Web管理界面功能不可用。请运行 'pip install Quart' 安装。")
+    flask_available = False
+    print("错误: Flask未安装，Web管理界面功能不可用。请运行 'pip install Flask' 安装。")
 
 # 默认配置
 DEFAULT_CONFIG = {
@@ -131,7 +124,7 @@ event_manager = EventManager()
 
 # Web服务器
 if flask_available:
-    # 创建Quart应用（异步Flask）
+    # 创建Flask应用
     app = Quart(__name__)
     # 设置会话密钥
     app.secret_key = secrets.token_hex(16)
@@ -173,7 +166,7 @@ if flask_available:
         return decorated
 
     @app.errorhandler(404)
-    async def handle_404(e):
+    def handle_404(e):
         """处理404错误：重定向到登录页面或返回API错误"""
         # API 请求返回 JSON 错误
         if str(request.path).startswith('/api/'):
@@ -188,7 +181,7 @@ if flask_available:
         return redirect('/login')
 
     @app.errorhandler(500)
-    async def handle_500(e):
+    def handle_500(e):
         """处理500错误"""
         logger.error(f"服务器内部错误: {str(e)}", extra={
             'event_type': EventType.ERROR,
@@ -198,10 +191,10 @@ if flask_available:
         })
         if str(request.path).startswith('/api/'):
             return jsonify({'error': '服务器内部错误'}), 500
-        return (await render_template_string(get_login_template("服务器内部错误，已记录。"))), 500
+        return render_template_string(get_login_template("服务器内部错误，已记录。")), 500
 
     @app.errorhandler(Exception)
-    async def handle_exception(e):
+    def handle_exception(e):
         """全局异常处理：记录完整 traceback，并对 API/页面给出友好提示"""
         import traceback as _tb
         tb = _tb.format_exc()
@@ -221,13 +214,13 @@ if flask_available:
             pass
         # 页面请求返回友好错误页面（防止二次异常）
         try:
-            return (await render_template_string(get_login_template("内部错误，已记录。"))), 500
+            return render_template_string(get_login_template("内部错误，已记录。")), 500
         except Exception:
             return "Internal Server Error", 500
             
     # 添加请求前处理，用于安全检查
     @app.after_request
-    async def after_request(response):
+    def after_request(response):
         """添加安全头部"""
         # 防止点击劫持
         response.headers['X-Frame-Options'] = 'DENY'
@@ -240,7 +233,7 @@ if flask_available:
         return response
         
     @app.before_request
-    async def before_request():
+    def before_request():
         """请求前处理：安全检查和输入验证"""
         # 允许访问登录页面、健康检查和静态文件
         if request.endpoint in ['login', 'static_files', 'health_check'] or request.path.startswith('/api/change-password') or request.path.startswith('/api/reset-password'):
@@ -528,7 +521,7 @@ if flask_available:
                             headers: {{ 'Content-Type': 'application/json' }},
                             body: JSON.stringify({{ new_password, confirm_password, confirm_edit: confirmEdit }})
                         }});
-                        const data = await resp.json();
+                        const data = respawait .json();
                         if (resp.ok) {{
                             alertDiv.innerHTML = '<div class="alert alert-success">' + (data.message || '密码重置成功') + '</div>';
                             setTimeout(function() {{
@@ -592,7 +585,7 @@ if flask_available:
     logging.getLogger().addHandler(web_log_handler)
     
     @app.route('/')
-    async def index():
+    def index():
         """主页"""
         if 'logged_in' not in session:
             return redirect('/login')
@@ -902,29 +895,159 @@ if flask_available:
             opacity: 1 !important;
             pointer-events: auto !important;
         }
+        
+        /* 侧边栏样式 */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 250px;
+            background: linear-gradient(180deg, #2c3e50 0%, #1a252f 100%);
+            box-shadow: 3px 0 15px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            padding-top: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar-header {
+            padding: 0 20px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        .sidebar-title {
+            color: white;
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        .sidebar-nav {
+            padding: 0 15px;
+        }
+        
+        .sidebar-item {
+            margin-bottom: 8px;
+        }
+        
+        .sidebar-link {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar-link:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            transform: translateX(5px);
+        }
+        
+        .sidebar-link.active {
+            background: linear-gradient(45deg, #007bff, #6610f2);
+            color: white;
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+        }
+        
+        .sidebar-link i {
+            width: 24px;
+            margin-right: 12px;
+            font-size: 1.1rem;
+        }
+        
+        .sidebar-link span {
+            font-weight: 500;
+        }
+        
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 70px;
+            }
+            
+            .sidebar-header {
+                padding: 0 10px 20px;
+            }
+            
+            .sidebar-title {
+                font-size: 0;
+            }
+            
+            .sidebar-title:after {
+                content: "☰";
+                font-size: 1.5rem;
+            }
+            
+            .sidebar-link span {
+                display: none;
+            }
+            
+            .sidebar-link i {
+                margin-right: 0;
+                font-size: 1.3rem;
+            }
+            
+            .main-content {
+                margin-left: 70px;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="container-fluid">
-        <!-- 顶部导航栏 -->
-        <div class="d-flex justify-content-between align-items-center mb-4 px-3">
-            <div class="d-flex align-items-center">
-                <h1 class="header-title mb-0 me-3">
-                    <i class="fas fa-tachometer-alt me-2"></i>llbot Yunzai 监控系统
-                </h1>
-                <span class="refresh-indicator" id="refresh-status" title="实时刷新状态"></span>
-            </div>
-            <div class="dropdown">
-                <button class="btn btn-outline-primary dropdown-toggle" type="button" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="fas fa-user-circle me-1"></i>账户管理
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
-                    <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#passwordModal"><i class="fas fa-key me-2"></i>修改密码</a></li>
-                    <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item text-danger" href="/logout"><i class="fas fa-sign-out-alt me-2"></i>退出登录</a></li>
-                </ul>
-            </div>
+    <!-- 侧边栏 -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h2 class="sidebar-title">
+                <i class="fas fa-tachometer-alt me-2"></i>监控系统
+            </h2>
         </div>
+        <nav class="sidebar-nav">
+            <div class="sidebar-item">
+                <a href="/" class="sidebar-link active">
+                    <i class="fas fa-home"></i>
+                    <span>系统监控</span>
+                </a>
+            </div>
+            <div class="sidebar-item">
+                <a href="/config" class="sidebar-link">
+                    <i class="fas fa-cogs"></i>
+                    <span>配置管理</span>
+                </a>
+            </div>
+        </nav>
+    </div>
+    
+    <!-- 主内容区域 -->
+    <div class="main-content">
+        <div class="container-fluid">
+            <!-- 顶部标题栏 -->
+            <div class="d-flex justify-content-between align-items-center mb-4 px-3">
+                <div class="d-flex align-items-center">
+                    <h1 class="header-title mb-0 me-3">
+                        <i class="fas fa-tachometer-alt me-2"></i>llbot Yunzai 监控系统
+                    </h1>
+                    <span class="refresh-indicator" id="refresh-status" title="实时刷新状态"></span>
+                </div>
+                <div class="dropdown">
+                    <button class="btn btn-outline-primary dropdown-toggle" type="button" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-user-circle me-1"></i>账户管理
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+                        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#passwordModal"><i class="fas fa-key me-2"></i>修改密码</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="/logout"><i class="fas fa-sign-out-alt me-2"></i>退出登录</a></li>
+                    </ul>
+                </div>
+            </div>
 
         <!-- 系统统计信息 -->
         <div class="container-fluid px-4 mb-4">
@@ -1617,7 +1740,7 @@ if flask_available:
 </body>
 </html>
         '''
-            return await render_template_string(html_template)
+            return render_template_string(html_template)
         except Exception as e:
             import traceback as _tb
             tb = _tb.format_exc();
@@ -1628,19 +1751,19 @@ if flask_available:
             })
             # 返回简短错误页面并确保日志已记录
             try:
-                return (await render_template_string('<h1>渲染错误</h1><pre>{}</pre>'.format(str(e)))), 500
+                return render_template_string('<h1>渲染错误</h1><pre>{}</pre>'.format(str(e))), 500
             except Exception:
                 return "Internal Server Error", 500
     
     @app.route('/api/status')
-    async def api_status():
+    def api_status():
         """获取当前状态"""
         if 'logged_in' not in session:
             return jsonify({'error': '未认证'}), 401
         return jsonify(current_status)
     
     @app.route('/api/logs')
-    async def api_logs():
+    def api_logs():
         """获取最近的日志"""
         if 'logged_in' not in session:
             return jsonify({'error': '未认证'}), 401
@@ -1653,12 +1776,12 @@ if flask_available:
         return jsonify({'logs': logs})
     
     @app.route('/api/control', methods=['POST'])
-    async def api_control():
+    def api_control():
         """控制进程"""
         if 'logged_in' not in session:
             return jsonify({'error': '未认证'}), 401
         try:
-            data = await request.get_json()
+            data = request.get_json()
             if not data:
                 return jsonify({'message': '无效的JSON数据'}), 400
                 
@@ -1807,7 +1930,7 @@ if flask_available:
             return jsonify({'message': f'操作失败: {str(e)}'}), 500
 
     @app.route('/api/manual-check', methods=['POST'])
-    async def api_manual_check():
+    def api_manual_check():
         """手动HTTP检查"""
         if 'logged_in' not in session:
             return jsonify({'error': '未认证'}), 401
@@ -1825,7 +1948,7 @@ if flask_available:
             return jsonify({'message': f'HTTP检查失败: {str(e)}'}), 500
 
     @app.route('/logout')
-    async def logout():
+    def logout():
         """登出功能"""
         session.pop('logged_in', None)
         session.pop('username', None)
@@ -1833,17 +1956,17 @@ if flask_available:
         return redirect('/login')
 
     @app.route('/login', methods=['GET', 'POST'])
-    async def login():
+    def login():
         """自定义登录页面"""
         try:
             if request.method == 'POST':
-                form = await request.form
+                form = request.form
                 username = (form.get('username') or '').strip()
                 password = form.get('password') or ''
 
                 if not username or not password:
                     logger.warning("登录失败：缺少用户名或密码", extra={'event_type': 'auth', 'action': 'login_failed'})
-                    return await render_template_string(get_login_template("请输入用户名和密码"))
+                    return render_template_string(get_login_template("请输入用户名和密码"))
 
                 if check_auth(username, password):
                     session['logged_in'] = True
@@ -1860,9 +1983,9 @@ if flask_available:
                         'action': 'login_failed',
                         'username': username
                     })
-                    return await render_template_string(get_login_template("用户名或密码错误"))
+                    return render_template_string(get_login_template("用户名或密码错误"))
             else:
-                return await render_template_string(get_login_template())
+                return render_template_string(get_login_template())
         except Exception as e:
             import traceback as _tb
             tb = _tb.format_exc()
@@ -1872,14 +1995,14 @@ if flask_available:
                 'traceback': tb
             })
             # 返回用户友好的错误页面
-            return (await render_template_string(get_login_template("内部错误，已记录。"))), 500
+            return render_template_string(get_login_template("内部错误，已记录。")), 500
 
     @app.route('/api/change-password', methods=['POST'])
     @requires_auth
-    async def api_change_password():
+    def api_change_password():
         """更改密码API端点"""
         try:
-            data = await request.get_json()
+            data = request.get_json()
             if not data:
                 return jsonify({'message': '无效的JSON数据'}), 400
             
@@ -1927,10 +2050,10 @@ if flask_available:
             return jsonify({'message': f'更改密码失败: {str(e)}'}), 500
 
     @app.route('/api/reset-password', methods=['POST'])
-    async def api_reset_password():
+    def api_reset_password():
         """未登录情况下通过登录页重置密码（将直接更新 config.yaml）。"""
         try:
-            data = await request.get_json()
+            data = request.get_json()
             if not data:
                 return jsonify({'message': '无效的JSON数据'}), 400
 
@@ -1973,7 +2096,7 @@ if flask_available:
 
     # 添加静态文件路由（用于处理CSS、JS等资源）
     @app.route('/static/<path:filename>')
-    async def static_files(filename):
+    def static_files(filename):
         """处理静态文件请求"""
         if 'logged_in' not in session:
             return redirect('/login')
@@ -1983,7 +2106,7 @@ if flask_available:
     # 添加系统信息API
     @app.route('/api/system-info')
     @requires_auth
-    async def api_system_info():
+    def api_system_info():
         """获取系统信息"""
         import platform
         try:
@@ -2008,7 +2131,7 @@ if flask_available:
     # 添加配置信息API
     @app.route('/api/config')
     @requires_auth
-    async def api_config():
+    def api_config():
         """获取当前配置信息（敏感信息已脱敏）"""
         try:
             # 创建脱敏后的配置副本
@@ -2035,7 +2158,7 @@ if flask_available:
     
     # 添加健康检查端点
     @app.route('/health')
-    async def health_check():
+    def health_check():
         """健康检查端点，不需要认证"""
         return jsonify({
             'status': 'healthy',
@@ -2043,12 +2166,688 @@ if flask_available:
             'service': 'llbot-yunzai-monitor'
         })
 
+    # 配置管理页面
+    @app.route('/config')
+    @requires_auth
+    def config_page():
+        """配置管理页面"""
+        try:
+            # 获取当前配置（脱敏版本）
+            safe_config = {}
+            for key, value in current_config.items():
+                if isinstance(value, dict):
+                    safe_config[key] = {}
+                    for sub_key, sub_value in value.items():
+                        # 对敏感信息进行脱敏处理
+                        if sub_key in ['password', 'token', 'secret', 'key', 'auth']:
+                            safe_config[key][sub_key] = '***'
+                        else:
+                            safe_config[key][sub_key] = sub_value
+                else:
+                    safe_config[key] = value
+            
+            # 生成配置页面HTML
+            config_html = '''
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>配置管理 - llbot Yunzai 监控系统</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(45deg, #007bff, #6610f2);
+            --success-gradient: linear-gradient(45deg, #28a745, #20c997);
+            --danger-gradient: linear-gradient(45deg, #dc3545, #fd7e14);
+            --warning-gradient: linear-gradient(45deg, #ffc107, #fd7e14);
+            --info-gradient: linear-gradient(45deg, #17a2b8, #6f42c1);
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding-top: 20px;
+            padding-bottom: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .main-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            margin-bottom: 20px;
+        }
+        .config-card {
+            border-radius: 12px;
+            border: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            height: 100%;
+            background: linear-gradient(145deg, #ffffff, #f8f9fa);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        .config-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.2);
+        }
+        .card-header {
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            background: linear-gradient(to right, #f8f9fa, #e9ecef) !important;
+            border-radius: 12px 12px 0 0 !important;
+            padding: 1.2rem 1.5rem !important;
+        }
+        .card-body {
+            padding: 1.5rem !important;
+        }
+        .form-control {
+            border-radius: 10px;
+            padding: 12px 15px;
+            border: 2px solid #e9ecef;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+        .form-control:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
+        }
+        .form-label {
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 8px;
+        }
+        .form-check-input:checked {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        .btn-save {
+            background: var(--success-gradient);
+            border: none;
+            border-radius: 10px;
+            padding: 12px 24px;
+            font-weight: 600;
+            font-size: 16px;
+            color: white;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+        }
+        .btn-cancel {
+            background: var(--danger-gradient);
+            border: none;
+            border-radius: 10px;
+            padding: 12px 24px;
+            font-weight: 600;
+            font-size: 16px;
+            color: white;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-cancel:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.4);
+        }
+        .btn-back {
+            background: var(--primary-gradient);
+            border: none;
+            border-radius: 10px;
+            padding: 10px 20px;
+            font-weight: 500;
+            font-size: 14px;
+            color: white;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-back:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 123, 255, 0.4);
+        }
+        .header-title {
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 700;
+            font-size: 1.8rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .section-title {
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        .alert-box {
+            border-radius: 12px;
+            border: none;
+            overflow: hidden;
+        }
+        .config-icon {
+            font-size: 24px;
+            margin-right: 12px;
+            vertical-align: middle;
+            width: 30px;
+            text-align: center;
+        }
+        .nav-tabs {
+            border-bottom: 2px solid #e9ecef;
+        }
+        .nav-tabs .nav-link {
+            border: none;
+            border-radius: 8px 8px 0 0;
+            padding: 12px 20px;
+            font-weight: 500;
+            color: #6c757d;
+            transition: all 0.3s;
+        }
+        .nav-tabs .nav-link:hover {
+            color: #495057;
+            background-color: rgba(0, 123, 255, 0.05);
+        }
+        .nav-tabs .nav-link.active {
+            color: #007bff;
+            background-color: rgba(0, 123, 255, 0.1);
+            border-bottom: 3px solid #007bff;
+        }
+        
+        /* 侧边栏样式 */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 250px;
+            background: linear-gradient(180deg, #2c3e50 0%, #1a252f 100%);
+            box-shadow: 3px 0 15px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            padding-top: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar-header {
+            padding: 0 20px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        .sidebar-title {
+            color: white;
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        .sidebar-nav {
+            padding: 0 15px;
+        }
+        
+        .sidebar-item {
+            margin-bottom: 8px;
+        }
+        
+        .sidebar-link {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar-link:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            transform: translateX(5px);
+        }
+        
+        .sidebar-link.active {
+            background: linear-gradient(45deg, #007bff, #6610f2);
+            color: white;
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+        }
+        
+        .sidebar-link i {
+            width: 24px;
+            margin-right: 12px;
+            font-size: 1.1rem;
+        }
+        
+        .sidebar-link span {
+            font-weight: 500;
+        }
+        
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 70px;
+            }
+            
+            .sidebar-header {
+                padding: 0 10px 20px;
+            }
+            
+            .sidebar-title {
+                font-size: 0;
+            }
+            
+            .sidebar-title:after {
+                content: "☰";
+                font-size: 1.5rem;
+            }
+            
+            .sidebar-link span {
+                display: none;
+            }
+            
+            .sidebar-link i {
+                margin-right: 0;
+                font-size: 1.3rem;
+            }
+            
+            .main-content {
+                margin-left: 70px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 侧边栏 -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h2 class="sidebar-title">
+                <i class="fas fa-tachometer-alt me-2"></i>监控系统
+            </h2>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="sidebar-item">
+                <a href="/" class="sidebar-link">
+                    <i class="fas fa-home"></i>
+                    <span>系统监控</span>
+                </a>
+            </div>
+            <div class="sidebar-item">
+                <a href="/config" class="sidebar-link active">
+                    <i class="fas fa-cogs"></i>
+                    <span>配置管理</span>
+                </a>
+            </div>
+        </nav>
+    </div>
+    
+    <!-- 主内容区域 -->
+    <div class="main-content">
+        <div class="container-fluid">
+            <!-- 顶部标题栏 -->
+            <div class="d-flex justify-content-between align-items-center mb-4 px-3">
+                <div class="d-flex align-items-center">
+                    <h1 class="header-title mb-0 me-3">
+                        <i class="fas fa-cogs me-2"></i>配置管理
+                    </h1>
+                </div>
+                <div class="dropdown">
+                    <button class="btn btn-outline-primary dropdown-toggle" type="button" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-user-circle me-1"></i>账户管理
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+                        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#passwordModal"><i class="fas fa-key me-2"></i>修改密码</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="/logout"><i class="fas fa-sign-out-alt me-2"></i>退出登录</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="main-container p-4">
+            <!-- 配置表单 -->
+            <div id="configAlert" class="alert alert-info alert-box mb-4" style="display: none;">
+                <i class="fas fa-info-circle me-2"></i>
+                <span id="configAlertMessage"></span>
+            </div>
+
+            <!-- 配置选项卡 -->
+            <ul class="nav nav-tabs mb-4" id="configTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="llbot-tab" data-bs-toggle="tab" data-bs-target="#llbot" type="button" role="tab">
+                        <i class="fas fa-robot config-icon"></i>llbot 配置
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="yunzai-tab" data-bs-toggle="tab" data-bs-target="#yunzai" type="button" role="tab">
+                        <i class="fas fa-server config-icon"></i>Yunzai 配置
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="http-tab" data-bs-toggle="tab" data-bs-target="#http" type="button" role="tab">
+                        <i class="fas fa-plug config-icon"></i>HTTP 检查配置
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="auto-tab" data-bs-toggle="tab" data-bs-target="#auto" type="button" role="tab">
+                        <i class="fas fa-redo config-icon"></i>自动重启配置
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="auth-tab" data-bs-toggle="tab" data-bs-target="#auth" type="button" role="tab">
+                        <i class="fas fa-lock config-icon"></i>Web 认证配置
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="configTabsContent">
+                <!-- llbot 配置 -->
+                <div class="tab-pane fade show active" id="llbot" role="tabpanel">
+                    <div class="config-card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0"><i class="fas fa-robot me-2 text-primary"></i>llbot 进程配置</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="llbot-wait-seconds" class="form-label">等待时间（秒）</label>
+                                <input type="number" class="form-control" id="llbot-wait-seconds" 
+                                       min="1" max="60" step="1" value="''' + str(safe_config.get('llbot', {}).get('wait_seconds', 5)) + '''">
+                                <div class="form-text">启动/停止 llbot 后的等待时间，建议 3-10 秒</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Yunzai 配置 -->
+                <div class="tab-pane fade" id="yunzai" role="tabpanel">
+                    <div class="config-card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0"><i class="fas fa-server me-2 text-success"></i>Yunzai 进程配置</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="yunzai-wait-seconds" class="form-label">等待时间（秒）</label>
+                                <input type="number" class="form-control" id="yunzai-wait-seconds" 
+                                       min="1" max="60" step="1" value="''' + str(safe_config.get('yunzai', {}).get('wait_seconds', 5)) + '''">
+                                <div class="form-text">启动/停止 Yunzai 后的等待时间，建议 3-10 秒</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- HTTP 检查配置 -->
+                <div class="tab-pane fade" id="http" role="tabpanel">
+                    <div class="config-card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0"><i class="fas fa-plug me-2 text-warning"></i>HTTP 检查配置</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="http-timeout" class="form-label">超时时间（秒）</label>
+                                <input type="number" class="form-control" id="http-timeout" 
+                                       min="1" max="30" step="1" value="''' + str(safe_config.get('http_check', {}).get('timeout', 5)) + '''">
+                                <div class="form-text">HTTP 请求超时时间，建议 3-10 秒</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 自动重启配置 -->
+                <div class="tab-pane fade" id="auto" role="tabpanel">
+                    <div class="config-card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0"><i class="fas fa-redo me-2 text-info"></i>自动重启配置</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="auto-restart-enabled" 
+                                           ''' + ('checked' if safe_config.get('auto_restart', {}).get('enabled', True) else '') + '''>
+                                    <label class="form-check-label" for="auto-restart-enabled">启用自动重启</label>
+                                </div>
+                                <div class="form-text">当进程异常退出时自动重启</div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="respect-manual-stop" 
+                                           ''' + ('checked' if safe_config.get('auto_restart', {}).get('respect_manual_stop', True) else '') + '''>
+                                    <label class="form-check-label" for="respect-manual-stop">尊重手动停止</label>
+                                </div>
+                                <div class="form-text">如果手动停止了进程，则不自动重启</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Web 认证配置 -->
+                <div class="tab-pane fade" id="auth" role="tabpanel">
+                    <div class="config-card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0"><i class="fas fa-lock me-2 text-danger"></i>Web 管理界面认证配置</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="auth-username" class="form-label">用户名</label>
+                                <input type="text" class="form-control" id="auth-username" 
+                                       value="''' + str(safe_config.get('web_auth', {}).get('username', 'admin')) + '''">
+                                <div class="form-text">登录 Web 管理界面的用户名</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="auth-password" class="form-label">密码</label>
+                                <input type="password" class="form-control" id="auth-password" 
+                                       value="''' + str(safe_config.get('web_auth', {}).get('password', '***')) + '''">
+                                <div class="form-text">登录 Web 管理界面的密码（显示为 *** 表示已设置）</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="d-flex justify-content-between mt-4">
+                <button class="btn btn-cancel" onclick="resetForm()">
+                    <i class="fas fa-undo me-2"></i>重置
+                </button>
+                <div>
+                    <button class="btn btn-outline-secondary me-2" onclick="window.location.href='/'">
+                        <i class="fas fa-times me-2"></i>取消
+                    </button>
+                    <button class="btn btn-save" onclick="saveConfig()">
+                        <i class="fas fa-save me-2"></i>保存配置
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 显示提示信息
+        function showAlert(message, type = 'info') {
+            const alertDiv = document.getElementById('configAlert');
+            const alertMessage = document.getElementById('configAlertMessage');
+            
+            alertDiv.className = `alert alert-${type} alert-box`;
+            alertMessage.textContent = message;
+            alertDiv.style.display = 'block';
+            
+            // 5秒后自动隐藏
+            setTimeout(() => {
+                alertDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        // 重置表单
+        function resetForm() {
+            if (confirm('确定要重置所有配置吗？未保存的更改将会丢失。')) {
+                window.location.reload();
+            }
+        }
+
+        // 保存配置
+        async function saveConfig() {
+            try {
+                // 收集配置数据
+                const configData = {
+                    llbot: {
+                        wait_seconds: parseInt(document.getElementById('llbot-wait-seconds').value) || 5
+                    },
+                    yunzai: {
+                        wait_seconds: parseInt(document.getElementById('yunzai-wait-seconds').value) || 5
+                    },
+                    http_check: {
+                        timeout: parseInt(document.getElementById('http-timeout').value) || 5
+                    },
+                    auto_restart: {
+                        enabled: document.getElementById('auto-restart-enabled').checked,
+                        respect_manual_stop: document.getElementById('respect-manual-stop').checked
+                    },
+                    web_auth: {
+                        username: document.getElementById('auth-username').value.trim() || 'admin',
+                        password: document.getElementById('auth-password').value
+                    }
+                };
+
+                // 验证配置
+                if (configData.llbot.wait_seconds < 1 || configData.llbot.wait_seconds > 60) {
+                    showAlert('llbot 等待时间必须在 1-60 秒之间', 'warning');
+                    return;
+                }
+                if (configData.yunzai.wait_seconds < 1 || configData.yunzai.wait_seconds > 60) {
+                    showAlert('Yunzai 等待时间必须在 1-60 秒之间', 'warning');
+                    return;
+                }
+                if (configData.http_check.timeout < 1 || configData.http_check.timeout > 30) {
+                    showAlert('HTTP 超时时间必须在 1-30 秒之间', 'warning');
+                    return;
+                }
+                if (!configData.web_auth.username) {
+                    showAlert('用户名不能为空', 'warning');
+                    return;
+                }
+                if (!configData.web_auth.password || configData.web_auth.password === '***') {
+                    showAlert('密码不能为空或使用默认占位符', 'warning');
+                    return;
+                }
+
+                // 发送保存请求
+                const response = await fetch('/api/config/update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(configData)
+                });
+
+                const result = responseawait .json();
+
+                if (response.ok) {
+                    showAlert('配置保存成功！部分配置可能需要重启程序才能生效。', 'success');
+                    // 更新密码字段显示
+                    document.getElementById('auth-password').value = '***';
+                } else {
+                    showAlert('保存失败：' + (result.error || '未知错误'), 'danger');
+                }
+            } catch (error) {
+                console.error('保存配置失败:', error);
+                showAlert('保存失败：网络错误或服务器异常', 'danger');
+            }
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 激活第一个选项卡
+            const firstTab = document.querySelector('#configTabs .nav-link');
+            if (firstTab) {
+                firstTab.click();
+            }
+        });
+    </script>
+</body>
+</html>
+            '''
+            return render_template_string(config_html)
+        except Exception as e:
+            logger.error(f"加载配置页面失败: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'error': str(e)
+            })
+            return render_template_string(get_login_template("加载配置页面失败，请重试。")), 500
+
+    # 配置更新API
+    @app.route('/api/config/update', methods=['POST'])
+    @requires_auth
+    def api_config_update():
+        """更新配置信息"""
+        try:
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': '无效的JSON数据'}), 400
+
+            # 验证配置数据
+            required_sections = ['llbot', 'yunzai', 'http_check', 'auto_restart', 'web_auth']
+            for section in required_sections:
+                if section not in data:
+                    return jsonify({'error': f'缺少配置项: {section}'}), 400
+
+            # 验证具体配置值
+            if not isinstance(data['llbot'].get('wait_seconds'), (int, float)) or data['llbot']['wait_seconds'] < 1:
+                return jsonify({'error': 'llbot等待时间必须大于0'}), 400
+            if not isinstance(data['yunzai'].get('wait_seconds'), (int, float)) or data['yunzai']['wait_seconds'] < 1:
+                return jsonify({'error': 'yunzai等待时间必须大于0'}), 400
+            if not isinstance(data['http_check'].get('timeout'), (int, float)) or data['http_check']['timeout'] < 1:
+                return jsonify({'error': 'HTTP超时时间必须大于0'}), 400
+            if not isinstance(data['auto_restart'].get('enabled'), bool):
+                return jsonify({'error': '自动重启启用状态必须是布尔值'}), 400
+            if not isinstance(data['auto_restart'].get('respect_manual_stop'), bool):
+                return jsonify({'error': '尊重手动停止状态必须是布尔值'}), 400
+            if not data['web_auth'].get('username'):
+                return jsonify({'error': '用户名不能为空'}), 400
+            if not data['web_auth'].get('password'):
+                return jsonify({'error': '密码不能为空'}), 400
+
+            # 更新当前配置
+            current_config.update(data)
+            
+            # 保存配置到文件
+            try:
+                save_config(current_config, "config.yaml")
+                logger.info("配置已更新", extra={
+                    'event_type': 'config_update',
+                    'action': 'full_config_update'
+                })
+                return jsonify({'message': '配置更新成功'})
+            except Exception as e:
+                logger.error(f"保存配置失败: {str(e)}", extra={
+                    'event_type': EventType.ERROR,
+                    'error': str(e),
+                    'action': 'config_save_failure'
+                })
+                return jsonify({'error': f'保存配置失败: {str(e)}'}), 500
+                
+        except Exception as e:
+            logger.error(f"更新配置失败: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'error': str(e),
+                'action': 'config_update_failure'
+            })
+            return jsonify({'error': f'更新配置失败: {str(e)}'}), 500
+
     def start_web_server(host='127.0.0.1', port=5000):
         """启动Web服务器"""
-        import asyncio
-        import sys
-        import os
-        
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Web管理界面启动在 http://{host}:{port}")
         logger.info(f"Web管理界面启动", extra={
             'event_type': 'web_server',
@@ -2056,40 +2855,8 @@ if flask_available:
             'address': f'http://{host}:{port}'
         })
         
-        if hasattr(app, 'run_task'):  # Quart应用
-            import hypercorn.asyncio
-            import asyncio
-            from hypercorn.config import Config
-            
-            config = Config()
-            config.bind = [f"{host}:{port}"]
-            config.accesslog = config.errorlog = None
-            
-            if os.name == 'nt':  # Windows
-                if sys.version_info >= (3, 8):
-                    try:
-                        from asyncio import WindowsProactorEventLoopPolicy, WindowsSelectorEventLoopPolicy
-                        if isinstance(asyncio.get_event_loop_policy(), WindowsProactorEventLoopPolicy):
-                            asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
-                    except ImportError:
-                        pass
-                
-                # 创建新事件循环并禁用信号处理
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.add_signal_handler = lambda *a: None
-                shutdown_event = asyncio.Event()
-                
-                try:
-                    loop.run_until_complete(
-                        hypercorn.asyncio.serve(app, config, shutdown_trigger=lambda: shutdown_event.wait())
-                    )
-                finally:
-                    loop.close()
-            else:
-                asyncio.run(hypercorn.asyncio.serve(app, config))
-        else:
-            app.run(host=host, port=port, debug=False, use_reloader=False)
+        # 使用Flask内置服务器
+        app.run(host=host, port=port, debug=False, use_reloader=False)
 
 def clean_old_log_files():
     """清理超过一天的旧日志文件"""
@@ -2702,7 +3469,7 @@ def terminate_processes_by_powershell(names):
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 终止 {name} 进程时出错: {str(e)}")
 
 def async_http_check(url, timeout=5):
-    """使用线程池异步HTTP检查函数"""
+    """使用线程池的HTTP检查函数（非阻塞）"""
     def check():
         start_time = time.time()
         try:
@@ -2758,54 +3525,7 @@ def async_http_check(url, timeout=5):
             })
             return False
 
-# 异步HTTP检查函数，使用aiohttp
-async def async_http_check_async(url, timeout=5):
-    """异步HTTP检查函数，使用aiohttp库（如果可用）"""
-    try:
-        import aiohttp
-    except ImportError:
-        # 如果aiohttp不可用，使用原来的线程池方法
-        return async_http_check(url, timeout)
-    
-    start_time = time.time()
-    try:
-        logger.debug(f"开始异步HTTP检查", extra={
-            'event_type': 'debug',
-            'url': url,
-            'timeout': timeout,
-            'start_time': datetime.fromtimestamp(start_time).isoformat()
-        })
-        
-        timeout_obj = aiohttp.ClientTimeout(total=timeout)
-        async with aiohttp.ClientSession(timeout=timeout_obj) as session:
-            async with session.get(url) as response:
-                end_time = time.time()
-                response_time = end_time - start_time
-                
-                result = response.status == 200
-                logger.debug(f"异步HTTP检查完成", extra={
-                    'event_type': 'debug',
-                    'url': url,
-                    'status_code': response.status,
-                    'response_time': f"{response_time:.3f}s",
-                    'result': result,
-                    'end_time': datetime.fromtimestamp(end_time).isoformat()
-                })
-                
-                return result
-    except Exception as e:
-        end_time = time.time()
-        response_time = end_time - start_time
-        
-        logger.debug(f"异步HTTP检查异常", extra={
-            'event_type': 'debug',
-            'url': url,
-            'response_time': f"{response_time:.3f}s",
-            'error_type': type(e).__name__,
-            'error': str(e),
-            'end_time': datetime.fromtimestamp(end_time).isoformat()
-        })
-        return False
+# 异步HTTP检查函数已移除，使用同步版本async_http_check
 
 def check_and_manage_llbot_async(config):
     """异步检查并管理llbot进程"""
