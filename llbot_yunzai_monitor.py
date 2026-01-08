@@ -2536,6 +2536,11 @@ if flask_available:
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="redis-tab" data-bs-toggle="tab" data-bs-target="#redis" type="button" role="tab">
+                        <i class="fas fa-database config-icon"></i>Redis 配置
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
                     <button class="nav-link" id="http-tab" data-bs-toggle="tab" data-bs-target="#http" type="button" role="tab">
                         <i class="fas fa-plug config-icon"></i>HTTP 检查配置
                     </button>
@@ -2561,6 +2566,20 @@ if flask_available:
                         </div>
                         <div class="card-body">
                             <div class="mb-3">
+                                <label for="llbot-path" class="form-label">llbot 可执行文件路径</label>
+                                <input type="text" class="form-control" id="llbot-path" 
+                                       placeholder="例如: C:\\path\\to\\llbot.exe 或 python main.py"
+                                       value="''' + str(safe_config.get('llbot', {}).get('path', '')) + '''">
+                                <div class="form-text">llbot 可执行文件的完整路径，可以是 .exe 文件或 Python 脚本</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="llbot-directory" class="form-label">工作目录</label>
+                                <input type="text" class="form-control" id="llbot-directory" 
+                                       placeholder="例如: C:\\path\\to\\llbot\\directory"
+                                       value="''' + str(safe_config.get('llbot', {}).get('directory', '')) + '''">
+                                <div class="form-text">llbot 进程运行的工作目录，通常与可执行文件所在目录相同</div>
+                            </div>
+                            <div class="mb-3">
                                 <label for="llbot-wait-seconds" class="form-label">等待时间（秒）</label>
                                 <input type="number" class="form-control" id="llbot-wait-seconds" 
                                        min="1" max="60" step="1" value="''' + str(safe_config.get('llbot', {}).get('wait_seconds', 5)) + '''">
@@ -2578,10 +2597,42 @@ if flask_available:
                         </div>
                         <div class="card-body">
                             <div class="mb-3">
+                                <label for="yunzai-git-bash-path" class="form-label">Git Bash 路径</label>
+                                <input type="text" class="form-control" id="yunzai-git-bash-path" 
+                                       placeholder="例如: C:\\Program Files\\Git\\bin\\bash.exe"
+                                       value="''' + str(safe_config.get('yunzai', {}).get('git_bash_path', '')) + '''">
+                                <div class="form-text">Git Bash 可执行文件的完整路径，用于运行 Yunzai</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="yunzai-bash-directory" class="form-label">Yunzai 工作目录</label>
+                                <input type="text" class="form-control" id="yunzai-bash-directory" 
+                                       placeholder="例如: C:\\path\\to\\yunzai-bot"
+                                       value="''' + str(safe_config.get('yunzai', {}).get('bash_directory', '')) + '''">
+                                <div class="form-text">Yunzai 项目的工作目录，Git Bash 将在此目录下运行</div>
+                            </div>
+                            <div class="mb-3">
                                 <label for="yunzai-wait-seconds" class="form-label">等待时间（秒）</label>
                                 <input type="number" class="form-control" id="yunzai-wait-seconds" 
                                        min="1" max="60" step="1" value="''' + str(safe_config.get('yunzai', {}).get('wait_seconds', 5)) + '''">
                                 <div class="form-text">启动/停止 Yunzai 后的等待时间，建议 3-10 秒</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Redis 配置 -->
+                <div class="tab-pane fade" id="redis" role="tabpanel">
+                    <div class="config-card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0"><i class="fas fa-database me-2 text-warning"></i>Redis 进程配置</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="redis-path" class="form-label">Redis 可执行文件路径</label>
+                                <input type="text" class="form-control" id="redis-path" 
+                                       placeholder="例如: C:\\path\\to\\redis-server.exe"
+                                       value="''' + str(safe_config.get('redis', {}).get('path', '')) + '''">
+                                <div class="form-text">Redis 服务器可执行文件的完整路径</div>
                             </div>
                         </div>
                     </div>
@@ -2594,6 +2645,13 @@ if flask_available:
                             <h5 class="card-title mb-0"><i class="fas fa-plug me-2 text-warning"></i>HTTP 检查配置</h5>
                         </div>
                         <div class="card-body">
+                            <div class="mb-3">
+                                <label for="http-url" class="form-label">检查 URL</label>
+                                <input type="text" class="form-control" id="http-url" 
+                                       placeholder="例如: http://localhost:3000 或 https://api.example.com/health"
+                                       value="''' + str(safe_config.get('http_check', {}).get('url', '')) + '''">
+                                <div class="form-text">用于健康检查的 HTTP URL，应以 http:// 或 https:// 开头</div>
+                            </div>
                             <div class="mb-3">
                                 <label for="http-timeout" class="form-label">超时时间（秒）</label>
                                 <input type="number" class="form-control" id="http-timeout" 
@@ -2657,12 +2715,14 @@ if flask_available:
 
             <!-- 操作按钮 -->
             <div class="d-flex justify-content-between mt-4">
-                <button class="btn btn-cancel" onclick="resetForm()">
-                    <i class="fas fa-undo me-2"></i>重置
-                </button>
+                <div>
+                    <button class="btn btn-cancel me-2" onclick="resetForm()">
+                        <i class="fas fa-undo me-2"></i>重置
+                    </button>
+                </div>
                 <div>
                     <button class="btn btn-outline-secondary me-2" onclick="window.location.href='/'">
-                        <i class="fas fa-times me-2"></i>取消
+                        <i class="fas fa-times me-2"></i>返回监控
                     </button>
                     <button class="btn btn-save" onclick="saveConfig()">
                         <i class="fas fa-save me-2"></i>保存配置
@@ -2703,12 +2763,20 @@ if flask_available:
                 // 收集配置数据
                 const configData = {
                     llbot: {
+                        path: document.getElementById('llbot-path').value.trim(),
+                        directory: document.getElementById('llbot-directory').value.trim(),
                         wait_seconds: parseInt(document.getElementById('llbot-wait-seconds').value) || 5
                     },
                     yunzai: {
+                        git_bash_path: document.getElementById('yunzai-git-bash-path').value.trim(),
+                        bash_directory: document.getElementById('yunzai-bash-directory').value.trim(),
                         wait_seconds: parseInt(document.getElementById('yunzai-wait-seconds').value) || 5
                     },
+                    redis: {
+                        path: document.getElementById('redis-path').value.trim()
+                    },
                     http_check: {
+                        url: document.getElementById('http-url').value.trim(),
                         timeout: parseInt(document.getElementById('http-timeout').value) || 5
                     },
                     auto_restart: {
@@ -2722,25 +2790,60 @@ if flask_available:
                 };
 
                 // 验证配置
+                if (!configData.llbot.path) {
+                    showAlert('llbot 可执行文件路径不能为空', 'warning');
+                    return;
+                }
+                if (!configData.llbot.directory) {
+                    showAlert('llbot 工作目录不能为空', 'warning');
+                    return;
+                }
                 if (configData.llbot.wait_seconds < 1 || configData.llbot.wait_seconds > 60) {
                     showAlert('llbot 等待时间必须在 1-60 秒之间', 'warning');
+                    return;
+                }
+                
+                if (!configData.yunzai.git_bash_path) {
+                    showAlert('Git Bash 路径不能为空', 'warning');
+                    return;
+                }
+                if (!configData.yunzai.bash_directory) {
+                    showAlert('Yunzai 工作目录不能为空', 'warning');
                     return;
                 }
                 if (configData.yunzai.wait_seconds < 1 || configData.yunzai.wait_seconds > 60) {
                     showAlert('Yunzai 等待时间必须在 1-60 秒之间', 'warning');
                     return;
                 }
+                
+                if (!configData.redis.path) {
+                    showAlert('Redis 可执行文件路径不能为空', 'warning');
+                    return;
+                }
+                
+                if (configData.http_check.url && !configData.http_check.url.startsWith('http://') && !configData.http_check.url.startsWith('https://')) {
+                    showAlert('HTTP 检查 URL 应以 http:// 或 https:// 开头', 'warning');
+                    return;
+                }
                 if (configData.http_check.timeout < 1 || configData.http_check.timeout > 30) {
                     showAlert('HTTP 超时时间必须在 1-30 秒之间', 'warning');
                     return;
                 }
+                
                 if (!configData.web_auth.username) {
                     showAlert('用户名不能为空', 'warning');
                     return;
                 }
-                if (!configData.web_auth.password || configData.web_auth.password === '***') {
-                    showAlert('密码不能为空或使用默认占位符', 'warning');
-                    return;
+                // 验证密码字段 - only check if the user provided a new password
+                if (configData.web_auth.password && configData.web_auth.password !== '***') {
+                    // User entered a new password, validate it
+                    if (configData.web_auth.password.length < 4) {
+                        showAlert('密码长度至少为4位', 'warning');
+                        return;
+                    }
+                } else {
+                    // Password field shows '***' (unchanged), so we'll remove it from the payload to indicate "keep existing"
+                    delete configData.web_auth.password;
                 }
 
                 // 发送保存请求
@@ -2752,10 +2855,10 @@ if flask_available:
                     body: JSON.stringify(configData)
                 });
 
-                const result = responseawait .json();
+                const result = await response.json();
 
                 if (response.ok) {
-                    showAlert('配置保存成功！部分配置可能需要重启程序才能生效。', 'success');
+                    showAlert('配置保存成功！配置已热重载生效。', 'success');
                     // 更新密码字段显示
                     document.getElementById('auth-password').value = '***';
                 } else {
@@ -2766,6 +2869,8 @@ if flask_available:
                 showAlert('保存失败：网络错误或服务器异常', 'danger');
             }
         }
+
+
 
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
@@ -2814,10 +2919,35 @@ if flask_available:
                 return jsonify({'error': '自动重启启用状态必须是布尔值'}), 400
             if not isinstance(data['auto_restart'].get('respect_manual_stop'), bool):
                 return jsonify({'error': '尊重手动停止状态必须是布尔值'}), 400
-            if not data['web_auth'].get('username'):
+            # Only validate username if it's provided in the request (meaning user wants to change it)
+            # If username is not provided, we'll keep the existing username
+            if 'username' in data['web_auth'] and not data['web_auth'].get('username'):
                 return jsonify({'error': '用户名不能为空'}), 400
-            if not data['web_auth'].get('password'):
-                return jsonify({'error': '密码不能为空'}), 400
+            
+            # First, save the original password in case we need to restore it
+            original_password = current_config.get('web_auth', {}).get('password', 'admin123')
+            
+            # Process username field
+            if 'username' in data['web_auth'] and not data['web_auth'].get('username'):
+                return jsonify({'error': '用户名不能为空'}), 400
+
+            # Process password field
+            if 'password' in data['web_auth']:
+                password_value = data['web_auth'].get('password', '')
+                # If password is the placeholder '***', restore the original password value
+                if password_value == '***':
+                    data['web_auth']['password'] = original_password
+                elif not password_value:
+                    # If password is explicitly empty, validate
+                    return jsonify({'error': '密码不能为空'}), 400
+            else:
+                # If password is not provided, use the original password
+                data['web_auth']['password'] = original_password
+
+            # If username is not provided in the update, preserve the existing username
+            if 'username' not in data['web_auth'] or data['web_auth']['username'] is None or data['web_auth']['username'] == '':
+                existing_username = current_config.get('web_auth', {}).get('username', 'admin')
+                data['web_auth']['username'] = existing_username
 
             # 更新当前配置
             current_config.update(data)
@@ -2829,7 +2959,27 @@ if flask_available:
                     'event_type': 'config_update',
                     'action': 'full_config_update'
                 })
-                return jsonify({'message': '配置更新成功'})
+                
+                # 立即重新加载配置以应用新设置
+                try:
+                    # 重新加载配置以确保所有更改生效
+                    new_config = load_config()
+                    current_config.clear()
+                    current_config.update(new_config)
+                    
+                    logger.info("配置热重载完成", extra={
+                        'event_type': 'config_reload',
+                        'action': 'hot_reload_after_update'
+                    })
+                    
+                    return jsonify({'message': '配置更新成功并已热重载'})
+                except Exception as reload_error:
+                    logger.error(f"配置热重载失败: {str(reload_error)}", extra={
+                        'event_type': EventType.ERROR,
+                        'error': str(reload_error),
+                        'action': 'config_reload_failure_after_update'
+                    })
+                    return jsonify({'message': '配置更新成功，但热重载失败，请重启程序以应用完整配置'})
             except Exception as e:
                 logger.error(f"保存配置失败: {str(e)}", extra={
                     'event_type': EventType.ERROR,
@@ -2845,6 +2995,9 @@ if flask_available:
                 'action': 'config_update_failure'
             })
             return jsonify({'error': f'更新配置失败: {str(e)}'}), 500
+
+    # 配置热重载API
+
 
     def start_web_server(host='127.0.0.1', port=5000):
         """启动Web服务器"""
@@ -4570,9 +4723,12 @@ def run_monitor_loop(config):
         """定期更新状态信息"""
         while getattr(run_monitor_loop, 'running', True):
             try:
+                # 使用全局current_config以确保获取最新的配置
+                local_config = current_config
+                
                 # 检查llbot进程状态
-                if config['llbot'].get('path'):
-                    llbot_process_name = os.path.basename(config['llbot']['path']).lower()
+                if local_config['llbot'].get('path'):
+                    llbot_process_name = os.path.basename(local_config['llbot']['path']).lower()
                     possible_names = [llbot_process_name, 'lucky-lillia-desktop.exe']
                     
                     llbot_running = False
@@ -4617,8 +4773,8 @@ def run_monitor_loop(config):
                 current_status['yunzai'] = {'running': yunzai_running, 'pid': yunzai_pid}
                 
                 # 检查redis进程状态
-                if config['redis'].get('path'):
-                    redis_process_name = os.path.basename(config['redis']['path']).lower()
+                if local_config['redis'].get('path'):
+                    redis_process_name = os.path.basename(local_config['redis']['path']).lower()
                     
                     redis_running = False
                     redis_pid = None
@@ -4641,9 +4797,9 @@ def run_monitor_loop(config):
                     current_status['redis'] = {'running': redis_running, 'pid': redis_pid}
                 
                 # 检查HTTP状态
-                if config.get('http_check', {}).get('url'):
+                if local_config.get('http_check', {}).get('url'):
                     try:
-                        is_accessible = async_http_check(config['http_check']['url'], config['http_check'].get('timeout', 5))
+                        is_accessible = async_http_check(local_config['http_check']['url'], local_config['http_check'].get('timeout', 5))
                         current_status['http_check'] = {'accessible': is_accessible, 'configured': True}
                     except:
                         current_status['http_check'] = {'accessible': False, 'configured': True}
@@ -4671,8 +4827,10 @@ def run_monitor_loop(config):
         """llbot监控线程"""
         while getattr(run_monitor_loop, 'running', True):
             try:
-                check_and_manage_llbot_async(config)
-                time.sleep(config['llbot']['wait_seconds'])
+                # 使用全局current_config以确保获取最新的配置
+                local_config = current_config
+                check_and_manage_llbot_async(local_config)
+                time.sleep(local_config['llbot']['wait_seconds'])
             except KeyError as e:
                 logger.error(f"llbot监控配置错误: 缺少配置项 {str(e)}", extra={'event_type': EventType.ERROR, 'thread': 'llbot_monitor', 'error_type': 'config_error', 'missing_key': str(e)})
                 event_manager.publish(EventType.ERROR, {
@@ -4696,8 +4854,10 @@ def run_monitor_loop(config):
         """yunzai监控线程"""
         while getattr(run_monitor_loop, 'running', True):
             try:
-                check_and_manage_yunzai_async(config)
-                time.sleep(config['yunzai']['wait_seconds'])
+                # 使用全局current_config以确保获取最新的配置
+                local_config = current_config
+                check_and_manage_yunzai_async(local_config)
+                time.sleep(local_config['yunzai']['wait_seconds'])
             except KeyError as e:
                 logger.error(f"yunzai监控配置错误: 缺少配置项 {str(e)}", extra={'event_type': EventType.ERROR, 'thread': 'yunzai_monitor', 'error_type': 'config_error', 'missing_key': str(e)})
                 event_manager.publish(EventType.ERROR, {
@@ -4744,7 +4904,6 @@ def run_monitor_loop(config):
     
     # 设置停止标志
     run_monitor_loop.running = False
-
 def main():
     """主函数"""
     start_time = time.time()
