@@ -521,7 +521,7 @@ if flask_available:
                             headers: {{ 'Content-Type': 'application/json' }},
                             body: JSON.stringify({{ new_password, confirm_password, confirm_edit: confirmEdit }})
                         }});
-                        const data = respawait .json();
+                        const data = await resp.json();
                         if (resp.ok) {{
                             alertDiv.innerHTML = '<div class="alert alert-success">' + (data.message || '密码重置成功') + '</div>';
                             setTimeout(function() {{
