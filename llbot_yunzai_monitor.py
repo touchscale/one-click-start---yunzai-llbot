@@ -3621,6 +3621,51 @@ def terminate_processes_by_powershell(names):
         except Exception as e:
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 终止 {name} 进程时出错: {str(e)}")
 
+def is_qq_running():
+    """
+    检测QQ进程是否在运行
+    返回: bool - True表示QQ正在运行，False表示QQ已停止
+    """
+    try:
+        qq_process_names = ["QQ", "QQ.exe", "QQProtect.exe", "QQPCRTP.exe", "TXPlatform.exe"]
+        found_processes = []
+        
+        for proc in psutil.process_iter(['pid', 'name', 'create_time']):
+            try:
+                proc_name = (proc.info['name'] or '').lower()
+                for qq_name in qq_process_names:
+                    if qq_name.lower() in proc_name:
+                        found_processes.append({
+                            'pid': proc.info['pid'],
+                            'name': proc.info['name'],
+                            'create_time': proc.info['create_time']
+                        })
+                        break
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        
+        if found_processes:
+            logger.debug(f"检测到QQ进程正在运行: {len(found_processes)}个进程", extra={
+                'event_type': 'debug',
+                'qq_processes': found_processes,
+                'count': len(found_processes)
+            })
+            return True
+        else:
+            logger.debug("未检测到QQ进程", extra={
+                'event_type': 'debug',
+                'qq_processes': []
+            })
+            return False
+            
+    except Exception as e:
+        logger.error(f"检测QQ进程时出错: {str(e)}", extra={
+            'event_type': 'error',
+            'error': str(e),
+            'error_class': type(e).__name__
+        })
+        return False
+
 def async_http_check(url, timeout=5):
     """使用线程池的HTTP检查函数（非阻塞）"""
     def check():
@@ -3683,6 +3728,45 @@ def async_http_check(url, timeout=5):
 def check_and_manage_llbot_async(config):
     """异步检查并管理llbot进程"""
     try:
+        # QQ状态检测 - 检查QQ是否停止运行
+        # 使用函数属性来保存上一次的QQ状态，避免使用全局变量
+        if not hasattr(check_and_manage_llbot_async, 'last_qq_status'):
+            check_and_manage_llbot_async.last_qq_status = None
+        
+        current_qq_status = is_qq_running()
+        
+        # 如果QQ状态发生变化（从运行到停止）
+        if check_and_manage_llbot_async.last_qq_status is True and current_qq_status is False:
+            logger.warning("检测到QQ已停止运行，准备终止llbot相关进程并重启", extra={
+                'event_type': EventType.WARNING,
+                'qq_status_change': 'running_to_stopped',
+                'action': 'terminate_and_restart_llbot'
+            })
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 检测到QQ已停止运行，准备终止llbot相关进程并重启...")
+            
+            # 终止llbot相关进程
+            llbot_process_name = os.path.basename(config['llbot']['path']) if config.get('llbot', {}).get('path') else 'llbot.exe'
+            terminate_process_by_name(llbot_process_name)
+            terminate_process_by_name('lucky-lillia-desktop.exe')
+            terminate_process_by_name('pmhq-win-x64.exe')
+            terminate_process_by_name('flet.exe')
+            
+            # 清除手动停止状态
+            try:
+                update_global_manual_stop_status('llbot', False)
+            except:
+                pass
+            
+            # 重启llbot
+            restart_llbot(config)
+            
+            # 更新QQ状态
+            check_and_manage_llbot_async.last_qq_status = current_qq_status
+            return  # 完成重启后返回，跳过本次的HTTP检查
+        
+        # 更新QQ状态记录
+        check_and_manage_llbot_async.last_qq_status = current_qq_status
+        
         # 检查自动重启配置
         auto_restart_enabled = config.get('auto_restart', {}).get('enabled', True)
         respect_manual_stop = config.get('auto_restart', {}).get('respect_manual_stop', True)
