@@ -3762,16 +3762,27 @@ def check_and_manage_llbot_async(config):
             'qq_current_status': current_qq_status
         })
         
-        # 如果QQ状态发生变化（从运行到停止）
-        if last_qq_status is True and current_qq_status is False:
-            logger.warning("检测到QQ已停止运行，准备终止llbot相关进程并重启", extra={
-                'event_type': EventType.WARNING,
-                'qq_status_change': 'running_to_stopped',
-                'action': 'terminate_and_restart_llbot',
-                'qq_last_status': last_qq_status,
-                'qq_current_status': current_qq_status
-            })
-            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 检测到QQ已停止运行，准备终止llbot相关进程并重启...")
+        # 如果QQ未运行（首次启动或QQ已停止）
+        if not current_qq_status:
+            # 检查是否是首次启动（last_qq_status为None）或QQ从运行变为停止
+            if last_qq_status is None:
+                logger.warning("首次启动检测到QQ未运行，准备终止llbot相关进程并重启", extra={
+                    'event_type': EventType.WARNING,
+                    'qq_status_change': 'first_start_no_qq',
+                    'action': 'terminate_and_restart_llbot',
+                    'qq_last_status': last_qq_status,
+                    'qq_current_status': current_qq_status
+                })
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 首次启动检测到QQ未运行，准备终止llbot相关进程并重启...")
+            elif last_qq_status is True:
+                logger.warning("检测到QQ已停止运行，准备终止llbot相关进程并重启", extra={
+                    'event_type': EventType.WARNING,
+                    'qq_status_change': 'running_to_stopped',
+                    'action': 'terminate_and_restart_llbot',
+                    'qq_last_status': last_qq_status,
+                    'qq_current_status': current_qq_status
+                })
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 检测到QQ已停止运行，准备终止llbot相关进程并重启...")
             
             # 终止llbot相关进程
             llbot_process_name = os.path.basename(config['llbot']['path']) if config.get('llbot', {}).get('path') else 'llbot.exe'
