@@ -3630,6 +3630,13 @@ def is_qq_running():
         qq_process_names = ["QQ", "QQ.exe", "QQProtect.exe", "QQPCRTP.exe", "TXPlatform.exe"]
         found_processes = []
         
+        # 记录开始检测
+        logger.debug("开始检测QQ进程...", extra={
+            'event_type': 'debug',
+            'action': 'qq_check_start',
+            'search_patterns': qq_process_names
+        })
+        
         for proc in psutil.process_iter(['pid', 'name', 'create_time']):
             try:
                 proc_name = (proc.info['name'] or '').lower()
@@ -3645,15 +3652,17 @@ def is_qq_running():
                 continue
         
         if found_processes:
-            logger.debug(f"检测到QQ进程正在运行: {len(found_processes)}个进程", extra={
-                'event_type': 'debug',
+            logger.info(f"检测到QQ进程正在运行: {len(found_processes)}个进程", extra={
+                'event_type': EventType.PROCESS_CHECK,
+                'qq_status': 'running',
                 'qq_processes': found_processes,
                 'count': len(found_processes)
             })
             return True
         else:
-            logger.debug("未检测到QQ进程", extra={
-                'event_type': 'debug',
+            logger.info("未检测到QQ进程，QQ可能已停止", extra={
+                'event_type': EventType.PROCESS_CHECK,
+                'qq_status': 'stopped',
                 'qq_processes': []
             })
             return False
@@ -3728,41 +3737,107 @@ def async_http_check(url, timeout=5):
 def check_and_manage_llbot_async(config):
     """异步检查并管理llbot进程"""
     try:
+        # 记录函数入口
+        logger.debug("开始执行llbot进程检查", extra={
+            'event_type': 'debug',
+            'action': 'llbot_check_start'
+        })
+        
         # QQ状态检测 - 检查QQ是否停止运行
         # 使用函数属性来保存上一次的QQ状态，避免使用全局变量
         if not hasattr(check_and_manage_llbot_async, 'last_qq_status'):
             check_and_manage_llbot_async.last_qq_status = None
+            logger.debug("首次运行，初始化last_qq_status为None", extra={
+                'event_type': 'debug',
+                'action': 'init_qq_status'
+            })
         
+        # 记录当前的QQ状态
         current_qq_status = is_qq_running()
+        last_qq_status = check_and_manage_llbot_async.last_qq_status
+        
+        logger.debug(f"QQ状态检测 - 上次状态: {last_qq_status}, 当前状态: {current_qq_status}", extra={
+            'event_type': 'debug',
+            'qq_last_status': last_qq_status,
+            'qq_current_status': current_qq_status
+        })
         
         # 如果QQ状态发生变化（从运行到停止）
-        if check_and_manage_llbot_async.last_qq_status is True and current_qq_status is False:
+        if last_qq_status is True and current_qq_status is False:
             logger.warning("检测到QQ已停止运行，准备终止llbot相关进程并重启", extra={
                 'event_type': EventType.WARNING,
                 'qq_status_change': 'running_to_stopped',
-                'action': 'terminate_and_restart_llbot'
+                'action': 'terminate_and_restart_llbot',
+                'qq_last_status': last_qq_status,
+                'qq_current_status': current_qq_status
             })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 检测到QQ已停止运行，准备终止llbot相关进程并重启...")
             
             # 终止llbot相关进程
             llbot_process_name = os.path.basename(config['llbot']['path']) if config.get('llbot', {}).get('path') else 'llbot.exe'
+            logger.info(f"终止llbot主进程: {llbot_process_name}", extra={
+                'event_type': EventType.PROCESS_STOP,
+                'process_name': llbot_process_name,
+                'action': 'terminate_due_to_qq_stop'
+            })
             terminate_process_by_name(llbot_process_name)
+            
+            logger.info("终止llbot相关进程: lucky-lillia-desktop.exe", extra={
+                'event_type': EventType.PROCESS_STOP,
+                'process_name': 'lucky-lillia-desktop.exe',
+                'action': 'terminate_due_to_qq_stop'
+            })
             terminate_process_by_name('lucky-lillia-desktop.exe')
+            
+            logger.info("终止llbot相关进程: pmhq-win-x64.exe", extra={
+                'event_type': EventType.PROCESS_STOP,
+                'process_name': 'pmhq-win-x64.exe',
+                'action': 'terminate_due_to_qq_stop'
+            })
             terminate_process_by_name('pmhq-win-x64.exe')
+            
+            logger.info("终止llbot相关进程: flet.exe", extra={
+                'event_type': EventType.PROCESS_STOP,
+                'process_name': 'flet.exe',
+                'action': 'terminate_due_to_qq_stop'
+            })
             terminate_process_by_name('flet.exe')
             
             # 清除手动停止状态
             try:
                 update_global_manual_stop_status('llbot', False)
-            except:
-                pass
+                logger.info("已清除llbot手动停止状态", extra={
+                    'event_type': EventType.PROCESS_START,
+                    'action': 'clear_manual_stop_status'
+                })
+            except Exception as e:
+                logger.warning(f"清除手动停止状态失败: {str(e)}", extra={
+                    'event_type': EventType.WARNING,
+                    'error': str(e)
+                })
             
             # 重启llbot
+            logger.info("开始重启llbot进程", extra={
+                'event_type': EventType.PROCESS_START,
+                'action': 'restart_after_qq_stop'
+            })
             restart_llbot(config)
             
             # 更新QQ状态
             check_and_manage_llbot_async.last_qq_status = current_qq_status
+            logger.info("QQ状态已更新，跳过本次HTTP检查", extra={
+                'event_type': EventType.PROCESS_CHECK,
+                'qq_status_updated': current_qq_status,
+                'skip_http_check': True
+            })
             return  # 完成重启后返回，跳过本次的HTTP检查
+        else:
+            # 记录QQ状态未变化或从停止到运行的情况
+            if last_qq_status != current_qq_status:
+                logger.info(f"QQ状态变化: {last_qq_status} -> {current_qq_status}", extra={
+                    'event_type': EventType.PROCESS_CHECK,
+                    'qq_status_change': f'{last_qq_status}_to_{current_qq_status}'
+                })
         
         # 更新QQ状态记录
         check_and_manage_llbot_async.last_qq_status = current_qq_status
@@ -4207,32 +4282,90 @@ def restart_llbot_with_cleanup(config):
 def restart_llbot(config):
     """重启llbot"""
     try:
-        if not config['llbot']['path']:
+        logger.info("开始执行restart_llbot函数", extra={
+            'event_type': EventType.PROCESS_START,
+            'action': 'restart_llbot_start',
+            'config_path': config.get('llbot', {}).get('path', '未配置')
+        })
+        
+        if not config.get('llbot', {}).get('path'):
+            logger.error("llbot路径未配置，无法重启", extra={
+                'event_type': EventType.ERROR,
+                'error': 'llbot_path_not_configured'
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: llbot路径未配置")
             return
             
         process_name = os.path.basename(config['llbot']['path'])
+        logger.info(f"准备启动llbot进程: {process_name}", extra={
+            'event_type': EventType.PROCESS_START,
+            'process_name': process_name,
+            'full_path': config['llbot']['path']
+        })
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 启动 {process_name}...")
         
         if os.path.exists(config['llbot']['path']):
-            if not config['llbot']['directory']:
+            if not config.get('llbot', {}).get('directory'):
+                logger.error("llbot目录未配置，无法重启", extra={
+                    'event_type': EventType.ERROR,
+                    'error': 'llbot_directory_not_configured'
+                })
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: llbot目录未配置")
                 return
                 
+            logger.info(f"切换到工作目录: {config['llbot']['directory']}", extra={
+                'event_type': EventType.PROCESS_START,
+                'working_directory': config['llbot']['directory']
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 找到 {process_name}，正在目录中启动: {config['llbot']['directory']}")
             os.chdir(config['llbot']['directory'])
-            subprocess.Popen([config['llbot']['path']])
+            
+            # 启动进程
+            process = subprocess.Popen([config['llbot']['path']])
+            logger.info(f"llbot进程已启动，PID: {process.pid}", extra={
+                'event_type': EventType.PROCESS_START,
+                'process_name': process_name,
+                'pid': process.pid,
+                'command': config['llbot']['path']
+            })
+            
             # 清除手动停止状态
             try:
                 update_global_manual_stop_status('llbot', False)
-            except:
-                pass  # 如果全局变量不存在，跳过
-            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {process_name} 启动成功")
+                logger.info("已清除llbot手动停止状态", extra={
+                    'event_type': EventType.PROCESS_START,
+                    'action': 'clear_manual_stop_status'
+                })
+            except Exception as e:
+                logger.warning(f"清除手动停止状态失败: {str(e)}", extra={
+                    'event_type': EventType.WARNING,
+                    'error': str(e)
+                })
+            
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {process_name} 启动成功 (PID: {process.pid})")
         else:
+            logger.error(f"llbot可执行文件未找到: {config['llbot']['path']}", extra={
+                'event_type': EventType.ERROR,
+                'error': 'llbot_executable_not_found',
+                'path': config['llbot']['path']
+            })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {process_name} 未找到，请验证路径: {config['llbot']['path']}")
     except KeyError as e:
+        logger.error(f"配置错误 - 缺少必需的配置项: {e}", extra={
+            'event_type': EventType.ERROR,
+            'error': 'config_key_missing',
+            'missing_key': str(e)
+        })
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 配置错误: 缺少必需的配置项 {e}")
         raise
+    except Exception as e:
+        logger.error(f"重启llbot时发生未知错误: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'error': str(e),
+            'error_class': type(e).__name__,
+            'traceback': __import__('traceback').format_exc()
+        })
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 重启llbot时发生错误: {str(e)}")
 
 def check_and_manage_yunzai_async(config):
     """异步检查并管理Yunzai进程"""
