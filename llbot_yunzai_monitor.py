@@ -1800,8 +1800,8 @@ if flask_available:
             try:
                 if process == 'llbot':
                     if action == 'start':
-                        # 启动llbot
-                        restart_llbot(current_config)
+                        # 启动llbot（带清理）
+                        restart_llbot_with_cleanup(current_config)
                         # 清除手动停止状态
                         manual_stop_status['llbot'] = False
                         try:
@@ -3827,12 +3827,12 @@ def check_and_manage_llbot_async(config):
                     'error': str(e)
                 })
             
-            # 重启llbot
+            # 重启llbot（带清理）
             logger.info("开始重启llbot进程", extra={
                 'event_type': EventType.PROCESS_START,
                 'action': 'restart_after_qq_stop'
             })
-            restart_llbot(config)
+            restart_llbot_with_cleanup(config)
             
             # 更新QQ状态
             check_and_manage_llbot_async.last_qq_status = current_qq_status
@@ -4269,6 +4269,10 @@ def restart_llbot_with_cleanup(config):
     # 终止flet.exe进程
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止flet.exe进程...")
     terminate_process_by_name("flet.exe")
+    
+    # 终止lucky-lillia-desktop.exe进程
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止lucky-lillia-desktop.exe进程...")
+    terminate_process_by_name("lucky-lillia-desktop.exe")
     
     # 终止QQ相关进程
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止QQ相关进程...")
