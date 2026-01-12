@@ -155,6 +155,7 @@ body {
     border: 2px solid #e9ecef;
     margin-bottom: 15px;
     transition: all 0.3s;
+    height: 46px;
 }
 
 .form-control:focus {
@@ -171,16 +172,17 @@ body {
 /* 密码显示/隐藏按钮样式 */
 .password-toggle {
     border-radius: 0 10px 10px 0;
-    padding: 0 10px;
+    padding: 0 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 42px;
-    width: 42px;
+    min-width: 46px;
+    width: 46px;
+    height: 46px;
 }
 
 .password-toggle i {
-    font-size: 1rem;
+    font-size: 1.1rem;
     margin: 0;
 }
 
@@ -240,6 +242,25 @@ body {
 .btn-back:hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(0, 123, 255, 0.4);
+}
+
+.btn-info {
+    background: linear-gradient(45deg, #17a2b8, #138496);
+    border: none;
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-weight: 500;
+    font-size: 14px;
+    color: white;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-info:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(23, 162, 184, 0.4);
 }
 
 /* 选项卡样式 */

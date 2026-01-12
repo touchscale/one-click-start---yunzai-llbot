@@ -46,6 +46,11 @@ body {
     border: 2px solid #e9ecef;
     margin-bottom: 20px;
     transition: all 0.3s;
+    height: 46px;
+}
+
+.input-group .form-control {
+    margin-bottom: 0;
 }
 
 .form-control:focus {
@@ -96,6 +101,10 @@ body {
     border: 1px solid #f5c6cb;
 }
 
+.input-group {
+    height: 46px;
+}
+
 .input-group-text {
     background: #f8f9fa;
     border-radius: 10px 0 0 10px;
@@ -105,6 +114,7 @@ body {
     justify-content: center;
     min-width: 42px;
     width: 42px;
+    height: 100%;
 }
 
 .input-group-text i {
@@ -114,19 +124,21 @@ body {
 
 .form-control-with-icon {
     border-radius: 0;
+    height: 100%;
 }
 
 .password-toggle {
     border-radius: 0 10px 10px 0;
-    padding: 0 10px;
+    padding: 0 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 42px;
-    width: 42px;
+    min-width: 46px;
+    width: 46px;
+    height: 46px;
 }
 
 .password-toggle i {
-    font-size: 1rem;
+    font-size: 1.1rem;
     margin: 0;
 }

@@ -218,7 +218,7 @@ def register_routes(app):
         # 防止跨站脚本攻击
         response.headers['X-XSS-Protection'] = '1; mode=block'
         # 内容安全策略 - 完善CDN资源加载权限
-        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; img-src 'self' data: https:; connect-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; manifest-src 'self';"
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.bootcdn.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.bootcdn.net https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com https://cdn.bootcdn.net; img-src 'self' data: https:; connect-src 'self' https://cdn.bootcdn.net https://cdnjs.cloudflare.com; manifest-src 'self';"
         return response
         
     @app.before_request
@@ -794,6 +794,44 @@ def register_routes(app):
                 'action': 'config_update_failure'
             })
             return jsonify({'error': f'更新配置失败: {str(e)}'}), 500
+
+    @app.route('/api/check-updates', methods=['POST'])
+    @requires_auth
+    def api_check_updates():
+        """手动检查并更新前端资源"""
+        try:
+            from update_checker import check_and_update_resources
+            result = check_and_update_resources()
+            return jsonify({
+                'message': f'更新检查完成: 更新 {result["updated"]} 个, 跳过 {result["skipped"]} 个, 失败 {result["failed"]} 个',
+                'result': result
+            })
+        except Exception as e:
+            logger.error(f"检查更新失败: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'error': str(e),
+                'action': 'manual_update_check_failure'
+            })
+            return jsonify({'error': f'检查更新失败: {str(e)}'}), 500
+
+    @app.route('/api/force-updates', methods=['POST'])
+    @requires_auth
+    def api_force_updates():
+        """强制更新所有前端资源"""
+        try:
+            from update_checker import force_update_resources
+            result = force_update_resources()
+            return jsonify({
+                'message': f'强制更新完成: 成功 {result["updated"]} 个, 失败 {result["failed"]} 个',
+                'result': result
+            })
+        except Exception as e:
+            logger.error(f"强制更新失败: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'error': str(e),
+                'action': 'force_update_failure'
+            })
+            return jsonify({'error': f'强制更新失败: {str(e)}'}), 500
 
 def start_web_server(host='127.0.0.1', port=5000):
     """启动Web服务器"""

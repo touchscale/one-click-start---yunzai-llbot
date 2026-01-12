@@ -23,6 +23,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 5000);
     }
 
+    // 修复模态框的 aria-hidden 警告
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        modal.removeAttribute('aria-hidden');
+
+        modal.addEventListener('show.bs.modal', function() {
+            modal.removeAttribute('aria-hidden');
+        });
+
+        modal.addEventListener('hidden.bs.modal', function() {
+            modal.setAttribute('aria-hidden', 'true');
+        });
+    });
+
     const form = document.getElementById('resetPasswordForm');
     if (form) {
         form.addEventListener('submit', async function(event) {

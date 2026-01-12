@@ -34,3 +34,4 @@ class EventType:
     ERROR = "error"
     WARNING = "warning"
     DEBUG = "debug"
+    INFO = "info"

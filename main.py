@@ -30,6 +30,7 @@ from web_server import (
     current_status,
     manual_stop_status
 )
+from update_checker import check_and_update_resources
 
 # 初始化日志记录器
 logger = get_logger()
@@ -256,6 +257,26 @@ def main():
             'config_keys': list(config.keys()) if config else [],
             'load_duration': f"{time.time() - start_time:.3f}s"
         })
+
+        # 检查前端资源更新
+        logger.info("开始检查前端资源更新", extra={
+            'event_type': EventType.INFO,
+            'action': 'check_frontend_updates'
+        })
+        try:
+            update_result = check_and_update_resources()
+            if update_result['updated'] > 0:
+                print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 前端资源已更新 {update_result['updated']} 个文件")
+            elif update_result['failed'] > 0:
+                print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 前端资源更新检查失败 {update_result['failed']} 个文件")
+            else:
+                print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 前端资源已是最新版本")
+        except Exception as e:
+            logger.warning(f"前端资源更新检查失败: {str(e)}", extra={
+                'event_type': EventType.WARNING,
+                'error': str(e)
+            })
+            print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 前端资源更新检查失败，继续启动程序")
 
         # 初始化Web服务器
         if flask_available:

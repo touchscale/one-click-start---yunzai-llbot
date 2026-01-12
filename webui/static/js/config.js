@@ -188,6 +188,115 @@ function changePassword() {
     });
 }
 
+// 检查更新
+async function checkUpdates() {
+    const updateProgress = document.getElementById('updateProgress');
+    const updateResult = document.getElementById('updateResult');
+    const updateResultAlert = document.getElementById('updateResultAlert');
+    const updateAlert = document.getElementById('updateAlert');
+
+    // 显示进度，隐藏结果
+    updateProgress.style.display = 'block';
+    updateResult.style.display = 'none';
+    updateAlert.innerHTML = '';
+
+    try {
+        const response = await fetch('/api/check-updates', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        const data = await response.json();
+
+        // 隐藏进度，显示结果
+        updateProgress.style.display = 'none';
+        updateResult.style.display = 'block';
+
+        if (response.ok) {
+            const result = data.result;
+            let message = `<strong>${data.message}</strong><br><br>`;
+            message += `<ul>`;
+            if (result.updated > 0) {
+                message += `<li class="text-success">✓ 已更新 ${result.updated} 个文件</li>`;
+            }
+            if (result.skipped > 0) {
+                message += `<li class="text-info">ℹ 跳过 ${result.skipped} 个文件（已是最新）</li>`;
+            }
+            if (result.failed > 0) {
+                message += `<li class="text-danger">✗ 失败 ${result.failed} 个文件</li>`;
+            }
+            message += `</ul>`;
+            message += `<small class="text-muted">检查时间: ${result.timestamp}</small>`;
+
+            updateResultAlert.className = 'alert alert-info';
+            updateResultAlert.innerHTML = message;
+        } else {
+            updateResultAlert.className = 'alert alert-danger';
+            updateResultAlert.innerHTML = `<strong>更新检查失败</strong><br>${data.error}`;
+        }
+    } catch (error) {
+        updateProgress.style.display = 'none';
+        updateResult.style.display = 'block';
+        updateResultAlert.className = 'alert alert-danger';
+        updateResultAlert.innerHTML = `<strong>更新检查失败</strong><br>${error}`;
+    }
+}
+
+// 强制更新
+async function forceUpdates() {
+    const updateProgress = document.getElementById('updateProgress');
+    const updateResult = document.getElementById('updateResult');
+    const updateResultAlert = document.getElementById('updateResultAlert');
+    const updateAlert = document.getElementById('updateAlert');
+
+    // 显示进度，隐藏结果
+    updateProgress.style.display = 'block';
+    updateResult.style.display = 'none';
+    updateAlert.innerHTML = '';
+
+    try {
+        const response = await fetch('/api/force-updates', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        const data = await response.json();
+
+        // 隐藏进度，显示结果
+        updateProgress.style.display = 'none';
+        updateResult.style.display = 'block';
+
+        if (response.ok) {
+            const result = data.result;
+            let message = `<strong>${data.message}</strong><br><br>`;
+            message += `<ul>`;
+            if (result.updated > 0) {
+                message += `<li class="text-success">✓ 成功更新 ${result.updated} 个文件</li>`;
+            }
+            if (result.failed > 0) {
+                message += `<li class="text-danger">✗ 失败 ${result.failed} 个文件</li>`;
+            }
+            message += `</ul>`;
+            message += `<small class="text-muted">更新时间: ${result.timestamp}</small>`;
+
+            updateResultAlert.className = 'alert alert-warning';
+            updateResultAlert.innerHTML = message;
+        } else {
+            updateResultAlert.className = 'alert alert-danger';
+            updateResultAlert.innerHTML = `<strong>强制更新失败</strong><br>${data.error}`;
+        }
+    } catch (error) {
+        updateProgress.style.display = 'none';
+        updateResult.style.display = 'block';
+        updateResultAlert.className = 'alert alert-danger';
+        updateResultAlert.innerHTML = `<strong>强制更新失败</strong><br>${error}`;
+    }
+}
+
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
     // 激活第一个选项卡
@@ -195,4 +304,21 @@ document.addEventListener('DOMContentLoaded', function() {
     if (firstTab) {
         firstTab.click();
     }
+
+    // 修复模态框的 aria-hidden 警告
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        // 移除初始的 aria-hidden 属性，让 Bootstrap 动态管理
+        modal.removeAttribute('aria-hidden');
+
+        // 监听显示事件
+        modal.addEventListener('show.bs.modal', function() {
+            modal.removeAttribute('aria-hidden');
+        });
+
+        // 监听隐藏事件
+        modal.addEventListener('hidden.bs.modal', function() {
+            modal.setAttribute('aria-hidden', 'true');
+        });
+    });
 });
