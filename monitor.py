@@ -41,7 +41,9 @@ def check_qq_status():
     """检查QQ进程状态"""
     try:
         qq_running = False
-        for proc in psutil.process_iter(['name', 'pid']):
+        # 转换为列表避免生成器冲突
+        procs = list(psutil.process_iter(['name', 'pid']))
+        for proc in procs:
             if proc.info['name'].lower() in ['qq.exe', 'qq', 'qqprotect.exe', 'qqpcrtp.exe']:
                 qq_running = True
                 break
@@ -316,7 +318,9 @@ def check_and_manage_llbot_async(config):
                 })
                 
                 found_processes = []
-                for proc in psutil.process_iter(['name', 'pid', 'create_time']):
+                # 转换为列表避免生成器冲突
+                procs = list(psutil.process_iter(['name', 'pid', 'create_time']))
+                for proc in procs:
                     if proc.info['name'].lower() in possible_names:
                         llbot_running = True
                         found_processes.append({
@@ -547,7 +551,9 @@ def check_and_manage_yunzai_async(config):
             })
             
             found_redis_processes = []
-            for proc in psutil.process_iter(['name', 'pid', 'create_time']):
+            # 转换为列表避免生成器冲突
+            procs = list(psutil.process_iter(['name', 'pid', 'create_time']))
+            for proc in procs:
                 if proc.info['name'].lower() == redis_process_name.lower():
                     redis_running = True
                     found_redis_processes.append({
@@ -668,7 +674,9 @@ def check_and_manage_yunzai_async(config):
             })
             
             found_yunzai_processes = []
-            for proc in psutil.process_iter(['name', 'pid', 'create_time']):
+            # 转换为列表避免生成器冲突
+            procs = list(psutil.process_iter(['name', 'pid', 'create_time']))
+            for proc in procs:
                 if proc.info['name'].lower() == 'git-bash.exe':
                     yunzai_running = True
                     found_yunzai_processes.append({
