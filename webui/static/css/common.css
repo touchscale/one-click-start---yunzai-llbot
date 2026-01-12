@@ -168,6 +168,22 @@ body {
     margin-bottom: 8px;
 }
 
+/* 密码显示/隐藏按钮样式 */
+.password-toggle {
+    border-radius: 0 10px 10px 0;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 42px;
+    width: 42px;
+}
+
+.password-toggle i {
+    font-size: 1rem;
+    margin: 0;
+}
+
 /* 按钮样式 */
 .btn-save {
     background: linear-gradient(45deg, #28a745, #20c997);

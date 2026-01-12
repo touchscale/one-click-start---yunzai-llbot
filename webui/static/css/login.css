@@ -100,8 +100,33 @@ body {
     background: #f8f9fa;
     border-radius: 10px 0 0 10px;
     border-right: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 42px;
+    width: 42px;
+}
+
+.input-group-text i {
+    font-size: 1rem;
+    margin: 0;
 }
 
 .form-control-with-icon {
+    border-radius: 0;
+}
+
+.password-toggle {
     border-radius: 0 10px 10px 0;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 42px;
+    width: 42px;
+}
+
+.password-toggle i {
+    font-size: 1rem;
+    margin: 0;
 }
