@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>llbot Yunzai 监控系统</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+</head>
+<body>
+    <!-- 侧边栏 -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h2 class="sidebar-title">
+                <i class="fas fa-tachometer-alt me-2"></i>监控系统
+            </h2>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="sidebar-item">
+                <a href="/" class="sidebar-link active">
+                    <i class="fas fa-home"></i>
+                    <span>系统监控</span>
+                </a>
+            </div>
+            <div class="sidebar-item">
+                <a href="/config" class="sidebar-link">
+                    <i class="fas fa-cogs"></i>
+                    <span>配置管理</span>
+                </a>
+            </div>
+        </nav>
+    </div>
+    
+    <!-- 主内容区域 -->
+    <div class="main-content">
+        <div class="container-fluid">
+            <!-- 顶部标题栏 -->
+            <div class="d-flex justify-content-between align-items-center mb-4 px-3">
+                <div class="d-flex align-items-center">
+                    <h1 class="header-title mb-0 me-3">
+                        <i class="fas fa-tachometer-alt me-2"></i>llbot Yunzai 监控系统
+                    </h1>
+                    <span class="refresh-indicator" id="refresh-status" title="实时刷新状态"></span>
+                </div>
+                <div class="dropdown">
+                    <button class="btn btn-outline-primary dropdown-toggle" type="button" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-user-circle me-1"></i>账户管理
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+                        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#passwordModal"><i class="fas fa-key me-2"></i>修改密码</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="/logout"><i class="fas fa-sign-out-alt me-2"></i>退出登录</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 系统统计信息 -->
+            <div class="container-fluid px-4 mb-4">
+                <div class="system-stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="llbot-stat">0</div>
+                        <div class="stat-label">llbot 状态</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="yunzai-stat">0</div>
+                        <div class="stat-label">Yunzai 状态</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="redis-stat">0</div>
+                        <div class="stat-label">Redis 状态</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="http-stat">0</div>
+                        <div class="stat-label">HTTP 服务</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="main-container p-4">
+                <!-- 状态卡片区域 -->
+                <div class="row g-4 mb-4">
+                    <div class="col-lg-3 col-md-6">
+                        <div class="card status-card">
+                            <div class="card-header d-flex align-items-center">
+                                <i class="fas fa-robot process-icon text-primary"></i>
+                                <h5 class="card-title mb-0">llbot 状态</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-3">
+                                    <span id="llbot-status-indicator" class="status-unknown"></span>
+                                    <span id="llbot-status" class="status-text">未知</span>
+                                </div>
+                                <div class="control-buttons d-grid gap-2">
+                                    <button class="btn btn-start btn-action" onclick="controlProcess('llbot', 'start')">
+                                        <i class="fas fa-play"></i> 启动 llbot
+                                    </button>
+                                    <button class="btn btn-stop btn-action" onclick="controlProcess('llbot', 'stop')">
+                                        <i class="fas fa-stop"></i> 停止 llbot
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-3 col-md-6">
+                        <div class="card status-card">
+                            <div class="card-header d-flex align-items-center">
+                                <i class="fas fa-server process-icon text-success"></i>
+                                <h5 class="card-title mb-0">Yunzai 状态</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-3">
+                                    <span id="yunzai-status-indicator" class="status-unknown"></span>
+                                    <span id="yunzai-status" class="status-text">未知</span>
+                                </div>
+                                <div class="control-buttons d-grid gap-2">
+                                    <button class="btn btn-start btn-action" onclick="controlProcess('yunzai', 'start')">
+                                        <i class="fas fa-play"></i> 启动 Yunzai
+                                    </button>
+                                    <button class="btn btn-stop btn-action" onclick="controlProcess('yunzai', 'stop')">
+                                        <i class="fas fa-stop"></i> 停止 Yunzai
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-3 col-md-6">
+                        <div class="card status-card">
+                            <div class="card-header d-flex align-items-center">
+                                <i class="fas fa-database process-icon text-info"></i>
+                                <h5 class="card-title mb-0">Redis 状态</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-3">
+                                    <span id="redis-status-indicator" class="status-unknown"></span>
+                                    <span id="redis-status" class="status-text">未知</span>
+                                </div>
+                                <div class="control-buttons d-grid gap-2">
+                                    <button class="btn btn-start btn-action" onclick="controlProcess('redis', 'start')">
+                                        <i class="fas fa-play"></i> 启动 Redis
+                                    </button>
+                                    <button class="btn btn-stop btn-action" onclick="controlProcess('redis', 'stop')">
+                                        <i class="fas fa-stop"></i> 停止 Redis
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-3 col-md-6 col-sm-12" id="http-check-container">
+                        <div class="card status-card" id="http-check-card">
+                            <div class="card-header d-flex align-items-center">
+                                <i class="fas fa-plug process-icon text-warning"></i>
+                                <h5 class="card-title mb-0">HTTP 检查</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-3">
+                                    <span id="http-status-indicator" class="status-unknown"></span>
+                                    <span id="http-status" class="status-text">未知</span>
+                                </div>
+                                <div class="control-buttons d-grid gap-2">
+                                    <button id="http-check-button" class="btn btn-check btn-action" onclick="manualHttpCheck()">
+                                        <i class="fas fa-sync-alt"></i> 手动检查
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 日志区域 -->
+                <div class="card alert-box">
+                    <div class="card-header d-flex align-items-center">
+                        <i class="fas fa-terminal me-2"></i>
+                        <h5 class="card-title mb-0">实时日志</h5>
+                        <div class="d-flex align-items-center ms-auto">
+                            <span class="counter-badge me-3">
+                                <i class="fas fa-list me-1"></i>
+                                <span id="log-count">0</span> 条
+                            </span>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="clearLogs()">
+                                <i class="fas fa-trash-alt me-1"></i>清空日志
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="logs" class="log-container"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 页脚 -->
+            <div class="footer">
+                <p>llbot Yunzai 监控系统 v2.0 | 实时监控您的服务状态</p>
+                <p>最后更新: <span id="last-update"></span> | 自动刷新: <span id="refresh-interval">5秒</span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 密码修改模态框 -->
+    <div class="modal fade" id="passwordModal" tabindex="-1" aria-labelledby="passwordModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="passwordModalLabel"><i class="fas fa-key me-2 text-primary"></i>修改账户密码</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="passwordForm">
+                        <div class="mb-3">
+                            <label for="currentPassword" class="form-label">当前密码</label>
+                            <input type="password" class="form-control" id="currentPassword" required placeholder="请输入当前密码">
+                        </div>
+                        <div class="mb-3">
+                            <label for="newUsername" class="form-label">新用户名 (可选)</label>
+                            <input type="text" class="form-control" id="newUsername" placeholder="保持当前用户名请留空">
+                        </div>
+                        <div class="mb-3">
+                            <label for="newPassword" class="form-label">新密码</label>
+                            <input type="password" class="form-control" id="newPassword" required placeholder="请输入新密码">
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirmPassword" class="form-label">确认新密码</label>
+                            <input type="password" class="form-control" id="confirmPassword" required placeholder="请再次输入新密码">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="changePassword()">保存更改</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>

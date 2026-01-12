@@ -1,0 +1,32 @@
+/* 配置页面样式 */
+.config-card {
+    border-radius: 12px;
+    border: none;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    transition: all 0.3s ease;
+    height: 100%;
+    background: linear-gradient(145deg, #ffffff, #f8f9fa);
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.config-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.2);
+}
+
+.section-title {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.config-icon {
+    font-size: 24px;
+    margin-right: 12px;
+    vertical-align: middle;
+    width: 30px;
+    text-align: center;
+}
