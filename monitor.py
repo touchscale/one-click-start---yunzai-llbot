@@ -80,21 +80,80 @@ def check_and_manage_llbot_async(config):
     global qq_status_tracker
     
     try:
+        # 记录函数入口
+        logger.debug("开始执行llbot进程检查", extra={
+            'event_type': 'debug',
+            'action': 'llbot_check_start'
+        })
+        
         # 检查QQ状态变化
         current_qq_status = check_qq_status()
         
-        # 如果QQ从运行变为停止，需要清理并重启llbot
-        if qq_status_tracker.last_qq_status is not None and qq_status_tracker.last_qq_status and not current_qq_status:
-            logger.warning("检测到QQ进程已停止，正在清理相关进程并重启llbot", extra={
-                'event_type': EventType.WARNING,
-                'qq_status': 'stopped',
-                'last_qq_status': 'running',
-                'action': 'restart_llbot_due_to_qq_stop'
-            })
-            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 检测到QQ进程已停止，正在清理相关进程并重启llbot...")
+        # 记录QQ状态
+        logger.debug(f"QQ状态检测 - 上次状态: {qq_status_tracker.last_qq_status}, 当前状态: {current_qq_status}", extra={
+            'event_type': 'debug',
+            'qq_last_status': qq_status_tracker.last_qq_status,
+            'qq_current_status': current_qq_status
+        })
+        
+        # 如果QQ未运行（首次启动或QQ已停止）
+        if not current_qq_status:
+            # 检查是否是首次启动（last_qq_status为None）或QQ从运行变为停止
+            if qq_status_tracker.last_qq_status is None:
+                logger.warning("首次启动检测到QQ未运行，准备终止llbot相关进程并重启", extra={
+                    'event_type': EventType.WARNING,
+                    'qq_status_change': 'first_start_no_qq',
+                    'action': 'terminate_and_restart_llbot',
+                    'qq_last_status': qq_status_tracker.last_qq_status,
+                    'qq_current_status': current_qq_status
+                })
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 首次启动检测到QQ未运行，准备终止llbot相关进程并重启...")
+            elif qq_status_tracker.last_qq_status is True:
+                logger.warning("检测到QQ进程已停止，正在清理相关进程并重启llbot", extra={
+                    'event_type': EventType.WARNING,
+                    'qq_status': 'stopped',
+                    'last_qq_status': 'running',
+                    'action': 'restart_llbot_due_to_qq_stop'
+                })
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 检测到QQ进程已停止，正在清理相关进程并重启llbot...")
+            else:
+                # QQ一直未运行，跳过
+                logger.debug("QQ一直未运行，跳过重启", extra={
+                    'event_type': 'debug',
+                    'qq_status': 'always_stopped'
+                })
+                qq_status_tracker.last_qq_status = current_qq_status
+                return
             
-            # 终止相关进程
+            # 终止llbot相关进程
+            llbot_process_name = os.path.basename(config['llbot']['path']) if config.get('llbot', {}).get('path') else 'llbot.exe'
+            
+            logger.info(f"终止llbot主进程: {llbot_process_name}", extra={
+                'event_type': EventType.PROCESS_STOP,
+                'process_name': llbot_process_name,
+                'action': 'terminate_due_to_qq_stop'
+            })
+            terminate_process_by_name(llbot_process_name)
+            
+            logger.info("终止llbot相关进程: lucky-lillia-desktop.exe", extra={
+                'event_type': EventType.PROCESS_STOP,
+                'process_name': 'lucky-lillia-desktop.exe',
+                'action': 'terminate_due_to_qq_stop'
+            })
+            terminate_process_by_name('lucky-lillia-desktop.exe')
+            
+            logger.info("终止llbot相关进程: pmhq-win-x64.exe", extra={
+                'event_type': EventType.PROCESS_STOP,
+                'process_name': 'pmhq-win-x64.exe',
+                'action': 'terminate_due_to_qq_stop'
+            })
             terminate_process_by_name('pmhq-win-x64.exe')
+            
+            logger.info("终止llbot相关进程: flet.exe", extra={
+                'event_type': EventType.PROCESS_STOP,
+                'process_name': 'flet.exe',
+                'action': 'terminate_due_to_qq_stop'
+            })
             terminate_process_by_name('flet.exe')
             
             # 清除手动停止状态
