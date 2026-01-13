@@ -70,8 +70,8 @@ def check_qq_status():
 class QQStatusTracker:
     """QQ状态跟踪器"""
     def __init__(self):
-        # 初始化时立即获取当前的QQ状态，而不是设置为None
-        self.last_qq_status = check_qq_status()
+        # 初始化时设置为None，这样首次启动时能正确检测到QQ未运行
+        self.last_qq_status = None
 
 qq_status_tracker = QQStatusTracker()
 
