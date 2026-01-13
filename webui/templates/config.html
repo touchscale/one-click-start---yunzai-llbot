@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>配置管理 - llbot Yunzai 监控系统</title>
+    <!-- Bootstrap CSS -->
+    <link href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='vendor/all.css') }}" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/config.css') }}">
+</head>
+<body>
+    <!-- 侧边栏 -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h2 class="sidebar-title">
+                <i class="fas fa-tachometer-alt me-2"></i>监控系统
+            </h2>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="sidebar-item">
+                <a href="/" class="sidebar-link">
+                    <i class="fas fa-home"></i>
+                    <span>系统监控</span>
+                </a>
+            </div>
+            <div class="sidebar-item">
+                <a href="/config" class="sidebar-link active">
+                    <i class="fas fa-cogs"></i>
+                    <span>配置管理</span>
+                </a>
+            </div>
+        </nav>
+    </div>
+    
+    <!-- 主内容区域 -->
+    <div class="main-content">
+        <div class="container-fluid">
+            <!-- 顶部标题栏 -->
+            <div class="d-flex justify-content-between align-items-center mb-4 px-3">
+                <div class="d-flex align-items-center">
+                    <h1 class="header-title mb-0 me-3">
+                        <i class="fas fa-cogs me-2"></i>配置管理
+                    </h1>
+                </div>
+                <div class="dropdown">
+                    <button class="btn btn-outline-primary dropdown-toggle" type="button" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-user-circle me-1"></i>账户管理
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+                        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#passwordModal"><i class="fas fa-key me-2"></i>修改密码</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="/logout"><i class="fas fa-sign-out-alt me-2"></i>退出登录</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="main-container p-4">
+                <!-- 配置表单 -->
+                <div id="configAlert" class="alert alert-info alert-box mb-4" style="display: none;">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <span id="configAlertMessage"></span>
+                </div>
+
+                <!-- 配置选项卡 -->
+                <ul class="nav nav-tabs mb-4" id="configTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="llbot-tab" data-bs-toggle="tab" data-bs-target="#llbot" type="button" role="tab">
+                            <i class="fas fa-robot config-icon"></i>llbot 配置
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="yunzai-tab" data-bs-toggle="tab" data-bs-target="#yunzai" type="button" role="tab">
+                            <i class="fas fa-server config-icon"></i>Yunzai 配置
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="redis-tab" data-bs-toggle="tab" data-bs-target="#redis" type="button" role="tab">
+                            <i class="fas fa-database config-icon"></i>Redis 配置
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="http-tab" data-bs-toggle="tab" data-bs-target="#http" type="button" role="tab">
+                            <i class="fas fa-plug config-icon"></i>HTTP 检查配置
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="auto-tab" data-bs-toggle="tab" data-bs-target="#auto" type="button" role="tab">
+                            <i class="fas fa-redo config-icon"></i>自动重启配置
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="auth-tab" data-bs-toggle="tab" data-bs-target="#auth" type="button" role="tab">
+                            <i class="fas fa-lock config-icon"></i>Web 认证配置
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- 配置内容 -->
+                <div class="tab-content" id="configTabContent">
+                    <!-- llbot 配置 -->
+                    <div class="tab-pane fade show active" id="llbot" role="tabpanel">
+                        <div class="card config-card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0"><i class="fas fa-robot config-icon text-primary"></i>llbot 配置</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label for="llbot-path" class="form-label">llbot.exe 路径</label>
+                                    <input type="text" class="form-control" id="llbot-path" value="{{ config.llbot.path }}" placeholder="例如: D:\\path\\to\\llbot.exe">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="llbot-directory" class="form-label">llbot 目录</label>
+                                    <input type="text" class="form-control" id="llbot-directory" value="{{ config.llbot.directory }}" placeholder="例如: D:\\path\\to\\llbot">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="llbot-wait-seconds" class="form-label">检查间隔（秒）</label>
+                                    <input type="number" class="form-control" id="llbot-wait-seconds" value="{{ config.llbot.wait_seconds }}" min="1" max="60">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Yunzai 配置 -->
+                    <div class="tab-pane fade" id="yunzai" role="tabpanel">
+                        <div class="card config-card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0"><i class="fas fa-server config-icon text-success"></i>Yunzai 配置</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label for="yunzai-git-bash-path" class="form-label">Git Bash 路径</label>
+                                    <input type="text" class="form-control" id="yunzai-git-bash-path" value="{{ config.yunzai.git_bash_path }}" placeholder="例如: D:\\path\\git-bash.exe">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="yunzai-bash-directory" class="form-label">Yunzai 目录</label>
+                                    <input type="text" class="form-control" id="yunzai-bash-directory" value="{{ config.yunzai.bash_directory }}" placeholder="例如: D:\\path\\to\\yunzai">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="yunzai-wait-seconds" class="form-label">检查间隔（秒）</label>
+                                    <input type="number" class="form-control" id="yunzai-wait-seconds" value="{{ config.yunzai.wait_seconds }}" min="1" max="60">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Redis 配置 -->
+                    <div class="tab-pane fade" id="redis" role="tabpanel">
+                        <div class="card config-card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0"><i class="fas fa-database config-icon text-info"></i>Redis 配置</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label for="redis-path" class="form-label">Redis 服务器路径</label>
+                                    <input type="text" class="form-control" id="redis-path" value="{{ config.redis.path }}" placeholder="例如: D:\\path\\to\\redis-server.exe">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- HTTP 检查配置 -->
+                    <div class="tab-pane fade" id="http" role="tabpanel">
+                        <div class="card config-card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0"><i class="fas fa-plug config-icon text-warning"></i>HTTP 检查配置</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label for="http-check-url" class="form-label">HTTP 检查地址</label>
+                                    <input type="text" class="form-control" id="http-check-url" value="{{ config.http_check.url }}" placeholder="例如: http://localhost:3080">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="http-check-timeout" class="form-label">超时时间（秒）</label>
+                                    <input type="number" class="form-control" id="http-check-timeout" value="{{ config.http_check.timeout }}" min="1" max="30">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 自动重启配置 -->
+                    <div class="tab-pane fade" id="auto" role="tabpanel">
+                        <div class="card config-card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0"><i class="fas fa-redo config-icon text-secondary"></i>自动重启配置</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="auto-restart-enabled" {% if config.auto_restart.enabled %}checked{% endif %}>
+                                    <label class="form-check-label" for="auto-restart-enabled">
+                                        启用自动重启
+                                    </label>
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="auto-restart-respect-manual-stop" {% if config.auto_restart.respect_manual_stop %}checked{% endif %}>
+                                    <label class="form-check-label" for="auto-restart-respect-manual-stop">
+                                        尊重手动停止状态
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Web 认证配置 -->
+                    <div class="tab-pane fade" id="auth" role="tabpanel">
+                        <div class="card config-card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0"><i class="fas fa-lock config-icon text-danger"></i>Web 认证配置</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label for="auth-username" class="form-label">用户名</label>
+                                    <input type="text" class="form-control" id="auth-username" value="{{ config.web_auth.username }}">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="auth-password" class="form-label">密码</label>
+                                    <div class="input-group">
+                                        <input type="password" class="form-control" id="auth-password" value="{{ config.web_auth.password }}">
+                                        <button type="button" class="btn btn-outline-secondary password-toggle" onclick="togglePassword('auth-password', this)">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted">显示 *** 表示保持当前密码不变</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 操作按钮 -->
+                <div class="d-flex justify-content-between mt-4">
+                    <div>
+                        <a href="/" class="btn btn-back">
+                            <i class="fas fa-arrow-left me-2"></i>返回监控页面
+                        </a>
+                        <button class="btn btn-info ms-2" data-bs-toggle="modal" data-bs-target="#updateModal">
+                            <i class="fas fa-download me-2"></i>检查更新
+                        </button>
+                    </div>
+                    <div>
+                        <button class="btn btn-cancel me-2" onclick="location.href='/'">
+                            <i class="fas fa-times me-2"></i>取消
+                        </button>
+                        <button class="btn btn-save" onclick="saveConfig()">
+                            <i class="fas fa-save me-2"></i>保存配置
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 密码修改模态框 -->
+    <div class="modal fade" id="passwordModal" tabindex="-1" aria-labelledby="passwordModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="passwordModalLabel"><i class="fas fa-key me-2 text-primary"></i>修改账户密码</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="passwordForm">
+                        <div class="mb-3">
+                            <label for="currentPassword" class="form-label">当前密码</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="currentPassword" required placeholder="请输入当前密码">
+                                <button type="button" class="btn btn-outline-secondary password-toggle" onclick="togglePassword('currentPassword', this)">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="newUsername" class="form-label">新用户名 (可选)</label>
+                            <input type="text" class="form-control" id="newUsername" placeholder="保持当前用户名请留空">
+                        </div>
+                        <div class="mb-3">
+                            <label for="newPassword" class="form-label">新密码</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="newPassword" required placeholder="请输入新密码">
+                                <button type="button" class="btn btn-outline-secondary password-toggle" onclick="togglePassword('newPassword', this)">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirmPassword" class="form-label">确认新密码</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="confirmPassword" required placeholder="请再次输入新密码">
+                                <button type="button" class="btn btn-outline-secondary password-toggle" onclick="togglePassword('confirmPassword', this)">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="changePassword()">保存更改</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 更新检查模态框 -->
+    <div class="modal fade" id="updateModal" tabindex="-1" aria-labelledby="updateModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="updateModalLabel"><i class="fas fa-download me-2 text-primary"></i>前端资源更新</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="updateAlert"></div>
+                    <div id="updateProgress" style="display: none;">
+                        <div class="progress mb-3">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                        </div>
+                        <p class="text-center text-muted">正在检查更新...</p>
+                    </div>
+                    <div id="updateResult" style="display: none;">
+                        <div class="alert" id="updateResultAlert"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="button" class="btn btn-primary" onclick="checkUpdates()">检查更新</button>
+                    <button type="button" class="btn btn-warning" onclick="forceUpdates()">强制更新</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/config.js') }}"></script>
+</body>
+</html>

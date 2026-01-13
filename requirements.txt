@@ -2,5 +2,3 @@ requests>=2.25.1
 psutil>=5.8.0
 PyYAML>=5.4.0
 Flask>=2.0.0
-Quart>=0.18.0
-aiohttp>=3.8.0
