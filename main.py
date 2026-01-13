@@ -10,7 +10,7 @@ import threading
 import psutil
 
 # 导入自定义模块
-from constants import EventType, DEFAULT_CONFIG
+from constants import EventType
 from logger import get_logger
 from event_manager import get_event_manager
 from config import load_config
@@ -18,8 +18,7 @@ from process_manager import (
     is_admin, 
     run_as_admin, 
     check_admin,
-    get_global_manual_stop_status,
-    update_global_manual_stop_status
+    get_global_manual_stop_status
 )
 from monitor import check_and_manage_llbot_async, check_and_manage_yunzai_async, async_http_check
 from web_server import (

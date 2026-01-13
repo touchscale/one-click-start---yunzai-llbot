@@ -5,7 +5,6 @@
 import queue
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from constants import EventType
 
 # 全局事件管理器
 event_manager = None

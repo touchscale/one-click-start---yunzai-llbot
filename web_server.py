@@ -147,7 +147,6 @@ def register_routes(app):
     from process_manager import (
         restart_llbot_with_cleanup, 
         terminate_process_by_name,
-        get_global_manual_stop_status,
         update_global_manual_stop_status
     )
     from monitor import check_and_manage_yunzai_async, async_http_check
