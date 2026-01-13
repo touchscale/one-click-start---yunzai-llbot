@@ -21,14 +21,6 @@ from constants import EventType
 logger = get_logger()
 event_manager = get_event_manager()
 
-# 用于存储QQ状态
-class QQStatusTracker:
-    """QQ状态跟踪器"""
-    def __init__(self):
-        self.last_qq_status = None
-
-qq_status_tracker = QQStatusTracker()
-
 def async_http_check(url, timeout=5):
     """异步HTTP检查"""
     try:
@@ -41,15 +33,47 @@ def check_qq_status():
     """检查QQ进程状态"""
     try:
         qq_running = False
+        found_processes = []
         # 转换为列表避免生成器冲突
         procs = list(psutil.process_iter(['name', 'pid']))
         for proc in procs:
-            if proc.info['name'].lower() in ['qq.exe', 'qq', 'qqprotect.exe', 'qqpcrtp.exe']:
+            proc_name = (proc.info['name'] or '').lower()
+            if proc_name in ['qq.exe', 'qq', 'qqprotect.exe', 'qqpcrtp.exe']:
                 qq_running = True
-                break
+                found_processes.append({
+                    'name': proc.info['name'],
+                    'pid': proc.info['pid']
+                })
+        
+        if found_processes:
+            logger.info(f"检测到QQ进程正在运行: {len(found_processes)}个进程", extra={
+                'event_type': EventType.PROCESS_CHECK,
+                'qq_processes': found_processes,
+                'count': len(found_processes)
+            })
+        else:
+            logger.info("未检测到QQ进程", extra={
+                'event_type': EventType.PROCESS_CHECK,
+                'qq_processes': []
+            })
+        
         return qq_running
-    except:
+    except Exception as e:
+        logger.error(f"检测QQ进程时出错: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'error': str(e),
+            'error_class': type(e).__name__
+        })
         return False
+
+# 用于存储QQ状态
+class QQStatusTracker:
+    """QQ状态跟踪器"""
+    def __init__(self):
+        # 初始化时立即获取当前的QQ状态，而不是设置为None
+        self.last_qq_status = check_qq_status()
+
+qq_status_tracker = QQStatusTracker()
 
 def check_and_manage_llbot_async(config):
     """异步检查并管理llbot进程"""
