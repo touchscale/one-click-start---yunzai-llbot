@@ -336,14 +336,29 @@ def terminate_llbot_process_tree(llbot_path=None):
                     'process_name': dep_process
                 })
         
-        # 终止QQ相关进程
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止QQ相关进程...")
+        # 终止QQ相关进程及其子进程
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止QQ相关进程及其子进程...")
         qq_processes = ["QQ", "QQProtect", "QQPCRTP"]
         for qq_process in qq_processes:
             try:
                 for proc in psutil.process_iter(['name', 'pid']):
                     try:
                         if qq_process.lower() in proc.info['name'].lower():
+                            # 先终止所有子进程(包括crashpad_handler.exe)
+                            children = proc.children(recursive=True)
+                            for child in children:
+                                try:
+                                    child.kill()
+                                    logger.info(f"已终止QQ子进程: {child.name()} (PID: {child.pid})", extra={
+                                        'event_type': EventType.PROCESS_STOP,
+                                        'process_name': child.name(),
+                                        'pid': child.pid,
+                                        'parent_pid': proc.info['pid']
+                                    })
+                                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 已终止QQ子进程: {child.name()} (PID: {child.pid})")
+                                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                    pass
+                            # 再终止主进程
                             proc.kill()
                             logger.info(f"已终止QQ进程: {proc.info['name']} (PID: {proc.info['pid']})", extra={
                                 'event_type': EventType.PROCESS_STOP,
