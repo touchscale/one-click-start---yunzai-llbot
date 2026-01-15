@@ -128,6 +128,31 @@ def check_and_manage_llbot_async(config):
                 })
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 运行中检测到QQ未运行，准备终止llbot相关进程并重启...")
             
+            # 检查llbot是否被手动停止
+            is_llbot_manual_stop = False
+            try:
+                is_llbot_manual_stop = get_global_manual_stop_status('llbot')
+            except:
+                is_llbot_manual_stop = False
+            
+            # 获取自动重启配置
+            auto_restart_enabled = config.get('auto_restart', {}).get('enabled', True)
+            respect_manual_stop = config.get('auto_restart', {}).get('respect_manual_stop', True)
+            
+            # 如果llbot被手动停止且配置为尊重手动停止，则跳过重启
+            if respect_manual_stop and auto_restart_enabled and is_llbot_manual_stop:
+                logger.info("llbot被手动停止，跳过因QQ进程未运行而触发的自动重启", extra={
+                    'event_type': EventType.PROCESS_CHECK,
+                    'llbot_manual_stop': True,
+                    'auto_restart_enabled': auto_restart_enabled,
+                    'respect_manual_stop': respect_manual_stop,
+                    'skip_reason': 'manual_stop'
+                })
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] llbot被手动停止，跳过因QQ进程未运行而触发的自动重启")
+                # 更新QQ状态
+                qq_status_tracker.last_qq_status = current_qq_status
+                return
+            
             # 终止llbot相关进程
             logger.info("终止llbot进程及其子进程", extra={
                 'event_type': EventType.PROCESS_STOP,
@@ -618,10 +643,13 @@ def check_and_manage_yunzai_async(config):
             for proc in procs:
                 if proc.info['name'].lower() == redis_process_name.lower():
                     redis_running = True
+                    # 安全地获取create_time,如果不存在则使用None
+                    create_time = proc.info.get('create_time')
+                    create_time_str = datetime.fromtimestamp(create_time).isoformat() if create_time else None
                     found_redis_processes.append({
                         'name': proc.info['name'],
                         'pid': proc.info['pid'],
-                        'create_time': datetime.fromtimestamp(proc.info['create_time']).isoformat()
+                        'create_time': create_time_str
                     })
             
             if redis_running:

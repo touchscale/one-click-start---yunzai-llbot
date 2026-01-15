@@ -376,6 +376,28 @@ def terminate_llbot_process_tree(llbot_path=None):
                     'process_name': qq_process
                 })
         
+        # 额外终止所有crashpad_handler.exe进程(这些进程可能不是QQ的直接子进程)
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止所有crashpad_handler.exe进程...")
+        try:
+            for proc in psutil.process_iter(['name', 'pid']):
+                try:
+                    if 'crashpad_handler' in proc.info['name'].lower():
+                        proc.kill()
+                        logger.info(f"已终止crashpad_handler.exe进程 (PID: {proc.info['pid']})", extra={
+                            'event_type': EventType.PROCESS_STOP,
+                            'process_name': proc.info['name'],
+                            'pid': proc.info['pid']
+                        })
+                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 已终止crashpad_handler.exe进程 (PID: {proc.info['pid']})")
+                        terminated = True
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+        except Exception as e:
+            logger.warning(f"终止crashpad_handler.exe进程时出错: {str(e)}", extra={
+                'event_type': 'warning',
+                'error': str(e)
+            })
+        
         return terminated
     except Exception as e:
         logger.error(f"终止llbot进程树时出错: {str(e)}", extra={
