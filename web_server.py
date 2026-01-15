@@ -308,25 +308,10 @@ def register_routes(app):
                         })
                         return jsonify({'message': 'llbot启动命令已发送'})
                     elif action == 'stop':
-                        # 停止llbot - 同时终止可能的进程名
-                        llbot_process_name = os.path.basename(current_config['llbot']['path']) if current_config.get('llbot', {}).get('path') else 'llbot.exe'
-                        terminate_process_by_name(llbot_process_name)
-                        # 也终止可能的lucky-lillia-desktop.exe进程
-                        terminate_process_by_name('lucky-lillia-desktop.exe')
-                        # 终止pmhq-win-x64.exe进程（llbot依赖进程）
-                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止pmhq-win-x64.exe进程...")
-                        terminate_process_by_name("pmhq-win-x64.exe")
-                        # 终止flet.exe进程（llbot的GUI组件）
-                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止flet.exe进程...")
-                        terminate_process_by_name("flet.exe")
-                        # 终止node.exe进程
-                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止node.exe进程...")
-                        terminate_process_by_name("node.exe")
-                        # 终止QQ相关进程
-                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止QQ相关进程...")
-                        qq_processes = ["QQ", "QQProtect", "QQPCRTP"]
-                        for qq_process in qq_processes:
-                            terminate_process_by_name(qq_process)
+                        # 停止llbot - 精确终止llbot进程及其子进程
+                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止llbot进程及其子进程...")
+                        from process_manager import terminate_llbot_process_tree
+                        terminate_llbot_process_tree(current_config.get('llbot', {}).get('path'))
                         
                         # 设置手动停止状态
                         manual_stop_status['llbot'] = True

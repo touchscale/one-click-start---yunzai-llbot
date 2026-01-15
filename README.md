@@ -292,9 +292,71 @@ Web管理界面提供以下功能：
 - 所有模块之间的通信通过事件管理器实现，确保线程安全
 - 日志文件保存在 `logs/` 目录下，每天自动轮转
 
+## Windows 任务计划程序设置
+
+为了实现监控程序的开机自启动和异常保护，可以使用 `setup_task_scheduler.ps1` 脚本创建 Windows 任务计划程序。
+
+### 使用方法
+
+#### 1. 以管理员身份运行 PowerShell
+
+右键点击 PowerShell，选择"以管理员身份运行"。
+
+#### 2. 执行设置脚本
+
+```powershell
+.\setup_task_scheduler.ps1
+```
+
+#### 3. 确认任务创建
+
+脚本会自动创建一个名为 `YunzaiLLBotMonitor` 的任务计划程序，具有以下特性：
+
+- **触发器**：每分钟检查一次（首次运行有30秒延迟）
+- **重试机制**：每10秒重试一次，无限次（实际重启次数由脚本内部控制）
+- **运行账户**：当前用户账户（交互式登录）
+- **权限级别**：最高权限
+- **执行限制**：无限制运行时间
+- **电池设置**：允许使用电池，电池时不停止
+
+### 任务管理命令
+
+创建任务后，可以使用以下命令管理任务：
+
+```powershell
+# 查看任务状态
+Get-ScheduledTask -TaskName 'YunzaiLLBotMonitor'
+
+# 手动启动任务
+Start-ScheduledTask -TaskName 'YunzaiLLBotMonitor'
+
+# 停止任务
+Stop-ScheduledTask -TaskName 'YunzaiLLBotMonitor'
+
+# 删除任务
+Unregister-ScheduledTask -TaskName 'YunzaiLLBotMonitor' -Confirm:$false
+```
+
+### 图形化管理
+
+也可以通过 Windows 任务计划程序管理界面进行管理：
+
+1. 按 `Win + R`，输入 `taskschd.msc` 并回车
+2. 在任务计划程序库中找到 `YunzaiLLBotMonitor` 任务
+3. 可以查看任务历史、手动运行/停止、修改设置等
+
+### 注意事项
+
+- 脚本会检查任务是否已存在，如果存在会提示是否删除重建
+- 任务计划程序会定期检查监控程序是否运行，如果检测到程序异常退出，会自动重启
+- 监控程序内部的保活机制（最多5次/分钟）与任务计划程序的重启机制共同工作，提供双重保护
+- 建议在首次运行前先手动测试 `python main.py`，确保配置正确
+
 ## 故障排除
 
 - 如果脚本无法正常终止进程，请确认管理员权限获取成功
 - 如果HTTP检查失败，请检查服务是否正常运行
 - 如果Redis无法启动，请确保Redis目录和路径配置正确
 - 如果Web界面无法访问，请检查端口5000是否被占用
+- 如果任务计划程序无法创建任务，请确保以管理员身份运行 PowerShell
+- 如果任务计划程序无法启动脚本，请检查 Python 路径是否在系统 PATH 中

@@ -235,36 +235,145 @@ def terminate_processes_by_powershell(process_names):
             'error': str(e)
         })
 
+def terminate_llbot_process_tree(llbot_path=None):
+    """精确终止llbot进程及其所有子进程，不影响其他node.exe进程"""
+    try:
+        terminated = False
+        
+        # 确定llbot进程名
+        if llbot_path:
+            llbot_process_name = os.path.basename(llbot_path).lower()
+        else:
+            llbot_process_name = 'lucky-lillia-desktop.exe'
+        
+        # 查找llbot主进程
+        llbot_pid = None
+        for proc in psutil.process_iter(['name', 'pid', 'cmdline']):
+            try:
+                proc_name = proc.info['name'].lower()
+                if proc_name == llbot_process_name or proc_name == 'llbot.exe':
+                    llbot_pid = proc.info['pid']
+                    logger.info(f"找到llbot进程: {proc.info['name']} (PID: {llbot_pid})", extra={
+                        'event_type': EventType.PROCESS_STOP,
+                        'process_name': proc.info['name'],
+                        'pid': llbot_pid
+                    })
+                    break
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        
+        if llbot_pid:
+            try:
+                parent_proc = psutil.Process(llbot_pid)
+                
+                # 终止所有子进程（包括node.exe）
+                children = parent_proc.children(recursive=True)
+                for child in children:
+                    try:
+                        child.kill()
+                        logger.info(f"已终止llbot子进程: {child.name()} (PID: {child.pid})", extra={
+                            'event_type': EventType.PROCESS_STOP,
+                            'process_name': child.name(),
+                            'pid': child.pid,
+                            'parent_pid': llbot_pid
+                        })
+                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 已终止llbot子进程: {child.name()} (PID: {child.pid})")
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+                
+                # 终止主进程
+                parent_proc.kill()
+                logger.info(f"已终止llbot主进程: {parent_proc.name()} (PID: {llbot_pid})", extra={
+                    'event_type': EventType.PROCESS_STOP,
+                    'process_name': parent_proc.name(),
+                    'pid': llbot_pid,
+                    'method': 'process_tree_termination'
+                })
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 已终止llbot主进程: {parent_proc.name()} (PID: {llbot_pid})")
+                terminated = True
+            except psutil.NoSuchProcess:
+                logger.warning(f"llbot进程 (PID: {llbot_pid}) 已不存在", extra={
+                    'event_type': 'warning',
+                    'action': 'skip_terminate_llbot',
+                    'reason': 'process_not_exists',
+                    'pid': llbot_pid
+                })
+            except psutil.AccessDenied:
+                logger.error(f"无权限终止llbot进程 (PID: {llbot_pid})", extra={
+                    'event_type': EventType.ERROR,
+                    'error': 'access_denied',
+                    'pid': llbot_pid
+                })
+        else:
+            logger.warning("未找到llbot进程", extra={
+                'event_type': 'warning',
+                'action': 'skip_terminate_llbot',
+                'reason': 'process_not_found'
+            })
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 警告: 未找到llbot进程")
+        
+        # 也尝试终止pmhq-win-x64.exe和flet.exe（llbot依赖进程）
+        for dep_process in ["pmhq-win-x64.exe", "flet.exe"]:
+            try:
+                for proc in psutil.process_iter(['name', 'pid']):
+                    try:
+                        if dep_process.lower() in proc.info['name'].lower():
+                            proc.kill()
+                            logger.info(f"已终止llbot依赖进程: {proc.info['name']} (PID: {proc.info['pid']})", extra={
+                                'event_type': EventType.PROCESS_STOP,
+                                'process_name': proc.info['name'],
+                                'pid': proc.info['pid'],
+                                'dependency': 'llbot'
+                            })
+                            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 已终止llbot依赖进程: {proc.info['name']} (PID: {proc.info['pid']})")
+                            terminated = True
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+            except Exception as e:
+                logger.warning(f"终止{dep_process}失败: {str(e)}", extra={
+                    'event_type': 'warning',
+                    'error': str(e),
+                    'process_name': dep_process
+                })
+        
+        # 终止QQ相关进程
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止QQ相关进程...")
+        qq_processes = ["QQ", "QQProtect", "QQPCRTP"]
+        for qq_process in qq_processes:
+            try:
+                for proc in psutil.process_iter(['name', 'pid']):
+                    try:
+                        if qq_process.lower() in proc.info['name'].lower():
+                            proc.kill()
+                            logger.info(f"已终止QQ进程: {proc.info['name']} (PID: {proc.info['pid']})", extra={
+                                'event_type': EventType.PROCESS_STOP,
+                                'process_name': proc.info['name'],
+                                'pid': proc.info['pid']
+                            })
+                            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 已终止QQ进程: {proc.info['name']} (PID: {proc.info['pid']})")
+                            terminated = True
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+            except Exception as e:
+                logger.warning(f"终止{qq_process}失败: {str(e)}", extra={
+                    'event_type': 'warning',
+                    'error': str(e),
+                    'process_name': qq_process
+                })
+        
+        return terminated
+    except Exception as e:
+        logger.error(f"终止llbot进程树时出错: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'error': str(e)
+        })
+        return False
+
 def restart_llbot_with_cleanup(config):
     """清理相关进程后重启llbot"""
-    # 终止pmhq-win-x64.exe进程
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止pmhq-win-x64.exe进程...")
-    terminate_process_by_name("pmhq-win-x64.exe")
-    
-    # 终止flet.exe进程
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止flet.exe进程...")
-    terminate_process_by_name("flet.exe")
-    
-    # 终止lucky-lillia-desktop.exe进程
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止lucky-lillia-desktop.exe进程...")
-    terminate_process_by_name("lucky-lillia-desktop.exe")
-    
-    # 终止node.exe进程
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止node.exe进程...")
-    terminate_process_by_name("node.exe")
-    
-    # 终止QQ相关进程
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止QQ相关进程...")
-    qq_processes = ["QQ", "QQProtect", "QQPCRTP"]
-    terminate_processes_by_powershell(qq_processes)
-    
-    # 使用taskkill额外清理
-    for name in ["QQ.exe", "QQProtect.exe", "QQPCRTP.exe"]:
-        try:
-            subprocess.run(["taskkill", "/f", "/im", name, "/t"], 
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except:
-            pass
+    # 精确终止llbot进程及其子进程
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止llbot进程及其子进程...")
+    terminate_llbot_process_tree(config.get('llbot', {}).get('path'))
     
     # 额外等待确保进程完全终止
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 等待进程完全终止...")

@@ -14,7 +14,8 @@ from process_manager import (
     start_yunzai, 
     start_redis,
     get_global_manual_stop_status,
-    terminate_process_by_name
+    terminate_process_by_name,
+    terminate_llbot_process_tree
 )
 from constants import EventType
 
@@ -126,35 +127,11 @@ def check_and_manage_llbot_async(config):
                 return
             
             # 终止llbot相关进程
-            llbot_process_name = os.path.basename(config['llbot']['path']) if config.get('llbot', {}).get('path') else 'llbot.exe'
-            
-            logger.info(f"终止llbot主进程: {llbot_process_name}", extra={
+            logger.info("终止llbot进程及其子进程", extra={
                 'event_type': EventType.PROCESS_STOP,
-                'process_name': llbot_process_name,
                 'action': 'terminate_due_to_qq_stop'
             })
-            terminate_process_by_name(llbot_process_name)
-            
-            logger.info("终止llbot相关进程: lucky-lillia-desktop.exe", extra={
-                'event_type': EventType.PROCESS_STOP,
-                'process_name': 'lucky-lillia-desktop.exe',
-                'action': 'terminate_due_to_qq_stop'
-            })
-            terminate_process_by_name('lucky-lillia-desktop.exe')
-            
-            logger.info("终止llbot相关进程: pmhq-win-x64.exe", extra={
-                'event_type': EventType.PROCESS_STOP,
-                'process_name': 'pmhq-win-x64.exe',
-                'action': 'terminate_due_to_qq_stop'
-            })
-            terminate_process_by_name('pmhq-win-x64.exe')
-            
-            logger.info("终止llbot相关进程: flet.exe", extra={
-                'event_type': EventType.PROCESS_STOP,
-                'process_name': 'flet.exe',
-                'action': 'terminate_due_to_qq_stop'
-            })
-            terminate_process_by_name('flet.exe')
+            terminate_llbot_process_tree(config.get('llbot', {}).get('path'))
             
             # 清除手动停止状态
             try:
