@@ -97,7 +97,7 @@ def check_and_manage_llbot_async(config):
             'qq_current_status': current_qq_status
         })
         
-        # 如果QQ未运行（首次启动或QQ已停止）
+        # 如果QQ未运行（首次启动或QQ已停止或运行中检测不到）
         if not current_qq_status:
             # 检查是否是首次启动（last_qq_status为None）或QQ从运行变为停止
             if qq_status_tracker.last_qq_status is None:
@@ -118,13 +118,15 @@ def check_and_manage_llbot_async(config):
                 })
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 检测到QQ进程已停止，正在清理相关进程并重启llbot...")
             else:
-                # QQ一直未运行，跳过
-                logger.debug("QQ一直未运行，跳过重启", extra={
-                    'event_type': 'debug',
-                    'qq_status': 'always_stopped'
+                # QQ一直未运行，但在运行中检测不到QQ进程，也需要重启llbot
+                logger.warning("运行中检测到QQ未运行，准备终止llbot相关进程并重启", extra={
+                    'event_type': EventType.WARNING,
+                    'qq_status_change': 'running_no_qq',
+                    'action': 'terminate_and_restart_llbot',
+                    'qq_last_status': qq_status_tracker.last_qq_status,
+                    'qq_current_status': current_qq_status
                 })
-                qq_status_tracker.last_qq_status = current_qq_status
-                return
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 运行中检测到QQ未运行，准备终止llbot相关进程并重启...")
             
             # 终止llbot相关进程
             logger.info("终止llbot进程及其子进程", extra={
