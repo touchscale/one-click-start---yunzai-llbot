@@ -172,8 +172,10 @@ function updateLogs() {
                     logsDiv.appendChild(logElement);
                 });
 
-                // 滚动到最新日志
-                logsDiv.scrollTop = logsDiv.scrollHeight;
+                // 根据自动滚动状态决定是否滚动到最新日志
+                if (autoScrollEnabled) {
+                    logsDiv.scrollTop = logsDiv.scrollHeight;
+                }
 
                 // 更新最后更新时间
                 document.getElementById('last-update').textContent = new Date().toLocaleString('zh-CN');
@@ -195,6 +197,25 @@ function clearLogs() {
     document.getElementById('log-count').textContent = '0';
     document.getElementById('last-update').textContent = '已清空';
     showAlert('日志已清空', 'info');
+}
+
+// 自动滚动状态
+let autoScrollEnabled = true;
+
+// 切换自动滚动
+function toggleAutoScroll() {
+    autoScrollEnabled = !autoScrollEnabled;
+    const btn = document.getElementById('auto-scroll-btn');
+
+    if (autoScrollEnabled) {
+        btn.classList.remove('btn-outline-primary');
+        btn.classList.add('btn-primary');
+        showAlert('自动滚动已开启', 'success');
+    } else {
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-outline-primary');
+        showAlert('自动滚动已关闭', 'info');
+    }
 }
 
 // 控制进程（已移除确认框，点击立即执行）
@@ -406,6 +427,13 @@ function ensureHttpCardVisibility() {
 document.addEventListener('DOMContentLoaded', function() {
     updateStatus();
     updateLogs();
+
+    // 初始化自动滚动按钮状态
+    const autoScrollBtn = document.getElementById('auto-scroll-btn');
+    if (autoScrollEnabled) {
+        autoScrollBtn.classList.remove('btn-outline-primary');
+        autoScrollBtn.classList.add('btn-primary');
+    }
 
     // 每5秒更新一次状态
     setInterval(updateStatus, 5000);

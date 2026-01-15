@@ -202,6 +202,34 @@
     font-weight: 500;
 }
 
+#auto-scroll-btn {
+    border-radius: 10px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    padding: 5px 12px;
+}
+
+#auto-scroll-btn.btn-primary {
+    background: linear-gradient(45deg, #007bff, #6610f2);
+    border: none;
+    color: white;
+}
+
+#auto-scroll-btn.btn-primary:hover {
+    background: linear-gradient(45deg, #0056b3, #520dc2);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
+}
+
+#auto-scroll-btn.btn-outline-primary {
+    border: 1px solid #007bff;
+    color: #007bff;
+}
+
+#auto-scroll-btn.btn-outline-primary:hover {
+    background: rgba(0, 123, 255, 0.1);
+}
+
 .dropdown-menu {
     border-radius: 12px;
     box-shadow: 0 5px 20px rgba(0,0,0,0.15);
