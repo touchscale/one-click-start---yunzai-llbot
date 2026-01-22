@@ -20,7 +20,7 @@ DEFAULT_CONFIG = {
     },
     "web_auth": {
         "username": "admin",
-        "password": "admin123"
+        "password": "Admin123"
     }
 }
 

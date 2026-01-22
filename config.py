@@ -76,8 +76,8 @@ def interactive_config():
     config['web_auth'] = {}
     username_input = input("Web管理界面用户名 (默认: admin，留空使用默认值): ").strip()
     config['web_auth']['username'] = username_input if username_input else "admin"
-    password_input = input("Web管理界面密码 (默认: admin123，留空使用默认值): ").strip()
-    config['web_auth']['password'] = password_input if password_input else "admin123"
+    password_input = input("Web管理界面密码 (默认: Admin123，留空使用默认值): ").strip()
+    config['web_auth']['password'] = password_input if password_input else "Admin123"
     
     logger.info("交互式配置完成", extra={'event_type': 'config_complete'})
     print("\n配置完成！")

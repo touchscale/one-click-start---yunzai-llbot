@@ -150,6 +150,7 @@ def register_routes(app):
         update_global_manual_stop_status
     )
     from monitor import check_and_manage_yunzai_async, async_http_check
+    from password_validator import PasswordValidator
     
     logger = get_logger()
     
@@ -498,6 +499,11 @@ def register_routes(app):
             if not check_auth(current_username, old_password):
                 return jsonify({'message': '当前密码错误'}), 401
             
+            # 验证新密码强度
+            is_valid, errors = PasswordValidator.validate(new_password)
+            if not is_valid:
+                return jsonify({'message': '密码不符合安全要求', 'errors': errors}), 400
+            
             # 更新当前配置中的认证信息
             if 'web_auth' not in current_config:
                 current_config['web_auth'] = {}
@@ -545,8 +551,12 @@ def register_routes(app):
                 return jsonify({'message': '请输入新密码并确认'}), 400
             if new_password != confirm_password:
                 return jsonify({'message': '两次密码输入不一致'}), 400
-            if len(new_password) < 4:
-                return jsonify({'message': '密码太短（至少4位）'}), 400
+            
+            # 验证新密码强度
+            is_valid, errors = PasswordValidator.validate(new_password)
+            if not is_valid:
+                return jsonify({'message': '密码不符合安全要求', 'errors': errors}), 400
+            
             if not confirm_edit:
                 return jsonify({'message': '请确认将更新配置文件'}), 400
 
@@ -722,6 +732,11 @@ def register_routes(app):
                 elif not password_value:
                     # If password is explicitly empty, validate
                     return jsonify({'error': '密码不能为空'}), 400
+                else:
+                    # New password provided, validate its strength
+                    is_valid, errors = PasswordValidator.validate(password_value)
+                    if not is_valid:
+                        return jsonify({'error': '密码不符合安全要求', 'errors': errors}), 400
             else:
                 # If password is not provided, use the original password
                 data['web_auth']['password'] = original_password

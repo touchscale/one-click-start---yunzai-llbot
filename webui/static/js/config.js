@@ -14,6 +14,47 @@ function togglePassword(fieldId, button) {
     }
 }
 
+// 密码强度验证
+function validatePasswordStrength(password) {
+    const errors = [];
+    const MIN_LENGTH = 8;
+    const MAX_LENGTH = 64;
+
+    if (password.length < MIN_LENGTH) {
+        errors.push(`密码长度不能少于${MIN_LENGTH}位`);
+    }
+    if (password.length > MAX_LENGTH) {
+        errors.push(`密码长度不能超过${MAX_LENGTH}位`);
+    }
+    if (!/[A-Z]/.test(password)) {
+        errors.push('密码必须包含至少一个大写字母');
+    }
+    if (!/[a-z]/.test(password)) {
+        errors.push('密码必须包含至少一个小写字母');
+    }
+    if (!/\d/.test(password)) {
+        errors.push('密码必须包含至少一个数字');
+    }
+
+    // 检查常见弱密码
+    const commonWeakPasswords = ['password', '12345678', 'qwerty', 'abc123', 'password1', '123456789', '11111111', 'admin', 'admin123', 'root', 'welcome', 'monkey', 'dragon', 'master', 'letmein', 'login', 'passw0rd', 'qwerty123', '123abc', 'test123', 'admin1234', 'password123', '1234567890', 'qwertyuiop', 'asdfghjkl', 'zxcvbnm', '1q2w3e4r', 'a1b2c3d4'];
+    if (commonWeakPasswords.includes(password.toLowerCase())) {
+        errors.push('密码过于简单，请使用更复杂的密码');
+    }
+
+    // 检查连续重复字符
+    if (/(.)\1{2,}/.test(password)) {
+        errors.push('密码不应包含连续重复的字符');
+    }
+
+    // 检查连续序列
+    if (/(012|123|234|345|456|567|678|789|890|abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz)/i.test(password)) {
+        errors.push('密码不应包含连续的数字或字母序列');
+    }
+
+    return errors;
+}
+
 // 显示警告消息
 function showAlert(message, type) {
     const alertDiv = document.createElement('div');
@@ -155,8 +196,10 @@ function changePassword() {
         return;
     }
 
-    if (newPassword.length < 4) {
-        showAlert('新密码长度至少为4位', 'warning');
+    // 验证密码强度
+    const errors = validatePasswordStrength(newPassword);
+    if (errors.length > 0) {
+        showAlert(errors.join('；'), 'warning');
         return;
     }
 
