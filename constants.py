@@ -20,9 +20,17 @@ DEFAULT_CONFIG = {
     },
     "web_auth": {
         "username": "admin",
-        "password": "admin123"
+        "password": "Admin123"
     }
 }
+
+# 密码加密相关常量
+class PasswordEncryption:
+    """密码加密配置常量"""
+    ALGORITHM = "Fernet"
+    PBKDF2_ITERATIONS = 480000
+    SALT_LENGTH = 16
+    ENABLED = True  # 是否启用密码加密
 
 # 事件类型枚举
 class EventType:

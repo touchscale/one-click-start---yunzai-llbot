@@ -150,6 +150,7 @@ def register_routes(app):
         update_global_manual_stop_status
     )
     from monitor import check_and_manage_yunzai_async, async_http_check
+    from password_validator import PasswordValidator
     
     logger = get_logger()
     
@@ -498,6 +499,11 @@ def register_routes(app):
             if not check_auth(current_username, old_password):
                 return jsonify({'message': '当前密码错误'}), 401
             
+            # 验证新密码强度
+            is_valid, errors = PasswordValidator.validate(new_password)
+            if not is_valid:
+                return jsonify({'message': '密码不符合安全要求', 'errors': errors}), 400
+            
             # 更新当前配置中的认证信息
             if 'web_auth' not in current_config:
                 current_config['web_auth'] = {}
@@ -545,8 +551,12 @@ def register_routes(app):
                 return jsonify({'message': '请输入新密码并确认'}), 400
             if new_password != confirm_password:
                 return jsonify({'message': '两次密码输入不一致'}), 400
-            if len(new_password) < 4:
-                return jsonify({'message': '密码太短（至少4位）'}), 400
+            
+            # 验证新密码强度
+            is_valid, errors = PasswordValidator.validate(new_password)
+            if not is_valid:
+                return jsonify({'message': '密码不符合安全要求', 'errors': errors}), 400
+            
             if not confirm_edit:
                 return jsonify({'message': '请确认将更新配置文件'}), 400
 
@@ -722,6 +732,11 @@ def register_routes(app):
                 elif not password_value:
                     # If password is explicitly empty, validate
                     return jsonify({'error': '密码不能为空'}), 400
+                else:
+                    # New password provided, validate its strength
+                    is_valid, errors = PasswordValidator.validate(password_value)
+                    if not is_valid:
+                        return jsonify({'error': '密码不符合安全要求', 'errors': errors}), 400
             else:
                 # If password is not provided, use the original password
                 data['web_auth']['password'] = original_password
@@ -736,8 +751,44 @@ def register_routes(app):
             
             # 保存配置到文件
             try:
-                save_config(current_config, "config.yaml")
-                logger.info("配置已更新", extra={
+                config_path = "config.yaml"
+                save_config(current_config, config_path)
+                
+                # 验证文件是否成功写入
+                import os
+                if not os.path.exists(config_path):
+                    raise IOError(f"配置文件保存失败: {config_path} 不存在")
+                
+                # 验证文件内容是否与当前配置一致
+                import yaml
+                with open(config_path, 'r', encoding='utf-8') as file:
+                    saved_config = yaml.safe_load(file)
+                    if saved_config is None:
+                        saved_config = {}
+                    
+                    # 验证关键配置项是否正确保存
+                    verification_errors = []
+                    for section in ['llbot', 'yunzai', 'http_check', 'auto_restart', 'web_auth']:
+                        if section in current_config:
+                            if section not in saved_config:
+                                verification_errors.append(f"配置节 {section} 未保存到文件")
+                            else:
+                                for key, value in current_config[section].items():
+                                    if key not in saved_config[section]:
+                                        verification_errors.append(f"配置项 {section}.{key} 未保存到文件")
+                                    elif saved_config[section][key] != value:
+                                        verification_errors.append(f"配置项 {section}.{key} 值不一致: 期望 {value}, 实际 {saved_config[section][key]}")
+                    
+                    if verification_errors:
+                        error_msg = "配置验证失败: " + "; ".join(verification_errors)
+                        logger.error(error_msg, extra={
+                            'event_type': EventType.ERROR,
+                            'error': error_msg,
+                            'action': 'config_verification_failure'
+                        })
+                        return jsonify({'error': error_msg}), 500
+                
+                logger.info("配置已更新并验证成功", extra={
                     'event_type': 'config_update',
                     'action': 'full_config_update'
                 })
