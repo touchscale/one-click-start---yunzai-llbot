@@ -7,6 +7,7 @@ import yaml
 from datetime import datetime
 from constants import DEFAULT_CONFIG
 from logger import get_logger
+from password_crypt import PasswordCrypt
 
 logger = get_logger()
 
@@ -87,7 +88,35 @@ def save_config(config, config_path):
     """保存配置到文件，使用原子性写入确保数据完整性"""
     import tempfile
     import shutil
-    
+
+    # 创建配置的副本以避免修改原始配置
+    config_to_save = {}
+    for key, value in config.items():
+        if isinstance(value, dict):
+            config_to_save[key] = {}
+            for sub_key, sub_value in value.items():
+                # 对 web_auth 中的密码进行加密
+                if key == 'web_auth' and sub_key == 'password':
+                    # 检查密码是否已加密
+                    if not PasswordCrypt.is_encrypted(sub_value):
+                        # 加密密码
+                        try:
+                            config_to_save[key][sub_key] = PasswordCrypt.encrypt(sub_value)
+                        except Exception as e:
+                            logger.warning(f"密码加密失败，使用明文保存: {str(e)}", extra={
+                                'event_type': 'warning',
+                                'config_path': config_path,
+                                'error': str(e)
+                            })
+                            config_to_save[key][sub_key] = sub_value
+                    else:
+                        # 已经是加密的，直接使用
+                        config_to_save[key][sub_key] = sub_value
+                else:
+                    config_to_save[key][sub_key] = sub_value
+        else:
+            config_to_save[key] = value
+
     # 使用临时文件进行原子性写入
     temp_path = None
     try:
@@ -97,32 +126,32 @@ def save_config(config, config_path):
             suffix='.tmp',
             dir=os.path.dirname(os.path.abspath(config_path))
         )
-        
+
         # 写入配置到临时文件
         with os.fdopen(temp_fd, 'w', encoding='utf-8') as temp_file:
-            yaml.dump(config, temp_file, default_flow_style=False, allow_unicode=True)
+            yaml.dump(config_to_save, temp_file, default_flow_style=False, allow_unicode=True)
             # 强制刷新缓冲区到磁盘
             temp_file.flush()
             # 确保数据写入物理磁盘（不仅仅是操作系统缓存）
             os.fsync(temp_file.fileno())
-        
+
         # 原子性替换原文件
         shutil.move(temp_path, config_path)
-        
+
         logger.info(f"配置已保存到 {config_path}", extra={'event_type': 'config_save', 'config_path': config_path})
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 配置已保存到 {config_path}")
-        
+
         # 验证文件是否成功写入
         if not os.path.exists(config_path):
             raise IOError(f"配置文件保存失败: {config_path} 不存在")
-        
+
         # 验证文件内容是否有效
         with open(config_path, 'r', encoding='utf-8') as file:
             try:
                 yaml.safe_load(file)
             except yaml.YAMLError as e:
                 raise IOError(f"配置文件内容无效: {str(e)}")
-        
+
     except Exception as e:
         # 清理临时文件（如果存在）
         if temp_path and os.path.exists(temp_path):
@@ -342,10 +371,25 @@ def load_config():
     else:
         with open(config_path, 'r', encoding='utf-8') as file:
             config = yaml.safe_load(file)
-            
+
         # 验证并完善配置
         config = validate_config(config, config_path)
-        
+
+        # 解密 web_auth 中的密码（如果已加密）
+        if 'web_auth' in config and 'password' in config['web_auth']:
+            encrypted_password = config['web_auth']['password']
+            if PasswordCrypt.is_encrypted(encrypted_password):
+                try:
+                    decrypted_password = PasswordCrypt.decrypt(encrypted_password)
+                    config['web_auth']['password'] = decrypted_password
+                    logger.debug("密码已解密", extra={'event_type': 'config_load', 'config_path': config_path})
+                except Exception as e:
+                    logger.warning(f"密码解密失败，使用原始值: {str(e)}", extra={
+                        'event_type': 'warning',
+                        'config_path': config_path,
+                        'error': str(e)
+                    })
+
         logger.info(f"配置文件已加载: {config_path}", extra={'event_type': 'config_load', 'config_path': config_path})
         return config
 
