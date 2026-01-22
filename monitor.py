@@ -381,56 +381,81 @@ def check_and_manage_llbot_async(config):
                 'response_time': f"{response_time:.3f}s"
             })
             
-            # 检查llbot.exe或lucky-lillia-desktop.exe是否仍在运行
+            # 检查llbot.exe或lucky-lillia-desktop.exe是否仍在运行（优先使用PID文件检测，失败时使用进程名验证）
             if not config['llbot']['path']:
                 logger.warning("llbot路径未配置", extra={
-                    'event_type': EventType.WARNING, 
+                    'event_type': EventType.WARNING,
                     'check_type': 'llbot_path',
                     'details': '配置中缺少llbot可执行文件路径，无法检查进程状态'
                 })
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: llbot路径未配置")
                 return
-                
+
             try:
-                llbot_running = False
                 llbot_process_name = os.path.basename(config['llbot']['path']).lower()
-                # 同时检查原进程名和新进程名
-                possible_names = [llbot_process_name, 'lucky-lillia-desktop.exe']
-                
-                # 记录正在搜索的进程名称
-                logger.debug(f"搜索进程: {possible_names}", extra={
-                    'event_type': 'debug', 
-                    'process_names': possible_names,
-                    'search_path': config['llbot']['path']
-                })
-                
-                found_processes = []
-                # 转换为列表避免生成器冲突
-                procs = list(psutil.process_iter(['name', 'pid', 'create_time']))
-                for proc in procs:
-                    if proc.info['name'].lower() in possible_names:
-                        llbot_running = True
-                        found_processes.append({
-                            'name': proc.info['name'],
-                            'pid': proc.info['pid'],
-                            'create_time': datetime.fromtimestamp(proc.info['create_time']).isoformat()
-                        })
-                
-                if llbot_running:
-                    logger.info(f"llbot进程正在运行", extra={
-                        'event_type': EventType.PROCESS_CHECK, 
-                        'process_name': llbot_process_name, 
+                llbot_running = False
+
+                # 优先使用PID文件检测
+                from pid_manager import is_process_running, read_pid, get_process_info_from_pid
+                if is_process_running('llbot'):
+                    llbot_running = True
+                    pid = read_pid('llbot')
+                    pid_info = get_process_info_from_pid(pid) if pid else None
+                    logger.info(f"通过PID文件检测到llbot进程正在运行", extra={
+                        'event_type': EventType.PROCESS_CHECK,
+                        'process_name': llbot_process_name,
                         'status': 'running',
-                        'found_processes': found_processes,
-                        'count': len(found_processes)
+                        'method': 'pid_file',
+                        'pid': pid,
+                        'process_info': pid_info
                     })
-                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {(llbot_process_name or 'llbot')} 进程正在运行...")
+                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {(llbot_process_name or 'llbot')} 进程正在运行 (PID: {pid})...")
                     event_manager.publish(EventType.PROCESS_CHECK, {
                         'process_name': llbot_process_name,
                         'status': 'running',
-                        'found_processes': found_processes,
-                        'count': len(found_processes)
+                        'method': 'pid_file',
+                        'pid': pid,
+                        'process_info': pid_info
                     })
+                else:
+                    logger.debug("PID文件检测: llbot进程未运行", extra={
+                        'event_type': EventType.DEBUG,
+                        'process_name': llbot_process_name,
+                        'method': 'pid_file'
+                    })
+                    # PID文件检测失败，使用进程名验证以防止无限重启
+                    logger.debug("PID文件检测失败，使用进程名验证llbot进程状态", extra={
+                        'event_type': EventType.DEBUG,
+                        'process_name': llbot_process_name,
+                        'verification_method': 'process_name'
+                    })
+                    possible_names = [llbot_process_name, 'lucky-lillia-desktop.exe', 'llbot.exe']
+                    procs = list(psutil.process_iter(['name', 'pid']))
+                    for proc in procs:
+                        if proc.info['name'].lower() in possible_names:
+                            llbot_running = True
+                            logger.info(f"通过进程名验证发现llbot进程正在运行（PID文件可能丢失）: {proc.info['name']} (PID: {proc.info['pid']})", extra={
+                                'event_type': EventType.PROCESS_CHECK,
+                                'process_name': proc.info['name'],
+                                'status': 'running',
+                                'method': 'process_name_verification',
+                                'pid': proc.info['pid'],
+                                'note': 'pid_file_missing'
+                            })
+                            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 发现llbot进程正在运行 (PID: {proc.info['pid']})，PID文件可能丢失")
+                            # 更新PID文件
+                            try:
+                                from pid_manager import write_pid
+                                write_pid('llbot', proc.info['pid'])
+                            except Exception as e:
+                                logger.warning(f"更新llbot PID文件失败: {str(e)}", extra={
+                                    'event_type': EventType.WARNING,
+                                    'error': str(e)
+                                })
+                            break
+
+                if llbot_running:
+                    pass  # 进程正在运行，无需操作
                 else:
                     # 检查是否手动停止了llbot进程
                     is_manual_stop = False
@@ -438,7 +463,7 @@ def check_and_manage_llbot_async(config):
                         is_manual_stop = get_global_manual_stop_status('llbot')
                     except:
                         is_manual_stop = False
-                    
+
                     if respect_manual_stop and auto_restart_enabled and is_manual_stop:
                         logger.debug("llbot被手动停止，跳过自动重启", extra={
                             'event_type': 'debug',
@@ -450,7 +475,7 @@ def check_and_manage_llbot_async(config):
                     else:
                         # llbot.exe未运行但网站应该可访问，清理相关进程后重新启动它
                         logger.warning("llbot进程未运行但网站可访问，正在重启", extra={
-                            'event_type': EventType.WARNING, 
+                            'event_type': EventType.WARNING,
                             'process_name': llbot_process_name,
                             'details': '进程未运行但HTTP服务可访问，需要重启服务',
                             'config_path': config['llbot']['path'],
@@ -628,46 +653,67 @@ def check_and_manage_yunzai_async(config):
             return
             
         try:
-            redis_running = False
             redis_process_name = os.path.basename(config['redis']['path'])
-            
-            # 记录正在搜索的Redis进程
-            logger.debug(f"搜索Redis进程: {redis_process_name}", extra={
-                'event_type': 'debug', 
-                'process_name': redis_process_name
-            })
-            
-            found_redis_processes = []
-            # 转换为列表避免生成器冲突
-            procs = list(psutil.process_iter(['name', 'pid', 'create_time']))
-            for proc in procs:
-                if proc.info['name'].lower() == redis_process_name.lower():
-                    redis_running = True
-                    # 安全地获取create_time,如果不存在则使用None
-                    create_time = proc.info.get('create_time')
-                    create_time_str = datetime.fromtimestamp(create_time).isoformat() if create_time else None
-                    found_redis_processes.append({
-                        'name': proc.info['name'],
-                        'pid': proc.info['pid'],
-                        'create_time': create_time_str
-                    })
-            
-            if redis_running:
-                logger.info(f"Redis进程正在运行", extra={
-                    'event_type': EventType.PROCESS_CHECK, 
-                    'process_name': redis_process_name, 
+            redis_running = False
+
+            # 优先使用PID文件检测
+            from pid_manager import is_process_running, read_pid, get_process_info_from_pid, write_pid
+            if is_process_running('redis'):
+                redis_running = True
+                pid = read_pid('redis')
+                pid_info = get_process_info_from_pid(pid) if pid else None
+                logger.info(f"通过PID文件检测到Redis进程正在运行", extra={
+                    'event_type': EventType.PROCESS_CHECK,
+                    'process_name': redis_process_name,
                     'status': 'running',
-                    'found_processes': found_redis_processes,
-                    'count': len(found_redis_processes)
+                    'method': 'pid_file',
+                    'pid': pid,
+                    'process_info': pid_info
                 })
-                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {redis_process_name} 进程正在运行...")
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {redis_process_name} 进程正在运行 (PID: {pid})...")
                 event_manager.publish(EventType.PROCESS_CHECK, {
                     'process_name': redis_process_name,
                     'status': 'running',
-                    'found_processes': found_redis_processes,
-                    'count': len(found_redis_processes)
+                    'method': 'pid_file',
+                    'pid': pid,
+                    'process_info': pid_info
                 })
             else:
+                logger.debug("PID文件检测: Redis进程未运行", extra={
+                    'event_type': EventType.DEBUG,
+                    'process_name': redis_process_name,
+                    'method': 'pid_file'
+                })
+                # PID文件检测失败，使用进程名验证以防止无限重启
+                logger.debug("PID文件检测失败，使用进程名验证Redis进程状态", extra={
+                    'event_type': EventType.DEBUG,
+                    'process_name': redis_process_name,
+                    'verification_method': 'process_name'
+                })
+                procs = list(psutil.process_iter(['name', 'pid']))
+                for proc in procs:
+                    if proc.info['name'].lower() == redis_process_name.lower():
+                        redis_running = True
+                        logger.info(f"通过进程名验证发现Redis进程正在运行（PID文件可能丢失）: {proc.info['name']} (PID: {proc.info['pid']})", extra={
+                            'event_type': EventType.PROCESS_CHECK,
+                            'process_name': proc.info['name'],
+                            'status': 'running',
+                            'method': 'process_name_verification',
+                            'pid': proc.info['pid'],
+                            'note': 'pid_file_missing'
+                        })
+                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 发现Redis进程正在运行 (PID: {proc.info['pid']})，PID文件可能丢失")
+                        # 更新PID文件
+                        try:
+                            write_pid('redis', proc.info['pid'])
+                        except Exception as e:
+                            logger.warning(f"更新Redis PID文件失败: {str(e)}", extra={
+                                'event_type': EventType.WARNING,
+                                'error': str(e)
+                            })
+                        break
+
+            if not redis_running:
                 # 检查是否手动停止了Redis
                 if respect_manual_stop and auto_restart_enabled and redis_manual_stop:
                     logger.debug("redis被手动停止，跳过自动启动", extra={
@@ -754,27 +800,68 @@ def check_and_manage_yunzai_async(config):
             return
             
         try:
-            yunzai_running = False
             process_name = os.path.basename(config['yunzai']['git_bash_path'])
-            
-            # 记录正在搜索的Yunzai进程
-            logger.debug(f"搜索Yunzai进程: {process_name}", extra={
-                'event_type': 'debug', 
-                'process_name': process_name
-            })
-            
-            found_yunzai_processes = []
-            # 转换为列表避免生成器冲突
-            procs = list(psutil.process_iter(['name', 'pid', 'create_time']))
-            for proc in procs:
-                if proc.info['name'].lower() == 'git-bash.exe':
-                    yunzai_running = True
-                    found_yunzai_processes.append({
-                        'name': proc.info['name'],
-                        'pid': proc.info['pid'],
-                        'create_time': datetime.fromtimestamp(proc.info['create_time']).isoformat()
-                    })
-            
+            yunzai_running = False
+            pid = None  # 初始化pid变量
+
+            # 优先使用PID文件检测
+            from pid_manager import is_process_running, read_pid, get_process_info_from_pid, write_pid
+            if is_process_running('yunzai'):
+                yunzai_running = True
+                pid = read_pid('yunzai')
+                pid_info = get_process_info_from_pid(pid) if pid else None
+                logger.info(f"通过PID文件检测到Yunzai进程正在运行", extra={
+                    'event_type': EventType.PROCESS_CHECK,
+                    'process_name': process_name,
+                    'status': 'running',
+                    'method': 'pid_file',
+                    'pid': pid,
+                    'process_info': pid_info
+                })
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Yunzai进程已在运行 (PID: {pid})...")
+                event_manager.publish(EventType.PROCESS_CHECK, {
+                    'process_name': process_name,
+                    'status': 'running',
+                    'method': 'pid_file',
+                    'pid': pid,
+                    'process_info': pid_info
+                })
+            else:
+                logger.debug("PID文件检测: Yunzai进程未运行", extra={
+                    'event_type': EventType.DEBUG,
+                    'process_name': process_name,
+                    'method': 'pid_file'
+                })
+                # PID文件检测失败，使用进程名验证以防止无限重启
+                logger.debug("PID文件检测失败，使用进程名验证Yunzai进程状态", extra={
+                    'event_type': EventType.DEBUG,
+                    'process_name': process_name,
+                    'verification_method': 'process_name'
+                })
+                procs = list(psutil.process_iter(['name', 'pid']))
+                for proc in procs:
+                    if 'git-bash' in proc.info['name'].lower():
+                        yunzai_running = True
+                        pid = proc.info['pid']  # 设置pid变量
+                        logger.info(f"通过进程名验证发现Yunzai进程正在运行（PID文件可能丢失）: {proc.info['name']} (PID: {pid})", extra={
+                            'event_type': EventType.PROCESS_CHECK,
+                            'process_name': proc.info['name'],
+                            'status': 'running',
+                            'method': 'process_name_verification',
+                            'pid': pid,
+                            'note': 'pid_file_missing'
+                        })
+                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 发现Yunzai进程正在运行 (PID: {pid})，PID文件可能丢失")
+                        # 更新PID文件
+                        try:
+                            write_pid('yunzai', pid)
+                        except Exception as e:
+                            logger.warning(f"更新Yunzai PID文件失败: {str(e)}", extra={
+                                'event_type': EventType.WARNING,
+                                'error': str(e)
+                            })
+                        break
+
             if not yunzai_running:
                 # 检查是否手动停止了Yunzai
                 if respect_manual_stop and auto_restart_enabled and yunzai_manual_stop:
@@ -787,7 +874,7 @@ def check_and_manage_yunzai_async(config):
                     })
                 else:
                     logger.warning("Yunzai进程未运行，正在启动", extra={
-                        'event_type': EventType.WARNING, 
+                        'event_type': EventType.WARNING,
                         'process_name': process_name,
                         'config_git_bash': config['yunzai']['git_bash_path'],
                         'config_bash_directory': config['yunzai']['bash_directory']
@@ -802,18 +889,18 @@ def check_and_manage_yunzai_async(config):
                     start_yunzai(config)
             else:
                 logger.info("Yunzai已在运行", extra={
-                    'event_type': EventType.PROCESS_CHECK, 
-                    'process_name': process_name, 
+                    'event_type': EventType.PROCESS_CHECK,
+                    'process_name': process_name,
                     'status': 'running',
-                    'found_processes': found_yunzai_processes,
-                    'count': len(found_yunzai_processes)
+                    'method': 'pid_file' if is_process_running('yunzai') else 'process_name_verification',
+                    'pid': pid
                 })
-                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Yunzai进程已在运行...")
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Yunzai进程已在运行 (PID: {pid})...")
                 event_manager.publish(EventType.PROCESS_CHECK, {
                     'process_name': process_name,
                     'status': 'running',
-                    'found_processes': found_yunzai_processes,
-                    'count': len(found_yunzai_processes)
+                    'method': 'pid_file' if is_process_running('yunzai') else 'process_name_verification',
+                    'pid': pid
                 })
         except psutil.AccessDenied as e:
             logger.error("访问进程信息被拒绝，可能需要管理员权限", extra={
