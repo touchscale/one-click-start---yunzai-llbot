@@ -84,11 +84,54 @@ def interactive_config():
     return config
 
 def save_config(config, config_path):
-    """保存配置到文件"""
-    with open(config_path, 'w', encoding='utf-8') as file:
-        yaml.dump(config, file, default_flow_style=False, allow_unicode=True)
-    logger.info(f"配置已保存到 {config_path}", extra={'event_type': 'config_save', 'config_path': config_path})
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 配置已保存到 {config_path}")
+    """保存配置到文件，使用原子性写入确保数据完整性"""
+    import tempfile
+    import shutil
+    
+    # 使用临时文件进行原子性写入
+    temp_path = None
+    try:
+        # 创建临时文件
+        temp_fd, temp_path = tempfile.mkstemp(
+            prefix='.config_',
+            suffix='.tmp',
+            dir=os.path.dirname(os.path.abspath(config_path))
+        )
+        
+        # 写入配置到临时文件
+        with os.fdopen(temp_fd, 'w', encoding='utf-8') as temp_file:
+            yaml.dump(config, temp_file, default_flow_style=False, allow_unicode=True)
+            # 强制刷新缓冲区到磁盘
+            temp_file.flush()
+            # 确保数据写入物理磁盘（不仅仅是操作系统缓存）
+            os.fsync(temp_file.fileno())
+        
+        # 原子性替换原文件
+        shutil.move(temp_path, config_path)
+        
+        logger.info(f"配置已保存到 {config_path}", extra={'event_type': 'config_save', 'config_path': config_path})
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 配置已保存到 {config_path}")
+        
+        # 验证文件是否成功写入
+        if not os.path.exists(config_path):
+            raise IOError(f"配置文件保存失败: {config_path} 不存在")
+        
+        # 验证文件内容是否有效
+        with open(config_path, 'r', encoding='utf-8') as file:
+            try:
+                yaml.safe_load(file)
+            except yaml.YAMLError as e:
+                raise IOError(f"配置文件内容无效: {str(e)}")
+        
+    except Exception as e:
+        # 清理临时文件（如果存在）
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+        logger.error(f"保存配置失败: {str(e)}", extra={'event_type': 'config_save_error', 'config_path': config_path, 'error': str(e)})
+        raise
 
 def validate_config(config, config_path="config.yaml"):
     """验证配置文件的完整性，检查所有必需的配置项"""
