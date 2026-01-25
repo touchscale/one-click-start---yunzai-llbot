@@ -190,6 +190,16 @@ function updateProcessStatus(process, status) {
 
 // 更新日志
 function updateLogs() {
+    // 获取选中的日志等级
+    const filterButtons = document.querySelectorAll('.log-filter-btn');
+    const selectedLevels = Array.from(filterButtons)
+        .filter(btn => btn.classList.contains('active'))
+        .map(btn => btn.dataset.level);
+
+    // 获取搜索关键词
+    const searchInput = document.getElementById('log-search-input');
+    const searchKeyword = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
     fetch('/api/logs')
         .then(response => {
             if (response.status === 401) {
@@ -203,15 +213,40 @@ function updateLogs() {
                 const logsDiv = document.getElementById('logs');
                 logsDiv.innerHTML = '';
 
-                // 更新日志计数
-                document.getElementById('log-count').textContent = data.logs.length;
+                // 根据选择的等级过滤日志
+                let filteredLogs = data.logs;
+                if (!selectedLevels.includes('all') && selectedLevels.length > 0) {
+                    filteredLogs = data.logs.filter(log => {
+                        const logLevel = log.level.toLowerCase();
+                        return selectedLevels.includes(logLevel);
+                    });
+                }
 
-                data.logs.forEach(log => {
-                    const logElement = document.createElement('div');
-                    logElement.className = 'log-entry log-' + log.level.toLowerCase();
-                    logElement.textContent = log.timestamp + ' [' + log.level + '] ' + log.module + ':' + log.function + ' - ' + log.message;
-                    logsDiv.appendChild(logElement);
-                });
+                // 根据搜索关键词过滤日志
+                if (searchKeyword) {
+                    filteredLogs = filteredLogs.filter(log => {
+                        const logText = (log.timestamp + ' [' + log.level + '] ' + log.module + ':' + log.function + ' - ' + log.message).toLowerCase();
+                        return logText.includes(searchKeyword);
+                    });
+                }
+
+                // 更新日志计数
+                document.getElementById('log-count').textContent = filteredLogs.length;
+
+                // 如果没有日志，显示等待提示
+                if (filteredLogs.length === 0) {
+                    const emptyMessage = document.createElement('div');
+                    emptyMessage.className = 'log-empty-message';
+                    emptyMessage.innerHTML = '<i class="fas fa-hourglass-half"></i><span>等待日志...</span>';
+                    logsDiv.appendChild(emptyMessage);
+                } else {
+                    filteredLogs.forEach(log => {
+                        const logElement = document.createElement('div');
+                        logElement.className = 'log-entry log-' + log.level.toLowerCase();
+                        logElement.textContent = log.timestamp + ' [' + log.level + '] ' + log.module + ':' + log.function + ' - ' + log.message;
+                        logsDiv.appendChild(logElement);
+                    });
+                }
 
                 // 根据自动滚动状态决定是否滚动到最新日志
                 if (autoScrollEnabled) {
@@ -237,6 +272,13 @@ function clearLogs() {
     logsDiv.innerHTML = '';
     document.getElementById('log-count').textContent = '0';
     document.getElementById('last-update').textContent = '已清空';
+
+    // 显示等待日志提示
+    const emptyMessage = document.createElement('div');
+    emptyMessage.className = 'log-empty-message';
+    emptyMessage.innerHTML = '<i class="fas fa-hourglass-half"></i><span>等待日志...</span>';
+    logsDiv.appendChild(emptyMessage);
+
     showAlert('日志已清空', 'info');
 }
 
@@ -483,6 +525,54 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 每5秒更新一次日志
     setInterval(updateLogs, 5000);
+
+    // 日志等级筛选按钮组事件监听
+    const filterButtons = document.querySelectorAll('.log-filter-btn');
+    filterButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const level = this.dataset.level;
+
+            if (level === 'all') {
+                // 点击"全部"按钮，只选中全部，取消其他选择
+                filterButtons.forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+            } else {
+                // 点击具体等级按钮
+                const allButton = document.querySelector('.log-filter-btn[data-level="all"]');
+
+                // 如果"全部"按钮被选中，先取消它
+                if (allButton.classList.contains('active')) {
+                    allButton.classList.remove('active');
+                    this.classList.add('active');
+                } else {
+                    // 切换当前按钮的选中状态
+                    this.classList.toggle('active');
+
+                    // 如果没有任何按钮被选中，默认选中"全部"
+                    const anySelected = Array.from(filterButtons).some(btn => btn.classList.contains('active'));
+                    if (!anySelected) {
+                        allButton.classList.add('active');
+                    }
+                }
+            }
+
+            // 当用户改变选择时，立即更新日志显示
+            updateLogs();
+        });
+    });
+
+    // 日志搜索框事件监听
+    const searchInput = document.getElementById('log-search-input');
+    if (searchInput) {
+        // 使用防抖函数，避免频繁搜索
+        let searchTimeout;
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(function() {
+                updateLogs();
+            }, 300); // 300ms 延迟后执行搜索
+        });
+    }
 
     // 确保HTTP检查卡片始终可见
     ensureHttpCardVisibility();

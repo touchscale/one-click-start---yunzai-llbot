@@ -175,14 +175,29 @@
                 
                 <!-- 日志区域 -->
                 <div class="card alert-box">
-                    <div class="card-header d-flex align-items-center">
-                        <i class="fas fa-terminal me-2"></i>
-                        <h5 class="card-title mb-0">实时日志</h5>
-                        <div class="d-flex align-items-center ms-auto">
-                            <span class="counter-badge me-3">
+                    <div class="card-header d-flex align-items-center flex-wrap">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-terminal me-2"></i>
+                            <h5 class="card-title mb-0">实时日志</h5>
+                            <span class="log-count-badge ms-2">
                                 <i class="fas fa-list me-1"></i>
                                 <span id="log-count">0</span> 条
                             </span>
+                        </div>
+                        <div class="d-flex align-items-center ms-auto flex-wrap gap-2">
+                            <div class="log-filter-wrapper">
+                                <label class="log-filter-label me-2">日志等级:</label>
+                                <div class="log-filter-buttons" id="log-level-filter">
+                                    <button class="log-filter-btn active" data-level="all">全部</button>
+                                    <button class="log-filter-btn" data-level="debug">DEBUG</button>
+                                    <button class="log-filter-btn" data-level="info">INFO</button>
+                                    <button class="log-filter-btn" data-level="warn">WARN</button>
+                                    <button class="log-filter-btn" data-level="error">ERROR</button>
+                                </div>
+                            </div>
+                            <div class="log-search-wrapper">
+                                <input type="text" class="form-control form-control-sm log-search-input" id="log-search-input" placeholder="搜索日志...">
+                            </div>
                             <button class="btn btn-sm btn-outline-primary me-2" id="auto-scroll-btn" onclick="toggleAutoScroll()">
                                 <i class="fas fa-sync-alt me-1"></i>自动滚动
                             </button>

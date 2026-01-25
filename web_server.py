@@ -272,8 +272,23 @@ def register_routes(app):
     @app.route('/api/logs')
     @requires_auth
     def api_logs():
-        """获取日志API"""
-        return jsonify({'logs': recent_logs})
+        """获取日志API，支持按等级过滤"""
+        # 获取查询参数中的日志等级
+        levels = request.args.getlist('levels')
+
+        # 如果没有指定等级或包含'all'，返回所有日志
+        if not levels or 'all' in levels:
+            return jsonify({'logs': recent_logs})
+
+        # 过滤指定等级的日志
+        filtered_logs = []
+        with recent_logs_lock:
+            for log in recent_logs:
+                log_level = log.get('level', '').lower()
+                if log_level in [level.lower() for level in levels]:
+                    filtered_logs.append(log)
+
+        return jsonify({'logs': filtered_logs})
 
     @app.route('/api/control', methods=['POST'])
     @requires_auth
