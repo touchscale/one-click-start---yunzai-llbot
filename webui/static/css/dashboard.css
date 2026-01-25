@@ -142,6 +142,26 @@
     position: relative;
 }
 
+.log-empty-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #6c757d;
+    font-size: 14px;
+}
+
+.log-empty-message i {
+    font-size: 32px;
+    margin-bottom: 10px;
+    animation: pulse 2s infinite;
+}
+
+.log-empty-message span {
+    font-size: 14px;
+}
+
 .log-entry {
     margin-bottom: 5px;
     line-height: 1.4;
@@ -291,4 +311,131 @@
     0% { opacity: 1; }
     50% { opacity: 0.3; }
     100% { opacity: 1; }
+}
+
+/* 日志筛选控件样式 */
+.log-filter-wrapper {
+    display: flex;
+    align-items: center;
+    margin-right: 15px;
+    flex-wrap: wrap;
+}
+
+.log-search-wrapper {
+    margin-right: 10px;
+    margin-top: 14px;
+}
+
+.log-search-input {
+    width: 200px;
+    font-size: 0.85rem;
+    padding: 4px 10px;
+    height: 30px;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    transition: all 0.3s ease;
+}
+
+.log-search-input:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.log-count-badge {
+    background: linear-gradient(45deg, #6c757d, #495057);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 0.75em;
+    font-weight: 500;
+    color: white;
+}
+
+.log-filter-label {
+    font-size: 0.85rem;
+    color: #6c757d;
+    font-weight: 500;
+    white-space: nowrap;
+    margin-bottom: 0;
+}
+
+.log-filter-buttons {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.log-filter-btn {
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+    background: #f8f9fa;
+    color: #6c757d;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.log-filter-btn:hover {
+    background: #e9ecef;
+    border-color: #ced4da;
+    transform: translateY(-1px);
+}
+
+.log-filter-btn.active {
+    background: linear-gradient(45deg, #007bff, #6610f2);
+    color: white;
+    border-color: #007bff;
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
+
+.log-filter-btn.active:hover {
+    background: linear-gradient(45deg, #0056b3, #520dc2);
+    border-color: #0056b3;
+}
+
+/* 日志等级颜色 */
+.log-debug {
+    color: #98fb98;
+    border-left-color: #98fb98;
+}
+
+.log-info {
+    color: #87ceeb;
+    border-left-color: #87ceeb;
+}
+
+.log-warn {
+    color: #ffcc00;
+    border-left-color: #ffcc00;
+}
+
+.log-error {
+    color: #ff6b6b;
+    border-left-color: #ff6b6b;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .log-filter-wrapper {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .log-filter-select {
+        width: 100%;
+        max-width: none;
+    }
+
+    .card-header {
+        flex-direction: column;
+        align-items: flex-start !important;
+    }
+
+    .card-header .d-flex.ms-auto {
+        width: 100%;
+        margin-left: 0 !important;
+        margin-top: 10px;
+    }
 }
