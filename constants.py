@@ -39,6 +39,7 @@ class EventType:
     PROCESS_STOP = "process_stop"
     HTTP_CHECK = "http_check"
     CONFIG_LOAD = "config_load"
+    LOG_CLEAR = "log_clear"
     ERROR = "error"
     WARNING = "warning"
     DEBUG = "debug"
