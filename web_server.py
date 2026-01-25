@@ -290,6 +290,18 @@ def register_routes(app):
 
         return jsonify({'logs': filtered_logs})
 
+    @app.route('/api/clear-logs', methods=['POST'])
+    @requires_auth
+    def api_clear_logs():
+        """清空日志API"""
+        global recent_logs
+        with recent_logs_lock:
+            recent_logs.clear()
+        logger.info("通过Web界面清空日志", extra={
+            'event_type': EventType.LOG_CLEAR
+        })
+        return jsonify({'message': '日志已清空'})
+
     @app.route('/api/control', methods=['POST'])
     @requires_auth
     def api_control():

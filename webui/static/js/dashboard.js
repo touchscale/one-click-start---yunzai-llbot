@@ -268,18 +268,43 @@ function updateLogs() {
 
 // 清空日志
 function clearLogs() {
-    const logsDiv = document.getElementById('logs');
-    logsDiv.innerHTML = '';
-    document.getElementById('log-count').textContent = '0';
-    document.getElementById('last-update').textContent = '已清空';
+    fetch('/api/clear-logs', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data) {
+            const logsDiv = document.getElementById('logs');
+            logsDiv.innerHTML = '';
+            document.getElementById('log-count').textContent = '0';
+            document.getElementById('last-update').textContent = '已清空';
 
-    // 显示等待日志提示
-    const emptyMessage = document.createElement('div');
-    emptyMessage.className = 'log-empty-message';
-    emptyMessage.innerHTML = '<i class="fas fa-hourglass-half"></i><span>等待日志...</span>';
-    logsDiv.appendChild(emptyMessage);
+            // 显示等待日志提示
+            const emptyMessage = document.createElement('div');
+            emptyMessage.className = 'log-empty-message';
+            emptyMessage.innerHTML = '<i class="fas fa-hourglass-half"></i><span>等待日志...</span>';
+            logsDiv.appendChild(emptyMessage);
 
-    showAlert('日志已清空', 'info');
+            showAlert('日志已清空', 'info');
+        }
+    })
+    .catch(error => {
+        console.error('清空日志失败:', error);
+        if (error.message && error.message.includes('401')) {
+            handleAuthError();
+        } else {
+            showAlert('清空日志失败', 'danger');
+        }
+    });
 }
 
 // 自动滚动状态
