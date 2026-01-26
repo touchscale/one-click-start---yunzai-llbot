@@ -187,13 +187,13 @@
                                 <h5 class="card-title mb-0"><i class="fas fa-redo config-icon text-secondary"></i>自动重启配置</h5>
                             </div>
                             <div class="card-body">
-                                <div class="form-check mb-3">
+                                <div class="form-check form-switch mb-3">
                                     <input class="form-check-input" type="checkbox" id="auto-restart-enabled" {% if config.auto_restart.enabled %}checked{% endif %}>
                                     <label class="form-check-label" for="auto-restart-enabled">
                                         启用自动重启
                                     </label>
                                 </div>
-                                <div class="form-check mb-3">
+                                <div class="form-check form-switch mb-3">
                                     <input class="form-check-input" type="checkbox" id="auto-restart-respect-manual-stop" {% if config.auto_restart.respect_manual_stop %}checked{% endif %}>
                                     <label class="form-check-label" for="auto-restart-respect-manual-stop">
                                         尊重手动停止状态
