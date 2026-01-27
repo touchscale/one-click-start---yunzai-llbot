@@ -31,41 +31,42 @@ def async_http_check(url, timeout=5):
         return False
 
 def check_qq_status():
-    """检查QQ进程状态"""
+    """检查QQ进程状态，返回QQ进程数量"""
     try:
-        qq_running = False
         found_processes = []
         # 转换为列表避免生成器冲突
         procs = list(psutil.process_iter(['name', 'pid']))
         for proc in procs:
             proc_name = (proc.info['name'] or '').lower()
             if proc_name in ['qq.exe', 'qq', 'qqprotect.exe', 'qqpcrtp.exe']:
-                qq_running = True
                 found_processes.append({
                     'name': proc.info['name'],
                     'pid': proc.info['pid']
                 })
         
+        qq_process_count = len(found_processes)
+        
         if found_processes:
-            logger.info(f"检测到QQ进程正在运行: {len(found_processes)}个进程", extra={
+            logger.info(f"检测到QQ进程正在运行: {qq_process_count}个进程", extra={
                 'event_type': EventType.PROCESS_CHECK,
                 'qq_processes': found_processes,
-                'count': len(found_processes)
+                'count': qq_process_count
             })
         else:
             logger.info("未检测到QQ进程", extra={
                 'event_type': EventType.PROCESS_CHECK,
-                'qq_processes': []
+                'qq_processes': [],
+                'count': 0
             })
         
-        return qq_running
+        return qq_process_count
     except Exception as e:
         logger.error(f"检测QQ进程时出错: {str(e)}", extra={
             'event_type': EventType.ERROR,
             'error': str(e),
             'error_class': type(e).__name__
         })
-        return False
+        return 0
 
 # 用于存储QQ状态
 class QQStatusTracker:
@@ -79,87 +80,88 @@ qq_status_tracker = QQStatusTracker()
 def check_and_manage_llbot_async(config):
     """异步检查并管理llbot进程"""
     global qq_status_tracker
-    
+
     try:
         # 记录函数入口
         logger.debug("开始执行llbot进程检查", extra={
             'event_type': 'debug',
             'action': 'llbot_check_start'
         })
-        
+
         # 检查QQ状态变化
-        current_qq_status = check_qq_status()
-        
+        current_qq_count = check_qq_status()
+
         # 记录QQ状态
-        logger.debug(f"QQ状态检测 - 上次状态: {qq_status_tracker.last_qq_status}, 当前状态: {current_qq_status}", extra={
+        logger.debug(f"QQ状态检测 - 上次状态: {qq_status_tracker.last_qq_status}, 当前进程数: {current_qq_count}", extra={
             'event_type': 'debug',
             'qq_last_status': qq_status_tracker.last_qq_status,
-            'qq_current_status': current_qq_status
+            'qq_current_count': current_qq_count
         })
-        
-        # 如果QQ未运行（首次启动或QQ已停止或运行中检测不到）
-        if not current_qq_status:
+
+        # 如果QQ进程数小于或等于4（包括0），触发重启
+        if current_qq_count <= 4:
             # 检查是否是首次启动（last_qq_status为None）或QQ从运行变为停止
             if qq_status_tracker.last_qq_status is None:
-                logger.warning("首次启动检测到QQ未运行，准备终止llbot相关进程并重启", extra={
+                logger.warning(f"首次启动检测到QQ进程数为{current_qq_count}（<=4），准备终止llbot相关进程并重启", extra={
                     'event_type': EventType.WARNING,
-                    'qq_status_change': 'first_start_no_qq',
+                    'qq_status_change': 'first_start_low_qq_count',
                     'action': 'terminate_and_restart_llbot',
                     'qq_last_status': qq_status_tracker.last_qq_status,
-                    'qq_current_status': current_qq_status
+                    'qq_current_count': current_qq_count
                 })
-                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 首次启动检测到QQ未运行，准备终止llbot相关进程并重启...")
-            elif qq_status_tracker.last_qq_status is True:
-                logger.warning("检测到QQ进程已停止，正在清理相关进程并重启llbot", extra={
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 首次启动检测到QQ进程数为{current_qq_count}（<=4），准备终止llbot相关进程并重启...")
+            elif isinstance(qq_status_tracker.last_qq_status, int) and qq_status_tracker.last_qq_status > 4:
+                logger.warning(f"检测到QQ进程数从{qq_status_tracker.last_qq_status}降至{current_qq_count}（<=4），正在清理相关进程并重启llbot", extra={
                     'event_type': EventType.WARNING,
-                    'qq_status': 'stopped',
-                    'last_qq_status': 'running',
-                    'action': 'restart_llbot_due_to_qq_stop'
+                    'qq_status': 'low_count',
+                    'last_qq_count': qq_status_tracker.last_qq_status,
+                    'current_qq_count': current_qq_count,
+                    'action': 'restart_llbot_due_to_low_qq_count'
                 })
-                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 检测到QQ进程已停止，正在清理相关进程并重启llbot...")
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 检测到QQ进程数从{qq_status_tracker.last_qq_status}降至{current_qq_count}（<=4），正在清理相关进程并重启llbot...")
             else:
-                # QQ一直未运行，但在运行中检测不到QQ进程，也需要重启llbot
-                logger.warning("运行中检测到QQ未运行，准备终止llbot相关进程并重启", extra={
+                # QQ进程数一直<=4，但在运行中检测到，也需要重启llbot
+                logger.warning(f"运行中检测到QQ进程数为{current_qq_count}（<=4），准备终止llbot相关进程并重启", extra={
                     'event_type': EventType.WARNING,
-                    'qq_status_change': 'running_no_qq',
+                    'qq_status_change': 'running_low_qq_count',
                     'action': 'terminate_and_restart_llbot',
                     'qq_last_status': qq_status_tracker.last_qq_status,
-                    'qq_current_status': current_qq_status
+                    'qq_current_count': current_qq_count
                 })
-                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 运行中检测到QQ未运行，准备终止llbot相关进程并重启...")
-            
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 运行中检测到QQ进程数为{current_qq_count}（<=4），准备终止llbot相关进程并重启...")
+
             # 检查llbot是否被手动停止
             is_llbot_manual_stop = False
             try:
                 is_llbot_manual_stop = get_global_manual_stop_status('llbot')
             except:
                 is_llbot_manual_stop = False
-            
+
             # 获取自动重启配置
             auto_restart_enabled = config.get('auto_restart', {}).get('enabled', True)
             respect_manual_stop = config.get('auto_restart', {}).get('respect_manual_stop', True)
-            
+
             # 如果llbot被手动停止且配置为尊重手动停止，则跳过重启
             if respect_manual_stop and auto_restart_enabled and is_llbot_manual_stop:
-                logger.info("llbot被手动停止，跳过因QQ进程未运行而触发的自动重启", extra={
+                logger.info(f"llbot被手动停止，跳过因QQ进程数{current_qq_count}（<=4）而触发的自动重启", extra={
                     'event_type': EventType.PROCESS_CHECK,
                     'llbot_manual_stop': True,
                     'auto_restart_enabled': auto_restart_enabled,
                     'respect_manual_stop': respect_manual_stop,
                     'skip_reason': 'manual_stop'
                 })
-                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] llbot被手动停止，跳过因QQ进程未运行而触发的自动重启")
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] llbot被手动停止，跳过因QQ进程数{current_qq_count}（<=4）而触发的自动重启")
                 # 更新QQ状态
-                qq_status_tracker.last_qq_status = current_qq_status
+                qq_status_tracker.last_qq_status = current_qq_count
                 return
-            
+
             # 终止llbot相关进程
             logger.info("终止llbot进程及其子进程", extra={
                 'event_type': EventType.PROCESS_STOP,
-                'action': 'terminate_due_to_qq_stop'
+                'action': 'terminate_due_to_low_qq_count'
             })
             terminate_llbot_process_tree(config.get('llbot', {}).get('path'))
-            
+
             # 清除手动停止状态
             try:
                 from process_manager import update_global_manual_stop_status
@@ -173,32 +175,32 @@ def check_and_manage_llbot_async(config):
                     'event_type': EventType.WARNING,
                     'error': str(e)
                 })
-            
+
             # 重启llbot（带清理）
             logger.info("开始重启llbot进程", extra={
                 'event_type': EventType.PROCESS_START,
-                'action': 'restart_after_qq_stop'
+                'action': 'restart_after_low_qq_count'
             })
             restart_llbot_with_cleanup(config)
-            
+
             # 更新QQ状态
-            qq_status_tracker.last_qq_status = current_qq_status
+            qq_status_tracker.last_qq_status = current_qq_count
             logger.info("QQ状态已更新，跳过本次HTTP检查", extra={
                 'event_type': EventType.PROCESS_CHECK,
-                'qq_status_updated': current_qq_status,
+                'qq_status_updated': current_qq_count,
                 'skip_http_check': True
             })
             return  # 完成重启后返回，跳过本次的HTTP检查
         else:
-            # 记录QQ状态未变化或从停止到运行的情况
-            if qq_status_tracker.last_qq_status != current_qq_status:
-                logger.info(f"QQ状态变化: {qq_status_tracker.last_qq_status} -> {current_qq_status}", extra={
+            # 记录QQ状态未变化或从低数量到正常的情况
+            if qq_status_tracker.last_qq_status != current_qq_count:
+                logger.info(f"QQ状态变化: {qq_status_tracker.last_qq_status} -> {current_qq_count}", extra={
                     'event_type': EventType.PROCESS_CHECK,
-                    'qq_status_change': f'{qq_status_tracker.last_qq_status}_to_{current_qq_status}'
+                    'qq_status_change': f'{qq_status_tracker.last_qq_status}_to_{current_qq_count}'
                 })
-        
+
         # 更新QQ状态记录
-        qq_status_tracker.last_qq_status = current_qq_status
+        qq_status_tracker.last_qq_status = current_qq_count
         
         # 检查自动重启配置
         auto_restart_enabled = config.get('auto_restart', {}).get('enabled', True)
