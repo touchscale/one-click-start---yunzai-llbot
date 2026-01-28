@@ -6,13 +6,13 @@
 # 默认配置
 DEFAULT_CONFIG = {
     "llbot": {
-        "wait_seconds": 5
+        "wait_seconds": 10
     },
     "yunzai": {
         "wait_seconds": 5
     },
     "http_check": {
-        "timeout": 5
+        "timeout": 10
     },
     "auto_restart": {
         "enabled": True,

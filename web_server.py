@@ -803,6 +803,12 @@ def register_routes(app):
                                 for key, value in current_config[section].items():
                                     if key not in saved_config[section]:
                                         verification_errors.append(f"配置项 {section}.{key} 未保存到文件")
+                                    # 跳过密码字段的直接比较，因为保存的是加密后的密码
+                                    elif section == 'web_auth' and key == 'password':
+                                        # 验证保存的密码是否为加密格式
+                                        from password_crypt import PasswordCrypt
+                                        if not PasswordCrypt.is_encrypted(saved_config[section][key]):
+                                            verification_errors.append(f"配置项 {section}.{key} 保存的密码格式错误，应为加密格式")
                                     elif saved_config[section][key] != value:
                                         verification_errors.append(f"配置项 {section}.{key} 值不一致: 期望 {value}, 实际 {saved_config[section][key]}")
                     
