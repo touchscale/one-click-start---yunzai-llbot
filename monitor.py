@@ -34,8 +34,17 @@ def check_qq_status():
     """检查QQ进程状态，返回QQ进程数量"""
     try:
         found_processes = []
-        # 转换为列表避免生成器冲突
-        procs = list(psutil.process_iter(['name', 'pid']))
+        # 转换为列表避免生成器冲突，并增加异常处理
+        try:
+            procs = list(psutil.process_iter(['name', 'pid']))
+        except Exception as e:
+            logger.warning(f"获取进程列表失败: {str(e)}", extra={
+                'event_type': EventType.WARNING,
+                'error': str(e),
+                'error_type': 'process_iter_error'
+            })
+            return 0
+        
         for proc in procs:
             proc_name = (proc.info['name'] or '').lower()
             if proc_name in ['qq.exe', 'qq', 'qqprotect.exe', 'qqpcrtp.exe']:
@@ -432,7 +441,16 @@ def check_and_manage_llbot_async(config):
                         'verification_method': 'process_name'
                     })
                     possible_names = [llbot_process_name, 'lucky-lillia-desktop.exe', 'llbot.exe']
-                    procs = list(psutil.process_iter(['name', 'pid']))
+                    try:
+                        procs = list(psutil.process_iter(['name', 'pid']))
+                    except Exception as e:
+                        logger.warning(f"获取进程列表失败: {str(e)}", extra={
+                            'event_type': EventType.WARNING,
+                            'error': str(e),
+                            'error_type': 'process_iter_error'
+                        })
+                        procs = []
+                    
                     for proc in procs:
                         if proc.info['name'].lower() in possible_names:
                             llbot_running = True
@@ -688,13 +706,21 @@ def check_and_manage_yunzai_async(config):
                 })
                 # PID文件检测失败，使用进程名验证以防止无限重启
                 logger.debug("PID文件检测失败，使用进程名验证Redis进程状态", extra={
-                    'event_type': EventType.DEBUG,
-                    'process_name': redis_process_name,
-                    'verification_method': 'process_name'
-                })
-                procs = list(psutil.process_iter(['name', 'pid']))
-                for proc in procs:
-                    if proc.info['name'].lower() == redis_process_name.lower():
+                                        'event_type': EventType.DEBUG,
+                                        'process_name': redis_process_name,
+                                        'verification_method': 'process_name'
+                                    })
+                                    try:
+                                        procs = list(psutil.process_iter(['name', 'pid']))
+                                    except Exception as e:
+                                        logger.warning(f"获取进程列表失败: {str(e)}", extra={
+                                            'event_type': EventType.WARNING,
+                                            'error': str(e),
+                                            'error_type': 'process_iter_error'
+                                        })
+                                        procs = []
+                                    
+                                    for proc in procs:                    if proc.info['name'].lower() == redis_process_name.lower():
                         redis_running = True
                         logger.info(f"通过进程名验证发现Redis进程正在运行（PID文件可能丢失）: {proc.info['name']} (PID: {proc.info['pid']})", extra={
                             'event_type': EventType.PROCESS_CHECK,
@@ -836,13 +862,21 @@ def check_and_manage_yunzai_async(config):
                 })
                 # PID文件检测失败，使用进程名验证以防止无限重启
                 logger.debug("PID文件检测失败，使用进程名验证Yunzai进程状态", extra={
-                    'event_type': EventType.DEBUG,
-                    'process_name': process_name,
-                    'verification_method': 'process_name'
-                })
-                procs = list(psutil.process_iter(['name', 'pid']))
-                for proc in procs:
-                    if 'git-bash' in proc.info['name'].lower():
+                                        'event_type': EventType.DEBUG,
+                                        'process_name': process_name,
+                                        'verification_method': 'process_name'
+                                    })
+                                    try:
+                                        procs = list(psutil.process_iter(['name', 'pid']))
+                                    except Exception as e:
+                                        logger.warning(f"获取进程列表失败: {str(e)}", extra={
+                                            'event_type': EventType.WARNING,
+                                            'error': str(e),
+                                            'error_type': 'process_iter_error'
+                                        })
+                                        procs = []
+                                    
+                                    for proc in procs:                    if 'git-bash' in proc.info['name'].lower():
                         yunzai_running = True
                         pid = proc.info['pid']  # 设置pid变量
                         logger.info(f"通过进程名验证发现Yunzai进程正在运行（PID文件可能丢失）: {proc.info['name']} (PID: {pid})", extra={

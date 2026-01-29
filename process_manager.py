@@ -78,7 +78,17 @@ def terminate_process_by_name(process_name):
     """通过进程名称终止进程"""
     try:
         terminated = False
-        for proc in psutil.process_iter(['name', 'pid']):
+        try:
+            procs = list(psutil.process_iter(['name', 'pid']))
+        except Exception as e:
+            logger.warning(f"获取进程列表失败: {str(e)}", extra={
+                'event_type': EventType.WARNING,
+                'error': str(e),
+                'error_type': 'process_iter_error'
+            })
+            return False
+        
+        for proc in procs:
             try:
                 if process_name.lower() in proc.info['name'].lower():
                     # 对于git-bash.exe使用kill强制终止，其他进程使用terminate优雅终止
@@ -324,7 +334,17 @@ def terminate_llbot_process_tree(llbot_path=None):
         # 也尝试终止pmhq-win-x64.exe和flet.exe（llbot依赖进程）
         for dep_process in ["pmhq-win-x64.exe", "flet.exe"]:
             try:
-                for proc in psutil.process_iter(['name', 'pid']):
+                try:
+                    procs = list(psutil.process_iter(['name', 'pid']))
+                except Exception as e:
+                    logger.warning(f"获取进程列表失败: {str(e)}", extra={
+                        'event_type': EventType.WARNING,
+                        'error': str(e),
+                        'error_type': 'process_iter_error'
+                    })
+                    continue
+                
+                for proc in procs:
                     try:
                         if dep_process.lower() in proc.info['name'].lower():
                             proc.kill()
@@ -350,7 +370,17 @@ def terminate_llbot_process_tree(llbot_path=None):
         qq_processes = ["QQ", "QQProtect", "QQPCRTP"]
         for qq_process in qq_processes:
             try:
-                for proc in psutil.process_iter(['name', 'pid']):
+                try:
+                    procs = list(psutil.process_iter(['name', 'pid']))
+                except Exception as e:
+                    logger.warning(f"获取进程列表失败: {str(e)}", extra={
+                        'event_type': EventType.WARNING,
+                        'error': str(e),
+                        'error_type': 'process_iter_error'
+                    })
+                    continue
+                
+                for proc in procs:
                     try:
                         if qq_process.lower() in proc.info['name'].lower():
                             # 先终止所有子进程(包括crashpad_handler.exe)
@@ -388,7 +418,17 @@ def terminate_llbot_process_tree(llbot_path=None):
         # 额外终止所有crashpad_handler.exe进程(这些进程可能不是QQ的直接子进程)
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止所有crashpad_handler.exe进程...")
         try:
-            for proc in psutil.process_iter(['name', 'pid']):
+            try:
+                procs = list(psutil.process_iter(['name', 'pid']))
+            except Exception as e:
+                logger.warning(f"获取进程列表失败: {str(e)}", extra={
+                    'event_type': EventType.WARNING,
+                    'error': str(e),
+                    'error_type': 'process_iter_error'
+                })
+                return terminated
+            
+            for proc in procs:
                 try:
                     if 'crashpad_handler' in proc.info['name'].lower():
                         proc.kill()
