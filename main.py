@@ -46,6 +46,18 @@ def run_monitor_loop(config):
                 # 使用全局current_config以确保获取最新的配置
                 local_config = current_config
                 
+                # 一次性获取所有进程信息，避免多次调用 psutil.process_iter() 导致的迭代器冲突
+                try:
+                    all_procs = list(psutil.process_iter(['name', 'pid']))
+                except Exception as e:
+                    logger.warning(f"获取进程列表失败: {str(e)}", extra={
+                        'event_type': EventType.WARNING,
+                        'error': str(e),
+                        'error_type': 'process_iter_error'
+                    })
+                    time.sleep(5)
+                    continue
+                
                 # 检查llbot进程状态
                 if local_config['llbot'].get('path'):
                     llbot_process_name = os.path.basename(local_config['llbot']['path']).lower()
@@ -53,9 +65,7 @@ def run_monitor_loop(config):
 
                     llbot_running = False
                     llbot_pid = None
-                    # 转换为列表避免生成器冲突
-                    procs = list(psutil.process_iter(['name', 'pid']))
-                    for proc in procs:
+                    for proc in all_procs:
                         if proc.info['name'].lower() in possible_names:
                             llbot_running = True
                             llbot_pid = proc.info['pid']
@@ -76,9 +86,7 @@ def run_monitor_loop(config):
                 # 检查yunzai进程状态 (git-bash.exe)
                 yunzai_running = False
                 yunzai_pid = None
-                # 转换为列表避免生成器冲突
-                procs = list(psutil.process_iter(['name', 'pid']))
-                for proc in procs:
+                for proc in all_procs:
                     if proc.info['name'].lower() == 'git-bash.exe':
                         yunzai_running = True
                         yunzai_pid = proc.info['pid']
@@ -102,9 +110,7 @@ def run_monitor_loop(config):
 
                     redis_running = False
                     redis_pid = None
-                    # 转换为列表避免生成器冲突
-                    procs = list(psutil.process_iter(['name', 'pid']))
-                    for proc in procs:
+                    for proc in all_procs:
                         if proc.info['name'].lower() == redis_process_name:
                             redis_running = True
                             redis_pid = proc.info['pid']
