@@ -30,3 +30,218 @@
     width: 30px;
     text-align: center;
 }
+
+/* 主题样式 */
+body.light-theme {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+body.dark-theme {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+}
+
+body.dark-theme .main-container {
+    background: rgba(30, 30, 40, 0.95);
+    color: #e0e0e0;
+}
+
+body.dark-theme .card-header {
+    background: linear-gradient(to right, #2d2d3a, #1f1f2e) !important;
+    color: #e0e0e0;
+}
+
+body.dark-theme .card-header h5,
+body.dark-theme .card-title {
+    color: #e0e0e0;
+}
+
+body.dark-theme .config-card {
+    background: linear-gradient(145deg, #2d2d3a, #252535);
+    color: #e0e0e0;
+}
+
+body.dark-theme .section-title {
+    color: #e0e0e0;
+    border-bottom-color: #3d3d4d;
+}
+
+body.dark-theme .form-control {
+    background: #2d2d3a;
+    border-color: #3d3d4d;
+    color: #e0e0e0;
+}
+
+body.dark-theme .form-control:focus {
+    background: #2d2d3a;
+    border-color: #007bff;
+    color: #e0e0e0;
+}
+
+body.dark-theme .form-label {
+    color: #e0e0e0;
+}
+
+body.dark-theme .dropdown-menu {
+    background: #2d2d3a;
+    color: #e0e0e0;
+}
+
+body.dark-theme .dropdown-item {
+    color: #e0e0e0;
+}
+
+body.dark-theme .dropdown-item:hover {
+    background: rgba(0, 123, 255, 0.1);
+}
+
+body.dark-theme .nav-tabs {
+    border-bottom-color: #3d3d4d;
+}
+
+body.dark-theme .nav-tabs .nav-link {
+    color: #a0a0a0;
+}
+
+body.dark-theme .nav-tabs .nav-link.active {
+    color: #007bff;
+    background-color: rgba(0, 123, 255, 0.1);
+    border-bottom-color: #007bff;
+}
+
+body.dark-theme .footer {
+    color: #a0a0a0;
+}
+
+/* 修复配置管理界面的白色残留 */
+body.dark-theme .tab-content,
+body.dark-theme .tab-pane,
+body.dark-theme .alert,
+body.dark-theme .form-check,
+body.dark-theme .form-check-input {
+    background-color: transparent !important;
+    color: #e0e0e0 !important;
+}
+
+/* 彻底修复 tab-content 和 tab-pane 的白色背景问题 */
+body.dark-theme .tab-content {
+    background-color: rgba(30, 30, 40, 0.95) !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+body.dark-theme .tab-pane {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* 确保所有 tab-pane 内的元素都使用深色主题 */
+body.dark-theme .tab-pane .card,
+body.dark-theme .tab-pane .card-header,
+body.dark-theme .tab-pane .card-body {
+    background-color: #2d2d3a !important;
+    color: #e0e0e0 !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* 修复 Bootstrap 默认的 fade 类带来的背景问题 */
+body.dark-theme .fade.show {
+    background-color: transparent !important;
+}
+
+body.dark-theme .fade {
+    background-color: transparent !important;
+}
+
+body.dark-theme .form-check-input {
+    background-color: #2d2d3a !important;
+    border-color: #3d3d4d !important;
+}
+
+body.dark-theme .form-check-input:checked {
+    background-color: #007bff !important;
+    border-color: #007bff !important;
+}
+
+body.dark-theme .form-check-label {
+    color: #e0e0e0 !important;
+}
+
+body.dark-theme .modal-content {
+    background: #2d2d3a !important;
+    color: #e0e0e0 !important;
+}
+
+body.dark-theme .modal-header {
+    background: #252535 !important;
+    border-bottom-color: #3d3d4d !important;
+}
+
+body.dark-theme .modal-footer {
+    background: #252535 !important;
+    border-top-color: #3d3d4d !important;
+}
+
+body.dark-theme .progress {
+    background: #3d3d4d !important;
+}
+
+body.dark-theme .text-muted {
+    color: #a0a0a0 !important;
+}
+
+/* 额外的深色主题覆盖 */
+body.dark-theme .card,
+body.dark-theme .card-body {
+    background-color: #2d2d3a !important;
+    color: #e0e0e0 !important;
+}
+
+body.dark-theme .table {
+    color: #e0e0e0 !important;
+}
+
+body.dark-theme .table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+body.dark-theme .table-hover tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.1) !important;
+}
+
+body.dark-theme .input-group-text {
+    background-color: #2d2d3a !important;
+    border-color: #3d3d4d !important;
+    color: #e0e0e0 !important;
+}
+
+body.dark-theme .badge {
+    background-color: #007bff !important;
+    color: white !important;
+}
+
+body.dark-theme h1,
+body.dark-theme h2,
+body.dark-theme h3,
+body.dark-theme h4,
+body.dark-theme h5,
+body.dark-theme h6,
+body.dark-theme p,
+body.dark-theme span,
+body.dark-theme div {
+    color: inherit !important;
+}
+
+body.dark-theme .config-item {
+    background-color: #2d2d3a !important;
+    border-color: #3d3d4d !important;
+}
+
+body.dark-theme .config-value {
+    color: #a0d0ff !important;
+}
+
+body.dark-theme .config-description {
+    color: #a0a0a0 !important;
+}
