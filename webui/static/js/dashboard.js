@@ -80,6 +80,12 @@ function handleAuthError() {
 
 // 自动更新状态
 function updateStatus() {
+    // 检查是否在 dashboard 页面
+    const llbotStatus = document.getElementById('llbot-status');
+    if (!llbotStatus) {
+        return;
+    }
+
     fetch('/api/status')
         .then(response => {
             if (response.status === 401) {
@@ -89,6 +95,11 @@ function updateStatus() {
             return response.json();
         })
         .then(data => {
+            // 再次检查元素是否仍然存在
+            if (!document.getElementById('llbot-status')) {
+                return;
+            }
+
             if (data && typeof data === 'object') {
                 updateProcessStatus('llbot', data.llbot);
                 updateProcessStatus('yunzai', data.yunzai);
@@ -99,17 +110,25 @@ function updateStatus() {
 
                 // HTTP检查卡片总是显示，不需要额外的显示控制
                 // 更新HTTP检查状态
-                if (data.http_check && data.http_check.configured) {
-                    if (data.http_check.accessible) {
-                        httpStatus.textContent = '可访问';
-                        httpIndicator.className = 'status-running';
-                    } else {
-                        httpStatus.textContent = '不可访问';
-                        httpIndicator.className = 'status-stopped';
+                if (httpStatus && httpIndicator &&
+                    httpStatus instanceof HTMLElement &&
+                    httpIndicator instanceof HTMLElement) {
+                    try {
+                        if (data.http_check && data.http_check.configured) {
+                            if (data.http_check.accessible) {
+                                httpStatus.textContent = '可访问';
+                                httpIndicator.className = 'status-running';
+                            } else {
+                                httpStatus.textContent = '不可访问';
+                                httpIndicator.className = 'status-stopped';
+                            }
+                        } else {
+                            httpStatus.textContent = '未配置';
+                            httpIndicator.className = 'status-unknown';
+                        }
+                    } catch (error) {
+                        console.warn('更新HTTP状态失败:', error);
                     }
-                } else {
-                    httpStatus.textContent = '未配置';
-                    httpIndicator.className = 'status-unknown';
                 }
 
                 // 更新统计信息
@@ -125,18 +144,26 @@ function updateStatus() {
             const httpCard = document.getElementById('http-check-card');
             const httpContainer = document.getElementById('http-check-container');
 
-            if (httpCard) {
-                httpCard.style.display = 'block';
-                httpCard.style.visibility = 'visible';
-                httpCard.style.opacity = '1';
-                httpCard.classList.remove('d-none', 'd-hidden', 'hidden', 'invisible');
+            if (httpCard && httpCard instanceof HTMLElement) {
+                try {
+                    httpCard.style.display = 'block';
+                    httpCard.style.visibility = 'visible';
+                    httpCard.style.opacity = '1';
+                    httpCard.classList.remove('d-none', 'd-hidden', 'hidden', 'invisible');
+                } catch (e) {
+                    console.warn('显示HTTP卡片失败:', e);
+                }
             }
 
-            if (httpContainer) {
-                httpContainer.style.display = 'block';
-                httpContainer.style.visibility = 'visible';
-                httpContainer.style.opacity = '1';
-                httpContainer.classList.remove('d-none', 'd-hidden', 'hidden', 'invisible');
+            if (httpContainer && httpContainer instanceof HTMLElement) {
+                try {
+                    httpContainer.style.display = 'block';
+                    httpContainer.style.visibility = 'visible';
+                    httpContainer.style.opacity = '1';
+                    httpContainer.classList.remove('d-none', 'd-hidden', 'hidden', 'invisible');
+                } catch (e) {
+                    console.warn('显示HTTP容器失败:', e);
+                }
             }
 
             // 检查是否是认证错误
@@ -153,42 +180,70 @@ function updateStats(data) {
     const redisStat = document.getElementById('redis-stat');
     const httpStat = document.getElementById('http-stat');
 
-    if(data.llbot && data.llbot.running) {
-        llbotStat.textContent = '运行';
-        llbotStat.style.color = '#28a745';
-    } else {
-        llbotStat.textContent = '停止';
-        llbotStat.style.color = '#dc3545';
-    }
-
-    if(data.yunzai && data.yunzai.running) {
-        yunzaiStat.textContent = '运行';
-        yunzaiStat.style.color = '#28a745';
-    } else {
-        yunzaiStat.textContent = '停止';
-        yunzaiStat.style.color = '#dc3545';
-    }
-
-    if(data.redis && data.redis.running) {
-        redisStat.textContent = '运行';
-        redisStat.style.color = '#28a745';
-    } else {
-        redisStat.textContent = '停止';
-        redisStat.style.color = '#dc3545';
-    }
-
-    // 确保HTTP检查状态总是更新，不管是否有配置
-    if(data.http_check && data.http_check.configured) {
-        if(data.http_check.accessible) {
-            httpStat.textContent = '正常';
-            httpStat.style.color = '#28a745';
-        } else {
-            httpStat.textContent = '异常';
-            httpStat.style.color = '#dc3545';
+    // 更新 llbot 统计
+    if (llbotStat && llbotStat instanceof HTMLElement) {
+        try {
+            if(data.llbot && data.llbot.running) {
+                llbotStat.textContent = '运行';
+                llbotStat.style.color = '#28a745';
+            } else {
+                llbotStat.textContent = '停止';
+                llbotStat.style.color = '#dc3545';
+            }
+        } catch (error) {
+            console.warn('更新llbot统计失败:', error);
         }
-    } else {
-        httpStat.textContent = '未配置';
-        httpStat.style.color = '#6c757d';
+    }
+
+    // 更新 yunzai 统计
+    if (yunzaiStat && yunzaiStat instanceof HTMLElement) {
+        try {
+            if(data.yunzai && data.yunzai.running) {
+                yunzaiStat.textContent = '运行';
+                yunzaiStat.style.color = '#28a745';
+            } else {
+                yunzaiStat.textContent = '停止';
+                yunzaiStat.style.color = '#dc3545';
+            }
+        } catch (error) {
+            console.warn('更新yunzai统计失败:', error);
+        }
+    }
+
+    // 更新 redis 统计
+    if (redisStat && redisStat instanceof HTMLElement) {
+        try {
+            if(data.redis && data.redis.running) {
+                redisStat.textContent = '运行';
+                redisStat.style.color = '#28a745';
+            } else {
+                redisStat.textContent = '停止';
+                redisStat.style.color = '#dc3545';
+            }
+        } catch (error) {
+            console.warn('更新redis统计失败:', error);
+        }
+    }
+
+    // 更新 http 统计
+    if (httpStat && httpStat instanceof HTMLElement) {
+        try {
+            // 确保HTTP检查状态总是更新，不管是否有配置
+            if(data.http_check && data.http_check.configured) {
+                if(data.http_check.accessible) {
+                    httpStat.textContent = '正常';
+                    httpStat.style.color = '#28a745';
+                } else {
+                    httpStat.textContent = '异常';
+                    httpStat.style.color = '#dc3545';
+                }
+            } else {
+                httpStat.textContent = '未配置';
+                httpStat.style.color = '#6c757d';
+            }
+        } catch (error) {
+            console.warn('更新http统计失败:', error);
+        }
     }
 }
 
@@ -196,17 +251,37 @@ function updateProcessStatus(process, status) {
     const statusElement = document.getElementById(process + '-status');
     const indicatorElement = document.getElementById(process + '-status-indicator');
 
-    if (status && status.running) {
-        statusElement.textContent = '运行中 (PID: ' + status.pid + ')';
-        indicatorElement.className = 'status-running';
-    } else {
-        statusElement.textContent = '已停止';
-        indicatorElement.className = 'status-stopped';
+    // 增强检查：确保元素存在且是有效的 DOM 元素
+    if (!statusElement || !indicatorElement ||
+        !(statusElement instanceof HTMLElement) ||
+        !(indicatorElement instanceof HTMLElement)) {
+        return;
+    }
+
+    try {
+        if (status && status.running) {
+            statusElement.textContent = '运行中 (PID: ' + status.pid + ')';
+            indicatorElement.className = 'status-running';
+        } else {
+            statusElement.textContent = '已停止';
+            indicatorElement.className = 'status-stopped';
+        }
+    } catch (error) {
+        console.warn(`更新 ${process} 状态失败:`, error);
     }
 }
 
 // 更新日志
 function updateLogs() {
+    // 检查是否在 dashboard 页面
+    const logsDiv = document.getElementById('logs');
+    const logCountElement = document.getElementById('log-count');
+    const lastUpdateElement = document.getElementById('last-update');
+
+    if (!logsDiv || !logCountElement || !lastUpdateElement) {
+        return;
+    }
+
     // 获取选中的日志等级
     const filterButtons = document.querySelectorAll('.log-filter-btn');
     const selectedLevels = Array.from(filterButtons)
@@ -226,8 +301,12 @@ function updateLogs() {
             return response.json();
         })
         .then(data => {
+            // 再次检查元素是否仍然存在（防止在请求期间页面被卸载）
+            if (!document.getElementById('logs')) {
+                return;
+            }
+
             if (data && data.logs) {
-                const logsDiv = document.getElementById('logs');
                 logsDiv.innerHTML = '';
 
                 // 根据选择的等级过滤日志
@@ -248,7 +327,7 @@ function updateLogs() {
                 }
 
                 // 更新日志计数
-                document.getElementById('log-count').textContent = filteredLogs.length;
+                logCountElement.textContent = filteredLogs.length;
 
                 // 如果没有日志，显示等待提示
                 if (filteredLogs.length === 0) {
@@ -271,7 +350,7 @@ function updateLogs() {
                 }
 
                 // 更新最后更新时间
-                document.getElementById('last-update').textContent = new Date().toLocaleString('zh-CN');
+                lastUpdateElement.textContent = new Date().toLocaleString('zh-CN');
             }
         })
         .catch(error => {
@@ -529,24 +608,64 @@ function ensureHttpCardVisibility() {
     const httpContainer = document.getElementById('http-check-container');
     const httpButton = document.getElementById('http-check-button');
 
-    if (httpCard) {
-        httpCard.style.display = 'block';
-        httpCard.style.visibility = 'visible';
-        httpCard.style.opacity = '1';
-        httpCard.classList.remove('d-none', 'd-hidden', 'hidden', 'invisible');
+    if (httpCard && httpCard instanceof HTMLElement) {
+        try {
+            httpCard.style.display = 'block';
+            httpCard.style.visibility = 'visible';
+            httpCard.style.opacity = '1';
+            httpCard.classList.remove('d-none', 'd-hidden', 'hidden', 'invisible');
+        } catch (error) {
+            console.warn('显示HTTP卡片失败:', error);
+        }
     }
 
-    if (httpContainer) {
-        httpContainer.style.display = 'block';
-        httpContainer.style.visibility = 'visible';
-        httpContainer.style.opacity = '1';
-        httpContainer.classList.remove('d-none', 'd-hidden', 'hidden', 'invisible');
+    if (httpContainer && httpContainer instanceof HTMLElement) {
+        try {
+            httpContainer.style.display = 'block';
+            httpContainer.style.visibility = 'visible';
+            httpContainer.style.opacity = '1';
+            httpContainer.classList.remove('d-none', 'd-hidden', 'hidden', 'invisible');
+        } catch (error) {
+            console.warn('显示HTTP容器失败:', error);
+        }
     }
 
-    if (httpButton) {
-        httpButton.style.display = 'inline-flex';
-        httpButton.style.visibility = 'visible';
-        httpButton.style.opacity = '1';
+    if (httpButton && httpButton instanceof HTMLElement) {
+        try {
+            httpButton.style.display = 'inline-flex';
+            httpButton.style.visibility = 'visible';
+            httpButton.style.opacity = '1';
+        } catch (error) {
+            console.warn('显示HTTP按钮失败:', error);
+        }
+    }
+}
+
+// 定时器ID存储
+let statusIntervalId = null;
+let logsIntervalId = null;
+
+// 启动定时器
+function startTimers() {
+    // 清除旧的定时器
+    stopTimers();
+
+    // 每5秒更新一次状态
+    statusIntervalId = setInterval(updateStatus, 5000);
+
+    // 每5秒更新一次日志
+    logsIntervalId = setInterval(updateLogs, 5000);
+}
+
+// 停止定时器
+function stopTimers() {
+    if (statusIntervalId) {
+        clearInterval(statusIntervalId);
+        statusIntervalId = null;
+    }
+    if (logsIntervalId) {
+        clearInterval(logsIntervalId);
+        logsIntervalId = null;
     }
 }
 
@@ -629,11 +748,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始化日志筛选和搜索功能
     initLogFilters();
 
-    // 每5秒更新一次状态
-    setInterval(updateStatus, 5000);
-
-    // 每5秒更新一次日志
-    setInterval(updateLogs, 5000);
+    // 启动定时器
+    startTimers();
 
     // 确保HTTP检查卡片始终可见
     ensureHttpCardVisibility();
