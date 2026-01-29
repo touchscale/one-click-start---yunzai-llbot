@@ -156,6 +156,21 @@ body.dark-theme .log-container::-webkit-scrollbar-thumb:hover {
     background: #4d4d5d;
 }
 
+/* 深色主题下的滚动条箭头按钮 */
+body.dark-theme .log-container::-webkit-scrollbar-button {
+    background: #3d3d4d;
+    height: 16px;
+    border-radius: 3px;
+}
+
+body.dark-theme .log-container::-webkit-scrollbar-button:hover {
+    background: #4d4d5d;
+}
+
+body.dark-theme .log-container::-webkit-scrollbar-button:active {
+    background: #5d5d6d;
+}
+
 body.dark-theme .log-entry {
     color: #e0e0e0;
 }
@@ -469,6 +484,21 @@ body.dark-theme .footer {
 
 .log-container::-webkit-scrollbar-thumb:hover {
     background: #a8a8a8;
+}
+
+/* 浅色主题下的滚动条箭头按钮 */
+.log-container::-webkit-scrollbar-button {
+    background: #c1c1c1;
+    height: 16px;
+    border-radius: 3px;
+}
+
+.log-container::-webkit-scrollbar-button:hover {
+    background: #a8a8a8;
+}
+
+.log-container::-webkit-scrollbar-button:active {
+    background: #989898;
 }
 
 .log-empty-message {
