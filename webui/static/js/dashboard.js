@@ -550,33 +550,30 @@ function ensureHttpCardVisibility() {
     }
 }
 
-// 页面加载完成后启动自动更新
-document.addEventListener('DOMContentLoaded', function() {
-    updateStatus();
-    updateLogs();
-
-    // 初始化自动滚动按钮状态
-    const autoScrollBtn = document.getElementById('auto-scroll-btn');
-    if (autoScrollEnabled) {
-        autoScrollBtn.classList.remove('btn-outline-primary');
-        autoScrollBtn.classList.add('btn-primary');
-    }
-
-    // 每5秒更新一次状态
-    setInterval(updateStatus, 5000);
-
-    // 每5秒更新一次日志
-    setInterval(updateLogs, 5000);
-
-    // 日志等级筛选按钮组事件监听
+// 初始化日志筛选和搜索功能
+function initLogFilters() {
+    // 移除旧的事件监听器（避免重复绑定）
     const filterButtons = document.querySelectorAll('.log-filter-btn');
     filterButtons.forEach(button => {
+        const newButton = button.cloneNode(true);
+        button.parentNode.replaceChild(newButton, button);
+    });
+
+    const searchInput = document.getElementById('log-search-input');
+    if (searchInput) {
+        const newSearchInput = searchInput.cloneNode(true);
+        searchInput.parentNode.replaceChild(newSearchInput, searchInput);
+    }
+
+    // 重新获取元素并绑定事件
+    const newFilterButtons = document.querySelectorAll('.log-filter-btn');
+    newFilterButtons.forEach(button => {
         button.addEventListener('click', function() {
             const level = this.dataset.level;
 
             if (level === 'all') {
                 // 点击"全部"按钮，只选中全部，取消其他选择
-                filterButtons.forEach(btn => btn.classList.remove('active'));
+                newFilterButtons.forEach(btn => btn.classList.remove('active'));
                 this.classList.add('active');
             } else {
                 // 点击具体等级按钮
@@ -591,7 +588,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.classList.toggle('active');
 
                     // 如果没有任何按钮被选中，默认选中"全部"
-                    const anySelected = Array.from(filterButtons).some(btn => btn.classList.contains('active'));
+                    const anySelected = Array.from(newFilterButtons).some(btn => btn.classList.contains('active'));
                     if (!anySelected) {
                         allButton.classList.add('active');
                     }
@@ -604,17 +601,39 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // 日志搜索框事件监听
-    const searchInput = document.getElementById('log-search-input');
-    if (searchInput) {
+    const newSearchInput = document.getElementById('log-search-input');
+    if (newSearchInput) {
         // 使用防抖函数，避免频繁搜索
         let searchTimeout;
-        searchInput.addEventListener('input', function() {
+        newSearchInput.addEventListener('input', function() {
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(function() {
                 updateLogs();
             }, 300); // 300ms 延迟后执行搜索
         });
     }
+}
+
+// 页面加载完成后启动自动更新
+document.addEventListener('DOMContentLoaded', function() {
+    updateStatus();
+    updateLogs();
+
+    // 初始化自动滚动按钮状态
+    const autoScrollBtn = document.getElementById('auto-scroll-btn');
+    if (autoScrollEnabled) {
+        autoScrollBtn.classList.remove('btn-outline-primary');
+        autoScrollBtn.classList.add('btn-primary');
+    }
+
+    // 初始化日志筛选和搜索功能
+    initLogFilters();
+
+    // 每5秒更新一次状态
+    setInterval(updateStatus, 5000);
+
+    // 每5秒更新一次日志
+    setInterval(updateLogs, 5000);
 
     // 确保HTTP检查卡片始终可见
     ensureHttpCardVisibility();

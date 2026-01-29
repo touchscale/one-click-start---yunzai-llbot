@@ -7,6 +7,25 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
+/* 主题样式 - 确保立即生效 */
+body.light-theme {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+body.light-theme .main-container {
+    background: rgba(255, 255, 255, 0.95);
+    color: #333;
+}
+
+body.dark-theme {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+}
+
+body.dark-theme .main-container {
+    background: rgba(30, 30, 40, 0.95);
+    color: #e0e0e0;
+}
+
 .main-container {
     background: rgba(255, 255, 255, 0.95);
     border-radius: 15px;
