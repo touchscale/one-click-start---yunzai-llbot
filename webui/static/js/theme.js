@@ -31,7 +31,12 @@ function getThemeIcon(theme) {
 }
 
 // 设置主题
-function setTheme(theme) {
+function setTheme(theme, event) {
+    // 阻止默认行为（防止链接跳转或页面刷新）
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
     applyTheme(theme);
 }
 
