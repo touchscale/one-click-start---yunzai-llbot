@@ -110,10 +110,32 @@ body.dark-theme .stat-label {
 body.dark-theme .log-container {
     background: #0d1117;
     color: #e0e0e0;
+    border: 1px solid #3d3d4d !important;
 }
 
 body.dark-theme .log-entry {
     color: #e0e0e0;
+}
+
+body.dark-theme .card-body {
+    background: transparent !important;
+    border: none !important;
+    border-color: #3d3d4d !important;
+}
+
+body.dark-theme .card {
+    border-color: #3d3d4d !important;
+}
+
+body.dark-theme .alert-box {
+    background: #2d2d3a !important;
+    border-color: #3d3d4d !important;
+}
+
+body.dark-theme .alert-box .alert {
+    background: transparent !important;
+    border-color: #3d3d4d !important;
+    color: #e0e0e0 !important;
 }
 
 body.dark-theme .log-info {
