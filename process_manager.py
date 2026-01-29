@@ -252,14 +252,14 @@ def terminate_llbot_process_tree(llbot_path=None):
                 'pid': llbot_pid
             })
         else:
-            logger.warning("PID文件无效或不存在，未找到llbot进程", extra={
+            logger.warning("PID文件无效或不存在，未找到llbot进程，但将继续清理QQ相关进程", extra={
                 'event_type': 'warning',
                 'action': 'skip_terminate_llbot',
                 'reason': 'pid_file_invalid_or_not_found',
                 'pid': llbot_pid
             })
-            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 警告: 未找到llbot进程（PID文件无效或不存在）")
-            return False
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 警告: 未找到llbot进程（PID文件无效或不存在），将继续清理QQ相关进程")
+            # 不返回False，继续执行后续的QQ进程清理逻辑
 
         if llbot_pid:
             try:
