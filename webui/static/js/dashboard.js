@@ -1,3 +1,20 @@
+// 切换侧边栏显示/隐藏
+function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const mainContent = document.querySelector('.main-content');
+    const toggleIcon = document.getElementById('sidebar-toggle-icon');
+
+    sidebar.classList.toggle('collapsed');
+    mainContent.classList.toggle('expanded');
+
+    // 切换图标旋转效果
+    if (sidebar.classList.contains('collapsed')) {
+        toggleIcon.style.transform = 'rotate(180deg)';
+    } else {
+        toggleIcon.style.transform = 'rotate(0deg)';
+    }
+}
+
 // 切换密码显示/隐藏
 function togglePassword(fieldId, button) {
     const passwordField = document.getElementById(fieldId);

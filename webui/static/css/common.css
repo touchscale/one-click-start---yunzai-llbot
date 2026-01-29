@@ -55,6 +55,8 @@ body {
     z-index: 1000;
     padding-top: 20px;
     transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
 }
 
 .sidebar-header {
@@ -72,6 +74,54 @@ body {
 
 .sidebar-nav {
     padding: 0 15px;
+    flex: 1;
+}
+
+.sidebar-footer {
+    padding: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    justify-content: flex-end;
+}
+
+.theme-toggle-btn {
+    background: linear-gradient(45deg, #007bff, #6610f2);
+    border: none;
+    border-radius: 10px;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    color: white;
+}
+
+.theme-toggle-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
+}
+
+.theme-toggle-btn i {
+    font-size: 1.1rem;
+}
+
+.theme-dropdown {
+    border-radius: 12px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+    border: none;
+    padding: 8px 0;
+    min-width: 160px;
+}
+
+.theme-dropdown .dropdown-item {
+    padding: 10px 20px;
+    transition: all 0.2s;
+}
+
+.theme-dropdown .dropdown-item:hover {
+    background: rgba(0, 123, 255, 0.1);
 }
 
 .sidebar-item {

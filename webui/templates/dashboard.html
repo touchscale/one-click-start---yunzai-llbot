@@ -33,14 +33,41 @@
                 </a>
             </div>
         </nav>
+        <div class="sidebar-footer">
+            <div class="dropdown">
+                <button class="btn theme-toggle-btn" type="button" id="themeMenu" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-desktop" id="current-theme-icon"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end theme-dropdown" aria-labelledby="themeMenu">
+                    <li>
+                        <a class="dropdown-item" href="#" onclick="setTheme('light')">
+                            <i class="fas fa-sun me-2 text-warning"></i>亮色模式
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="#" onclick="setTheme('dark')">
+                            <i class="fas fa-moon me-2 text-info"></i>暗色模式
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="#" onclick="setTheme('system')">
+                            <i class="fas fa-desktop me-2 text-secondary"></i>跟随系统
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
     </div>
-    
+
     <!-- 主内容区域 -->
     <div class="main-content">
         <div class="container-fluid">
             <!-- 顶部标题栏 -->
             <div class="d-flex justify-content-between align-items-center mb-4 px-3">
                 <div class="d-flex align-items-center">
+                    <button class="btn sidebar-toggle-btn me-3" onclick="toggleSidebar()" title="切换侧边栏">
+                        <i class="fas fa-arrow-right" id="sidebar-toggle-icon"></i>
+                    </button>
                     <h1 class="header-title mb-0 me-3">
                         <i class="fas fa-tachometer-alt me-2"></i>llbot Yunzai 监控系统
                     </h1>
@@ -273,6 +300,7 @@
 
     <!-- Bootstrap JS -->
     <script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 </body>
 </html>
