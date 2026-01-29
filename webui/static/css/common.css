@@ -364,3 +364,150 @@ body.dark-theme .main-container {
     color: #6c757d;
     font-size: 0.9rem;
 }
+
+/* 深色主题通用修复 - 移除所有白色背景残留 */
+body.dark-theme * {
+    background-color: transparent !important;
+}
+
+/* 恢复特定元素的背景色 */
+body.dark-theme .card,
+body.dark-theme .card-header,
+body.dark-theme .card-body,
+body.dark-theme .config-card,
+body.dark-theme .sidebar,
+body.dark-theme .modal-content,
+body.dark-theme .modal-header,
+body.dark-theme .modal-footer,
+body.dark-theme .dropdown-menu,
+body.dark-theme .form-control,
+body.dark-theme .input-group-text,
+body.dark-theme .input-group > .form-control,
+body.dark-theme .input-group > .custom-select,
+body.dark-theme .input-group > .custom-file,
+body.dark-theme .main-container,
+body.dark-theme .nav-tabs,
+body.dark-theme .tab-content,
+body.dark-theme .tab-pane,
+body.dark-theme .alert,
+body.dark-theme .progress,
+body.dark-theme .list-group,
+body.dark-theme .list-group-item {
+    background-color: #2d2d3a !important;
+}
+
+body.dark-theme .card-header {
+    background: linear-gradient(to right, #2d2d3a, #1f1f2e) !important;
+}
+
+/* 恢复特定的渐变背景 */
+body.dark-theme,
+body.dark-theme .sidebar {
+    background: linear-gradient(180deg, #2c3e50 0%, #1a252f 100%) !important;
+}
+
+body.dark-theme .sidebar {
+    background: linear-gradient(180deg, #2c3e50 0%, #1a252f 100%) !important;
+}
+
+body.dark-theme .theme-toggle-btn {
+    background: linear-gradient(45deg, #007bff, #6610f2) !important;
+}
+
+body.dark-theme .sidebar-link.active {
+    background: linear-gradient(45deg, #007bff, #6610f2) !important;
+}
+
+/* 确保文本颜色正确 */
+body.dark-theme,
+body.dark-theme *,
+body.dark-theme .card,
+body.dark-theme .card-header,
+body.dark-theme .card-body,
+body.dark-theme .config-card,
+body.dark-theme h1,
+body.dark-theme h2,
+body.dark-theme h3,
+body.dark-theme h4,
+body.dark-theme h5,
+body.dark-theme h6,
+body.dark-theme p,
+body.dark-theme span,
+body.dark-theme div,
+body.dark-theme label,
+body.dark-theme small,
+body.dark-theme .form-label,
+body.dark-theme .card-title,
+body.dark-theme .nav-link,
+body.dark-theme .dropdown-item,
+body.dark-theme .modal-title,
+body.dark-theme .form-check-label,
+body.dark-theme .text-muted {
+    color: #e0e0e0 !important;
+}
+
+/* 特殊颜色的文本 */
+body.dark-theme .text-primary { color: #4dabf7 !important; }
+body.dark-theme .text-success { color: #51cf66 !important; }
+body.dark-theme .text-info { color: #22b8cf !important; }
+body.dark-theme .text-warning { color: #fcc419 !important; }
+body.dark-theme .text-danger { color: #ff6b6b !important; }
+body.dark-theme .text-secondary { color: #a0a0a0 !important; }
+
+/* 确保边框颜色正确 */
+body.dark-theme .card,
+body.dark-theme .card-header,
+body.dark-theme .card-body,
+body.dark-theme .config-card,
+body.dark-theme .form-control,
+body.dark-theme .input-group-text,
+body.dark-theme .dropdown-menu,
+body.dark-theme .nav-tabs,
+body.dark-theme .modal-content,
+body.dark-theme .modal-header,
+body.dark-theme .modal-footer {
+    border-color: #3d3d4d !important;
+}
+
+/* 移除所有可能的白色阴影和发光效果 */
+body.dark-theme * {
+    text-shadow: none !important;
+    box-shadow: none !important;
+}
+
+/* 重新添加必要的阴影效果 */
+body.dark-theme .card {
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
+}
+
+body.dark-theme .sidebar {
+    box-shadow: 3px 0 15px rgba(0, 0, 0, 0.5) !important;
+}
+
+body.dark-theme .sidebar-link.active {
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3) !important;
+}
+
+body.dark-theme .theme-toggle-btn:hover {
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4) !important;
+}
+
+body.dark-theme .dropdown-menu {
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5) !important;
+}
+
+body.dark-theme .btn-save:hover {
+    box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4) !important;
+}
+
+body.dark-theme .btn-cancel:hover {
+    box-shadow: 0 5px 15px rgba(220, 53, 69, 0.4) !important;
+}
+
+body.dark-theme .btn-back:hover {
+    box-shadow: 0 5px 15px rgba(0, 123, 255, 0.4) !important;
+}
+
+body.dark-theme .btn-info:hover {
+    box-shadow: 0 5px 15px rgba(23, 162, 184, 0.4) !important;
+}

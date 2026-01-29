@@ -122,6 +122,38 @@ body.dark-theme .form-check-input {
     color: #e0e0e0 !important;
 }
 
+/* 彻底修复 tab-content 和 tab-pane 的白色背景问题 */
+body.dark-theme .tab-content {
+    background-color: rgba(30, 30, 40, 0.95) !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+body.dark-theme .tab-pane {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* 确保所有 tab-pane 内的元素都使用深色主题 */
+body.dark-theme .tab-pane .card,
+body.dark-theme .tab-pane .card-header,
+body.dark-theme .tab-pane .card-body {
+    background-color: #2d2d3a !important;
+    color: #e0e0e0 !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* 修复 Bootstrap 默认的 fade 类带来的背景问题 */
+body.dark-theme .fade.show {
+    background-color: transparent !important;
+}
+
+body.dark-theme .fade {
+    background-color: transparent !important;
+}
+
 body.dark-theme .form-check-input {
     background-color: #2d2d3a !important;
     border-color: #3d3d4d !important;
