@@ -10,8 +10,9 @@ from constants import EventType
 
 logger = get_logger()
 
-# PID文件存储目录
-PID_DIR = "pids"
+# PID文件存储目录 - 使用绝对路径，基于脚本文件所在目录
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PID_DIR = os.path.join(SCRIPT_DIR, "pids")
 
 # 进程名称映射
 PROCESS_NAMES = {
