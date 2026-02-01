@@ -5,6 +5,7 @@
 import os
 import sys
 import logging
+import re
 from datetime import datetime, timedelta
 from logging.handlers import TimedRotatingFileHandler
 import glob
@@ -117,7 +118,7 @@ def setup_structured_logging():
     )
     # 设置不创建.suffix后缀，直接覆盖旧日志文件
     file_handler.suffix = "%Y-%m-%d"  # 日期格式
-    file_handler.extMatch = r"^\d{4}-\d{2}-\d{2}$"  # 匹配日期格式
+    file_handler.extMatch = re.compile(r"^\d{4}-\d{2}-\d{2}$")  # 匹配日期格式（必须用 re.compile）
     file_handler.setFormatter(StructuredFormatter())
     logger.addHandler(file_handler)
     
