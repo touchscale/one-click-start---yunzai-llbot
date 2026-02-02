@@ -164,6 +164,17 @@ async function saveConfig() {
         delete configData.web_auth.password;
     }
 
+    // 验证自动登录配置
+    if (configData.auto_login.enabled) {
+        if (!configData.auto_login.password || configData.auto_login.password === '***') {
+            showAlert('启用自动登录时必须提供密码', 'warning');
+            return;
+        }
+    } else {
+        // 如果未启用自动登录，删除密码字段以保持现有密码不变
+        delete configData.auto_login.password;
+    }
+
     // 发送保存请求
     const response = await fetch('/api/config/update', {
         method: 'POST',
@@ -179,6 +190,7 @@ async function saveConfig() {
         showAlert('配置保存成功！配置已热重载生效。', 'success');
         // 更新密码字段显示
         document.getElementById('auth-password').value = '***';
+        document.getElementById('auto-login-password').value = '***';
     } else {
         showAlert('保存失败：' + (result.error || '未知错误'), 'danger');
     }
@@ -347,6 +359,16 @@ async function forceUpdates() {
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
+    // 初始化密码字段显示为 ***
+    const authPasswordField = document.getElementById('auth-password');
+    const autoLoginPasswordField = document.getElementById('auto-login-password');
+    if (authPasswordField && authPasswordField.value !== '***') {
+        authPasswordField.value = '***';
+    }
+    if (autoLoginPasswordField && autoLoginPasswordField.value !== '***') {
+        autoLoginPasswordField.value = '***';
+    }
+
     // 激活第一个选项卡
     const firstTab = document.querySelector('#configTabs .nav-link');
     if (firstTab) {
