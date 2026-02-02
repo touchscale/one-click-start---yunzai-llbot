@@ -74,6 +74,7 @@ function showAlert(message, type) {
 
 // 保存配置
 async function saveConfig() {
+    console.log('saveConfig 函数被调用');
     const configData = {
         llbot: {
             path: document.getElementById('llbot-path').value,
@@ -176,6 +177,7 @@ async function saveConfig() {
     }
 
     // 发送保存请求
+    console.log('准备发送保存请求:', configData);
     const response = await fetch('/api/config/update', {
         method: 'POST',
         headers: {
@@ -184,7 +186,9 @@ async function saveConfig() {
         body: JSON.stringify(configData)
     });
 
+    console.log('收到响应:', response);
     const result = await response.json();
+    console.log('响应内容:', result);
 
     if (response.ok) {
         showAlert('配置保存成功！配置已热重载生效。', 'success');
