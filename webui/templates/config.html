@@ -132,6 +132,11 @@
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="autologin-tab" data-bs-toggle="tab" data-bs-target="#autologin" type="button" role="tab">
+                            <i class="fas fa-user-check config-icon"></i>自动登录配置
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
                         <button class="nav-link" id="auth-tab" data-bs-toggle="tab" data-bs-target="#auth" type="button" role="tab">
                             <i class="fas fa-lock config-icon"></i>Web 认证配置
                         </button>
@@ -238,6 +243,42 @@
                                     <label class="form-check-label" for="auto-restart-respect-manual-stop">
                                         尊重手动停止状态
                                     </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 自动登录配置 -->
+                    <div class="tab-pane fade" id="autologin" role="tabpanel">
+                        <div class="card config-card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0"><i class="fas fa-user-check config-icon text-primary"></i>自动登录配置</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="auto-login-enabled" {% if config.auto_login.enabled %}checked{% endif %}>
+                                    <label class="form-check-label" for="auto-login-enabled">
+                                        启用系统自动登录
+                                    </label>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="auto-login-username" class="form-label">自动登录用户名</label>
+                                    <input type="text" class="form-control" id="auto-login-username" value="{{ config.auto_login.username }}" placeholder="留空使用当前用户">
+                                    <small class="text-muted">留空则使用当前登录的用户</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="auto-login-password" class="form-label">自动登录密码</label>
+                                    <div class="input-group">
+                                        <input type="password" class="form-control" id="auto-login-password" value="{{ config.auto_login.password }}" placeholder="请输入密码">
+                                        <button type="button" class="btn btn-outline-secondary password-toggle" onclick="togglePassword('auto-login-password', this)">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted">显示 *** 表示保持当前密码不变</small>
+                                </div>
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    自动登录功能需要管理员权限。启用后，系统重启时会自动登录到指定账户。
                                 </div>
                             </div>
                         </div>

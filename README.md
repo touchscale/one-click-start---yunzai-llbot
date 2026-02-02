@@ -22,6 +22,7 @@
 - ✅ 日志文件自动清理，每天0点自动删除旧日志
 - ✅ 支持通过Web手动停止后不自动重启，通过配置控制自动重启行为
 - ✅ 前端资源自动更新检查，支持检查和强制更新Bootstrap等前端库
+- ✅ Windows自动登录配置，支持启用或禁用系统自动登录功能
 
 ---
 
@@ -157,6 +158,18 @@ pip install -r requirements.txt
 </details>
 
 <details>
+<summary><b>🔑 auto_login.py - Windows自动登录配置模块</b></summary>
+
+- 启用或禁用Windows系统自动登录功能
+- 通过修改注册表配置自动登录参数
+- 支持配置用户名和密码
+- 提供自动登录状态查询功能
+- 从配置字典应用自动登录设置
+- 需要管理员权限才能执行
+
+</details>
+
+<details>
 <summary><b>🌐 web_server.py - Web服务器模块</b></summary>
 
 - Flask Web管理界面
@@ -181,6 +194,7 @@ main.py (主入口)
   ├── update_checker.py (前端资源更新)
   ├── password_crypt.py (密码加密)
   ├── password_validator.py (密码验证)
+  ├── auto_login.py (自动登录配置)
   └── web_server.py (Web界面)
 ```
 
@@ -265,6 +279,15 @@ python main.py
 
 </details>
 
+<details>
+<summary><b>🔑 Windows自动登录配置</b></summary>
+
+- 启用自动登录：是否启用Windows系统自动登录（默认false）
+- 自动登录用户名：Windows自动登录的用户名
+- 自动登录密码：Windows自动登录的密码（会在保存时自动加密）
+
+</details>
+
 ### 2. 后续运行
 
 配置完成后，后续运行时脚本会自动加载配置文件并开始监控：
@@ -313,6 +336,12 @@ auto_restart:
 web_auth:
   username: "admin"         # Web管理界面登录用户名
   password: "Admin123"      # Web管理界面登录密码（会在保存时自动加密）
+
+# Windows自动登录设置
+auto_login:
+  enabled: false            # 是否启用Windows自动登录
+  username: ""              # 自动登录用户名
+  password: ""              # 自动登录密码（会在保存时自动加密）
 ```
 
 ### 4. 管理员权限
@@ -436,7 +465,19 @@ Web管理界面提供以下功能：
 </details>
 
 <details>
-<summary><b>10. 前端资源更新（update_checker.py）</b></summary>
+<summary><b>10. 自动登录配置（auto_login.py）</b></summary>
+
+- 启用或禁用Windows系统自动登录功能
+- 通过修改注册表配置自动登录参数
+- 支持配置用户名和密码
+- 提供自动登录状态查询功能
+- 从配置字典应用自动登录设置
+- 需要管理员权限才能执行
+
+</details>
+
+<details>
+<summary><b>11. 前端资源更新（update_checker.py）</b></summary>
 
 - 检查Bootstrap等前端库的更新
 - 使用SHA256哈希验证文件完整性
@@ -446,7 +487,7 @@ Web管理界面提供以下功能：
 </details>
 
 <details>
-<summary><b>11. 日志管理（logger.py）</b></summary>
+<summary><b>13. 日志管理（logger.py）</b></summary>
 
 - 结构化日志记录
 - 按天自动轮转
@@ -469,6 +510,8 @@ Web管理界面提供以下功能：
 - PID文件保存在 `pids/` 目录下，用于精确跟踪进程状态
 - 密码加密模块使用系统相关信息生成默认密钥，确保密码安全存储
 - 密码验证模块强制要求密码长度8-64位，必须包含大小写字母和数字
+- Windows自动登录功能需要管理员权限，启用时会修改系统注册表
+- 启用自动登录后，系统会在重启时自动使用配置的用户名和密码登录
 
 ---
 
