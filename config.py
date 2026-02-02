@@ -102,6 +102,19 @@ def save_config(config, config_path):
     import tempfile
     import shutil
 
+    # 读取现有配置文件以保留原有密码
+    existing_config = {}
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r', encoding='utf-8') as file:
+                existing_config = yaml.safe_load(file) or {}
+        except Exception as e:
+            logger.warning(f"读取现有配置文件失败: {str(e)}", extra={
+                'event_type': 'warning',
+                'config_path': config_path,
+                'error': str(e)
+            })
+
     # 创建配置的副本以避免修改原始配置
     config_to_save = {}
     for key, value in config.items():
@@ -110,38 +123,53 @@ def save_config(config, config_path):
             for sub_key, sub_value in value.items():
                 # 对 web_auth 中的密码进行加密
                 if key == 'web_auth' and sub_key == 'password':
-                    # 检查密码是否已加密
-                    if not PasswordCrypt.is_encrypted(sub_value):
-                        # 加密密码
-                        try:
-                            config_to_save[key][sub_key] = PasswordCrypt.encrypt(sub_value)
-                        except Exception as e:
-                            logger.warning(f"密码加密失败，使用明文保存: {str(e)}", extra={
-                                'event_type': 'warning',
-                                'config_path': config_path,
-                                'error': str(e)
-                            })
-                            config_to_save[key][sub_key] = sub_value
+                    # 如果密码为 None，从现有配置中保留原有密码
+                    if sub_value is None:
+                        if key in existing_config and sub_key in existing_config[key]:
+                            config_to_save[key][sub_key] = existing_config[key][sub_key]
+                        # 否则不保存该字段
                     else:
-                        # 已经是加密的，直接使用
-                        config_to_save[key][sub_key] = sub_value
+                        # 检查密码是否已加密
+                        if not PasswordCrypt.is_encrypted(sub_value):
+                            # 加密密码
+                            try:
+                                config_to_save[key][sub_key] = PasswordCrypt.encrypt(sub_value)
+                            except Exception as e:
+                                logger.warning(f"密码加密失败，使用明文保存: {str(e)}", extra={
+                                    'event_type': 'warning',
+                                    'config_path': config_path,
+                                    'error': str(e)
+                                })
+                                config_to_save[key][sub_key] = sub_value
+                        else:
+                            # 已经是加密的，直接使用
+                            config_to_save[key][sub_key] = sub_value
                 # 对 auto_login 中的密码进行加密
-                elif key == 'auto_login' and sub_key == 'password' and sub_value:
-                    # 检查密码是否已加密
-                    if not PasswordCrypt.is_encrypted(sub_value):
-                        # 加密密码
-                        try:
-                            config_to_save[key][sub_key] = PasswordCrypt.encrypt(sub_value)
-                        except Exception as e:
-                            logger.warning(f"自动登录密码加密失败，使用明文保存: {str(e)}", extra={
-                                'event_type': 'warning',
-                                'config_path': config_path,
-                                'error': str(e)
-                            })
+                elif key == 'auto_login' and sub_key == 'password':
+                    # 如果密码为 None，从现有配置中保留原有密码
+                    if sub_value is None:
+                        if key in existing_config and sub_key in existing_config[key]:
+                            config_to_save[key][sub_key] = existing_config[key][sub_key]
+                        # 否则不保存该字段
+                    elif sub_value:
+                        # 检查密码是否已加密
+                        if not PasswordCrypt.is_encrypted(sub_value):
+                            # 加密密码
+                            try:
+                                config_to_save[key][sub_key] = PasswordCrypt.encrypt(sub_value)
+                            except Exception as e:
+                                logger.warning(f"自动登录密码加密失败，使用明文保存: {str(e)}", extra={
+                                    'event_type': 'warning',
+                                    'config_path': config_path,
+                                    'error': str(e)
+                                })
+                                config_to_save[key][sub_key] = sub_value
+                        else:
+                            # 已经是加密的，直接使用
                             config_to_save[key][sub_key] = sub_value
-                    else:
-                        # 已经是加密的，直接使用
-                        config_to_save[key][sub_key] = sub_value
+                    # 如果是空字符串，从现有配置中保留原有密码
+                    elif key in existing_config and sub_key in existing_config[key]:
+                        config_to_save[key][sub_key] = existing_config[key][sub_key]
                 else:
                     config_to_save[key][sub_key] = sub_value
         else:
@@ -238,7 +266,11 @@ def validate_config(config, config_path="config.yaml"):
                 missing_fields.append(f"{section}.{field}")
                 # 为新创建的section设置默认值
                 if expected_type == str:
-                    config[section][field] = ""
+                    # 特殊处理：密码字段不设置默认值，保持为 None
+                    if field == 'password' and section in ['auto_login', 'web_auth']:
+                        config[section][field] = None
+                    else:
+                        config[section][field] = ""
                 elif expected_type == int:
                     if section == 'llbot' and field == 'wait_seconds':
                         config[section][field] = DEFAULT_CONFIG['llbot'].get('wait_seconds', 5)
@@ -258,7 +290,11 @@ def validate_config(config, config_path="config.yaml"):
                     missing_fields.append(f"{section}.{field}")
                     # 设置默认值
                     if expected_type == str:
-                        config[section][field] = ""
+                        # 特殊处理：密码字段不设置默认值，保持为 None
+                        if field == 'password' and section in ['auto_login', 'web_auth']:
+                            config[section][field] = None
+                        else:
+                            config[section][field] = ""
                     elif expected_type == int:
                         if section == 'llbot' and field == 'wait_seconds':
                             config[section][field] = DEFAULT_CONFIG['llbot'].get('wait_seconds', 5)
@@ -277,7 +313,11 @@ def validate_config(config, config_path="config.yaml"):
                     if actual_value is None:
                         # 如果值为None，设置默认值
                         if expected_type == str:
-                            config[section][field] = ""
+                            # 特殊处理：密码字段保持为 None，不设置默认值
+                            if field == 'password' and section in ['auto_login', 'web_auth']:
+                                config[section][field] = None
+                            else:
+                                config[section][field] = ""
                         elif expected_type == int:
                             if section == 'llbot' and field == 'wait_seconds':
                                 config[section][field] = DEFAULT_CONFIG['llbot'].get('wait_seconds', 5)
@@ -328,15 +368,16 @@ def validate_config(config, config_path="config.yaml"):
                             else:
                                 config[section][field] = bool(actual_value)
     
-    # 记录验证结果
-    if missing_fields:
-        logger.warning(f"配置文件中缺少以下字段，已设置默认值: {', '.join(missing_fields)}", extra={
+    # 记录验证结果（排除 auto_login.password 字段，因为该字段不应该有默认值）
+    non_password_missing_fields = [field for field in missing_fields if field != 'auto_login.password']
+    if non_password_missing_fields:
+        logger.warning(f"配置文件中缺少以下字段，已设置默认值: {', '.join(non_password_missing_fields)}", extra={
             'event_type': 'warning',
-            'missing_fields': missing_fields,
+            'missing_fields': non_password_missing_fields,
             'config_path': config_path,
             'action': 'set_defaults'
         })
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 警告: 配置文件中缺少以下字段，已设置默认值: {', '.join(missing_fields)}")
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 警告: 配置文件中缺少以下字段，已设置默认值: {', '.join(non_password_missing_fields)}")
     
     if invalid_types:
         logger.warning(f"配置文件中以下字段类型不正确，已尝试修复: {', '.join(invalid_types)}", extra={
@@ -475,7 +516,7 @@ def save_default_config(config_path):
         },
         "web_auth": {
             "username": "admin",
-            "password": "admin123"
+            "password": "Admin123"
         }
     }
     with open(config_path, 'w', encoding='utf-8') as file:

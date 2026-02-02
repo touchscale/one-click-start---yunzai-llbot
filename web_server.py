@@ -219,6 +219,18 @@ def register_routes(app):
         response.headers['X-XSS-Protection'] = '1; mode=block'
         # 内容安全策略 - 完善CDN资源加载权限
         response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.bootcdn.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.bootcdn.net https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com https://cdn.bootcdn.net; img-src 'self' data: https:; connect-src 'self' https://cdn.bootcdn.net https://cdnjs.cloudflare.com; manifest-src 'self';"
+        
+        # 为静态资源添加缓存控制头
+        if request.path.startswith('/static/'):
+            # JavaScript 和 CSS 文件不缓存，确保用户总是获取最新版本
+            if request.path.endswith('.js') or request.path.endswith('.css'):
+                response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+                response.headers['Pragma'] = 'no-cache'
+                response.headers['Expires'] = '0'
+            # 其他静态资源（如字体、图片）可以缓存较长时间
+            else:
+                response.headers['Cache-Control'] = 'public, max-age=86400'
+        
         return response
         
     @app.before_request
@@ -777,8 +789,22 @@ def register_routes(app):
                 if not data['auto_login'].get('username'):
                     # 用户名为空时使用当前用户
                     data['auto_login']['username'] = ''
-                if not data['auto_login'].get('password'):
-                    return jsonify({'error': '启用自动登录时必须提供密码'}), 400
+                # 如果密码字段不存在，保持现有密码不变
+                if 'password' not in data['auto_login']:
+                    # 从现有配置中保留密码
+                    existing_password = current_config.get('auto_login', {}).get('password')
+                    if existing_password:
+                        data['auto_login']['password'] = existing_password
+                    else:
+                        # 如果现有配置中也没有密码，设置为 None 以保持现有配置不变
+                        data['auto_login']['password'] = None
+                # 如果密码字段存在但为空字符串，说明用户想要清除密码（这不应该发生，但为了健壮性）
+                elif data['auto_login'].get('password') == '':
+                    return jsonify({'error': '启用自动登录时密码不能为空'}), 400
+                # 如果密码字段存在且为 '***'，保持现有密码不变
+                elif data['auto_login'].get('password') == '***':
+                    existing_password = current_config.get('auto_login', {}).get('password')
+                    data['auto_login']['password'] = existing_password if existing_password else None
             # Only validate username if it's provided in the request (meaning user wants to change it)
             # If username is not provided, we'll keep the existing username
             if 'username' in data['web_auth'] and not data['web_auth'].get('username'):

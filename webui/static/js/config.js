@@ -167,9 +167,11 @@ async function saveConfig() {
 
     // 验证自动登录配置
     if (configData.auto_login.enabled) {
+        // 如果密码字段为空或显示为 ***，说明用户没有修改密码
+        // 此时应该保留现有密码，不需要重新输入
         if (!configData.auto_login.password || configData.auto_login.password === '***') {
-            showAlert('启用自动登录时必须提供密码', 'warning');
-            return;
+            // 删除密码字段，告诉后端保持现有密码不变
+            delete configData.auto_login.password;
         }
     } else {
         // 如果未启用自动登录，删除密码字段以保持现有密码不变
