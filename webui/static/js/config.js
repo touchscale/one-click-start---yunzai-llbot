@@ -96,6 +96,11 @@ async function saveConfig() {
             enabled: document.getElementById('auto-restart-enabled').checked,
             respect_manual_stop: document.getElementById('auto-restart-respect-manual-stop').checked
         },
+        auto_login: {
+            enabled: document.getElementById('auto-login-enabled').checked,
+            username: document.getElementById('auto-login-username').value,
+            password: document.getElementById('auto-login-password').value
+        },
         web_auth: {
             username: document.getElementById('auth-username').value,
             password: document.getElementById('auth-password').value
