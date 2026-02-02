@@ -1,9 +1,5 @@
-# Windows Task Scheduler Setup Script
-# Used to create a scheduled task to protect the monitoring program
+﻿$ErrorActionPreference = "Continue"
 
-$ErrorActionPreference = "Stop"
-
-# Get script directory
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $PythonPath = "python"
 $MainScript = Join-Path $ScriptDir "main.py"
@@ -14,22 +10,60 @@ Write-Host " YunzaiLLBot Monitor - Task Scheduler Setup" -ForegroundColor Cyan
 Write-Host "================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Check if main.py exists
+function SetupAutoLogin {
+    Write-Host ""
+    Write-Host "================================================" -ForegroundColor Yellow
+    Write-Host " Auto-Login Configuration" -ForegroundColor Yellow
+    Write-Host "================================================" -ForegroundColor Yellow
+    Write-Host ""
+
+    $autoLoginScript = Join-Path $ScriptDir "auto_login.py"
+    if (-not (Test-Path $autoLoginScript)) {
+        Write-Host "[X] auto_login.py not found" -ForegroundColor Red
+        return $false
+    }
+
+    $configPath = Join-Path $ScriptDir "config.yaml"
+    if (-not (Test-Path $configPath)) {
+        Write-Host "[X] config.yaml not found" -ForegroundColor Red
+        return $false
+    }
+
+    Write-Host "Reading auto-login configuration from config.yaml..." -ForegroundColor Cyan
+
+    try {
+        $output = & $PythonPath -c "from config import load_config; from auto_login import apply_config_from_dict, print_status; config = load_config(); result = apply_config_from_dict(config); print_status(); print(f'Result: {result}')"
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "[OK] Auto-login configuration applied successfully" -ForegroundColor Green
+            return $true
+        } else {
+            Write-Host "[X] Failed to apply auto-login configuration" -ForegroundColor Red
+            Write-Host $output
+            return $false
+        }
+    }
+    catch {
+        Write-Host "[X] Error running auto-login configuration: $_" -ForegroundColor Red
+        Write-Host "Note: This script requires administrator privileges." -ForegroundColor Yellow
+        return $false
+    }
+}
+
 if (-not (Test-Path $MainScript)) {
     Write-Host "Error: main.py not found" -ForegroundColor Red
-    Write-Host "Path: $MainScript" -ForegroundColor Red
     exit 1
 }
 
 Write-Host "[OK] Found main.py: $MainScript" -ForegroundColor Green
 Write-Host ""
 
-# Check if task already exists
 $existingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 if ($existingTask) {
-    Write-Host "Warning: Task '$TaskName' already exists" -ForegroundColor Yellow
+    Write-Host "Warning: Task already exists" -ForegroundColor Yellow
     $response = Read-Host "Delete and recreate? (Y/N)"
     if ($response -eq "Y" -or $response -eq "y") {
+        Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
         Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
         Write-Host "[OK] Old task deleted" -ForegroundColor Green
     } else {
@@ -40,59 +74,73 @@ if ($existingTask) {
 
 Write-Host "Creating scheduled task..." -ForegroundColor Cyan
 
+$autoLoginResult = SetupAutoLogin
+if (-not $autoLoginResult) {
+    Write-Host "Auto-login not enabled. You will need to log in manually." -ForegroundColor Gray
+    Write-Host ""
+}
+
+# Set task to run as current user account (to show window)
+$currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+
 # Create task action
 $action = New-ScheduledTaskAction `
     -Execute $PythonPath `
     -Argument "`"$MainScript`"" `
     -WorkingDirectory $ScriptDir
 
-# Create trigger - startup and repeat every 1 minute
-# 使用无限重复的触发器
-$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 1)
+# Create trigger - run when user logs in (since main.py is a continuous monitor)
+$trigger = New-ScheduledTaskTrigger -AtLogOn -User $currentUser
 
-# Create retry settings - retry every 10 seconds, unlimited times
-# 注意：实际的重启次数由任务本身的keep_alive_main函数控制
-$repetition = New-ScheduledTaskSettingsSet `
-    -RestartInterval (New-TimeSpan -Seconds 10) `
-    -RestartCount 999
-
-# Set task to run as current user account (to show window)
-$currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $principal = New-ScheduledTaskPrincipal `
     -UserId $currentUser `
     -LogonType Interactive `
     -RunLevel Highest
 
-# Create task settings
+# Create task settings with retry
 $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
     -StartWhenAvailable `
     -DontStopOnIdleEnd `
-    -ExecutionTimeLimit "0"  # 0表示无限制
+    -ExecutionTimeLimit "0" `
+    -RestartInterval (New-TimeSpan -Minutes 1) `
+    -RestartCount 999
 
-# Register task
-Register-ScheduledTask `
-    -TaskName $TaskName `
-    -Action $action `
-    -Trigger $trigger `
-    -Principal $principal `
-    -Settings $settings `
-    -Description "Monitor llbot and Yunzai processes, auto-restart on failure" `
-    -Force | Out-Null
+Write-Host "Registering task..." -ForegroundColor Cyan
 
-Write-Host "[OK] Task created successfully!" -ForegroundColor Green
+try {
+    Register-ScheduledTask `
+        -TaskName $TaskName `
+        -Action $action `
+        -Trigger $trigger `
+        -Principal $principal `
+        -Settings $settings `
+        -Description "Monitor llbot and Yunzai processes, auto-restart on failure" `
+        -Force | Out-Null
+
+    Write-Host "[OK] Scheduled task created successfully!" -ForegroundColor Green
+}
+catch {
+    Write-Host "[X] Failed to create task: $($_.Exception.Message)" -ForegroundColor Red
+    exit 1
+}
+
 Write-Host ""
-Write-Host "Task Info:" -ForegroundColor Cyan
+Write-Host "Task Information:" -ForegroundColor Cyan
 Write-Host "  Task Name: $TaskName" -ForegroundColor White
-Write-Host "  Account: $currentUser" -ForegroundColor White
-Write-Host "  Trigger: Every 1 minute (30s delay on first run)" -ForegroundColor White
-Write-Host "  Retry: Every 10 sec, unlimited (controlled by script)" -ForegroundColor White
-Write-Host "  Script: $MainScript" -ForegroundColor White
+Write-Host "  Run As: $currentUser" -ForegroundColor White
+Write-Host "  Trigger: Every 1 minute" -ForegroundColor White
+Write-Host "  Run Mode: Interactive with visible Python window" -ForegroundColor White
+Write-Host "  Script Path: $MainScript" -ForegroundColor White
+Write-Host ""
+Write-Host "Setup Complete!" -ForegroundColor Green
+Write-Host "  - Monitor will run periodically" -ForegroundColor White
+Write-Host "  - Python window will be visible" -ForegroundColor White
 Write-Host ""
 
 # Verify task creation
-$task = Get-ScheduledTask -TaskName $TaskName
+$task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 if ($task) {
     Write-Host "[OK] Task registered successfully" -ForegroundColor Green
     Write-Host ""
@@ -104,6 +152,6 @@ if ($task) {
     Write-Host ""
     Write-Host "Tip: You can view and manage this task in Task Scheduler (taskschd.msc)" -ForegroundColor Yellow
 } else {
-    Write-Host "[X] Task creation failed" -ForegroundColor Red
+    Write-Host "[X] Task verification failed" -ForegroundColor Red
     exit 1
 }

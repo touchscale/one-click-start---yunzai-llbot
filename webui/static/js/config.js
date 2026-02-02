@@ -74,6 +74,7 @@ function showAlert(message, type) {
 
 // 保存配置
 async function saveConfig() {
+    console.log('saveConfig 函数被调用');
     const configData = {
         llbot: {
             path: document.getElementById('llbot-path').value,
@@ -95,6 +96,11 @@ async function saveConfig() {
         auto_restart: {
             enabled: document.getElementById('auto-restart-enabled').checked,
             respect_manual_stop: document.getElementById('auto-restart-respect-manual-stop').checked
+        },
+        auto_login: {
+            enabled: document.getElementById('auto-login-enabled').checked,
+            username: document.getElementById('auto-login-username').value,
+            password: document.getElementById('auto-login-password').value
         },
         web_auth: {
             username: document.getElementById('auth-username').value,
@@ -159,7 +165,21 @@ async function saveConfig() {
         delete configData.web_auth.password;
     }
 
+    // 验证自动登录配置
+    if (configData.auto_login.enabled) {
+        // 如果密码字段为空或显示为 ***，说明用户没有修改密码
+        // 此时应该保留现有密码，不需要重新输入
+        if (!configData.auto_login.password || configData.auto_login.password === '***') {
+            // 删除密码字段，告诉后端保持现有密码不变
+            delete configData.auto_login.password;
+        }
+    } else {
+        // 如果未启用自动登录，删除密码字段以保持现有密码不变
+        delete configData.auto_login.password;
+    }
+
     // 发送保存请求
+    console.log('准备发送保存请求:', configData);
     const response = await fetch('/api/config/update', {
         method: 'POST',
         headers: {
@@ -168,12 +188,15 @@ async function saveConfig() {
         body: JSON.stringify(configData)
     });
 
+    console.log('收到响应:', response);
     const result = await response.json();
+    console.log('响应内容:', result);
 
     if (response.ok) {
         showAlert('配置保存成功！配置已热重载生效。', 'success');
         // 更新密码字段显示
         document.getElementById('auth-password').value = '***';
+        document.getElementById('auto-login-password').value = '***';
     } else {
         showAlert('保存失败：' + (result.error || '未知错误'), 'danger');
     }
@@ -342,6 +365,16 @@ async function forceUpdates() {
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
+    // 初始化密码字段显示为 ***
+    const authPasswordField = document.getElementById('auth-password');
+    const autoLoginPasswordField = document.getElementById('auto-login-password');
+    if (authPasswordField && authPasswordField.value !== '***') {
+        authPasswordField.value = '***';
+    }
+    if (autoLoginPasswordField && autoLoginPasswordField.value !== '***') {
+        autoLoginPasswordField.value = '***';
+    }
+
     // 激活第一个选项卡
     const firstTab = document.querySelector('#configTabs .nav-link');
     if (firstTab) {

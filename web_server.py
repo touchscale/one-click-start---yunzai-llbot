@@ -219,6 +219,18 @@ def register_routes(app):
         response.headers['X-XSS-Protection'] = '1; mode=block'
         # 内容安全策略 - 完善CDN资源加载权限
         response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.bootcdn.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.bootcdn.net https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com https://cdn.bootcdn.net; img-src 'self' data: https:; connect-src 'self' https://cdn.bootcdn.net https://cdnjs.cloudflare.com; manifest-src 'self';"
+        
+        # 为静态资源添加缓存控制头
+        if request.path.startswith('/static/'):
+            # JavaScript 和 CSS 文件不缓存，确保用户总是获取最新版本
+            if request.path.endswith('.js') or request.path.endswith('.css'):
+                response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+                response.headers['Pragma'] = 'no-cache'
+                response.headers['Expires'] = '0'
+            # 其他静态资源（如字体、图片）可以缓存较长时间
+            else:
+                response.headers['Cache-Control'] = 'public, max-age=86400'
+        
         return response
         
     @app.before_request
@@ -663,7 +675,23 @@ def register_routes(app):
                             safe_config[key][sub_key] = sub_value
                 else:
                     safe_config[key] = value
-            
+
+            # 确保 auto_login 配置项存在
+            if 'auto_login' not in safe_config:
+                safe_config['auto_login'] = {
+                    'enabled': False,
+                    'username': '',
+                    'password': '***'
+                }
+            else:
+                # 确保 auto_login 的所有子字段都存在
+                if 'enabled' not in safe_config['auto_login']:
+                    safe_config['auto_login']['enabled'] = False
+                if 'username' not in safe_config['auto_login']:
+                    safe_config['auto_login']['username'] = ''
+                if 'password' not in safe_config['auto_login']:
+                    safe_config['auto_login']['password'] = '***'
+
             return jsonify(safe_config)
         except Exception as e:
             logger.error(f"获取配置信息失败: {str(e)}", extra={
@@ -701,7 +729,23 @@ def register_routes(app):
                             safe_config[key][sub_key] = sub_value
                 else:
                     safe_config[key] = value
-            
+
+            # 确保 auto_login 配置项存在
+            if 'auto_login' not in safe_config:
+                safe_config['auto_login'] = {
+                    'enabled': False,
+                    'username': '',
+                    'password': '***'
+                }
+            else:
+                # 确保 auto_login 的所有子字段都存在
+                if 'enabled' not in safe_config['auto_login']:
+                    safe_config['auto_login']['enabled'] = False
+                if 'username' not in safe_config['auto_login']:
+                    safe_config['auto_login']['username'] = ''
+                if 'password' not in safe_config['auto_login']:
+                    safe_config['auto_login']['password'] = '***'
+
             # 渲染配置页面
             return render_template("config.html", config=safe_config)
         except Exception as e:
@@ -722,7 +766,7 @@ def register_routes(app):
                 return jsonify({'error': '无效的JSON数据'}), 400
 
             # 验证配置数据
-            required_sections = ['llbot', 'yunzai', 'http_check', 'auto_restart', 'web_auth']
+            required_sections = ['llbot', 'yunzai', 'http_check', 'auto_restart', 'auto_login', 'web_auth']
             for section in required_sections:
                 if section not in data:
                     return jsonify({'error': f'缺少配置项: {section}'}), 400
@@ -738,6 +782,29 @@ def register_routes(app):
                 return jsonify({'error': '自动重启启用状态必须是布尔值'}), 400
             if not isinstance(data['auto_restart'].get('respect_manual_stop'), bool):
                 return jsonify({'error': '尊重手动停止状态必须是布尔值'}), 400
+            if not isinstance(data['auto_login'].get('enabled'), bool):
+                return jsonify({'error': '自动登录启用状态必须是布尔值'}), 400
+            # 如果启用了自动登录，验证用户名和密码
+            if data['auto_login'].get('enabled'):
+                if not data['auto_login'].get('username'):
+                    # 用户名为空时使用当前用户
+                    data['auto_login']['username'] = ''
+                # 如果密码字段不存在，保持现有密码不变
+                if 'password' not in data['auto_login']:
+                    # 从现有配置中保留密码
+                    existing_password = current_config.get('auto_login', {}).get('password')
+                    if existing_password:
+                        data['auto_login']['password'] = existing_password
+                    else:
+                        # 如果现有配置中也没有密码，设置为 None 以保持现有配置不变
+                        data['auto_login']['password'] = None
+                # 如果密码字段存在但为空字符串，说明用户想要清除密码（这不应该发生，但为了健壮性）
+                elif data['auto_login'].get('password') == '':
+                    return jsonify({'error': '启用自动登录时密码不能为空'}), 400
+                # 如果密码字段存在且为 '***'，保持现有密码不变
+                elif data['auto_login'].get('password') == '***':
+                    existing_password = current_config.get('auto_login', {}).get('password')
+                    data['auto_login']['password'] = existing_password if existing_password else None
             # Only validate username if it's provided in the request (meaning user wants to change it)
             # If username is not provided, we'll keep the existing username
             if 'username' in data['web_auth'] and not data['web_auth'].get('username'):
@@ -792,10 +859,10 @@ def register_routes(app):
                     saved_config = yaml.safe_load(file)
                     if saved_config is None:
                         saved_config = {}
-                    
+
                     # 验证关键配置项是否正确保存
                     verification_errors = []
-                    for section in ['llbot', 'yunzai', 'http_check', 'auto_restart', 'web_auth']:
+                    for section in ['llbot', 'yunzai', 'http_check', 'auto_restart', 'auto_login', 'web_auth']:
                         if section in current_config:
                             if section not in saved_config:
                                 verification_errors.append(f"配置节 {section} 未保存到文件")
@@ -804,14 +871,13 @@ def register_routes(app):
                                     if key not in saved_config[section]:
                                         verification_errors.append(f"配置项 {section}.{key} 未保存到文件")
                                     # 跳过密码字段的直接比较，因为保存的是加密后的密码
-                                    elif section == 'web_auth' and key == 'password':
+                                    elif (section == 'web_auth' and key == 'password') or (section == 'auto_login' and key == 'password'):
                                         # 验证保存的密码是否为加密格式
                                         from password_crypt import PasswordCrypt
                                         if not PasswordCrypt.is_encrypted(saved_config[section][key]):
                                             verification_errors.append(f"配置项 {section}.{key} 保存的密码格式错误，应为加密格式")
                                     elif saved_config[section][key] != value:
-                                        verification_errors.append(f"配置项 {section}.{key} 值不一致: 期望 {value}, 实际 {saved_config[section][key]}")
-                    
+                                        verification_errors.append(f"配置项 {section}.{key} 值不一致: 期望 {value}, 实际 {saved_config[section][key]}")                    
                     if verification_errors:
                         error_msg = "配置验证失败: " + "; ".join(verification_errors)
                         logger.error(error_msg, extra={
