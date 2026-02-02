@@ -79,7 +79,20 @@ def interactive_config():
     config['web_auth']['username'] = username_input if username_input else "admin"
     password_input = input("Web管理界面密码 (默认: Admin123，留空使用默认值): ").strip()
     config['web_auth']['password'] = password_input if password_input else "Admin123"
-    
+
+    print("\n【自动登录配置】")
+    config['auto_login'] = {}
+    auto_login_input = input("启用系统自动登录? (Y/N，默认: N): ").strip()
+    config['auto_login']['enabled'] = auto_login_input.lower() in ['y', 'yes']
+    if config['auto_login']['enabled']:
+        auto_login_username = input("自动登录用户名 (留空使用当前用户): ").strip()
+        config['auto_login']['username'] = auto_login_username if auto_login_username else ""
+        auto_login_password = input("自动登录密码: ").strip()
+        config['auto_login']['password'] = auto_login_password if auto_login_password else ""
+    else:
+        config['auto_login']['username'] = ""
+        config['auto_login']['password'] = ""
+
     logger.info("交互式配置完成", extra={'event_type': 'config_complete'})
     print("\n配置完成！")
     return config
@@ -104,6 +117,23 @@ def save_config(config, config_path):
                             config_to_save[key][sub_key] = PasswordCrypt.encrypt(sub_value)
                         except Exception as e:
                             logger.warning(f"密码加密失败，使用明文保存: {str(e)}", extra={
+                                'event_type': 'warning',
+                                'config_path': config_path,
+                                'error': str(e)
+                            })
+                            config_to_save[key][sub_key] = sub_value
+                    else:
+                        # 已经是加密的，直接使用
+                        config_to_save[key][sub_key] = sub_value
+                # 对 auto_login 中的密码进行加密
+                elif key == 'auto_login' and sub_key == 'password' and sub_value:
+                    # 检查密码是否已加密
+                    if not PasswordCrypt.is_encrypted(sub_value):
+                        # 加密密码
+                        try:
+                            config_to_save[key][sub_key] = PasswordCrypt.encrypt(sub_value)
+                        except Exception as e:
+                            logger.warning(f"自动登录密码加密失败，使用明文保存: {str(e)}", extra={
                                 'event_type': 'warning',
                                 'config_path': config_path,
                                 'error': str(e)
@@ -185,6 +215,11 @@ def validate_config(config, config_path="config.yaml"):
         'auto_restart': {
             'enabled': bool,
             'respect_manual_stop': bool
+        },
+        'auto_login': {
+            'enabled': bool,
+            'username': str,
+            'password': str
         },
         'web_auth': {
             'username': str,
@@ -390,6 +425,21 @@ def load_config():
                         'error': str(e)
                     })
 
+        # 解密 auto_login 中的密码（如果已加密）
+        if 'auto_login' in config and 'password' in config['auto_login'] and config['auto_login']['password']:
+            encrypted_password = config['auto_login']['password']
+            if PasswordCrypt.is_encrypted(encrypted_password):
+                try:
+                    decrypted_password = PasswordCrypt.decrypt(encrypted_password)
+                    config['auto_login']['password'] = decrypted_password
+                    logger.debug("自动登录密码已解密", extra={'event_type': 'config_load', 'config_path': config_path})
+                except Exception as e:
+                    logger.warning(f"自动登录密码解密失败，使用原始值: {str(e)}", extra={
+                        'event_type': 'warning',
+                        'config_path': config_path,
+                        'error': str(e)
+                    })
+
         logger.info(f"配置文件已加载: {config_path}", extra={'event_type': 'config_load', 'config_path': config_path})
         return config
 
@@ -417,6 +467,11 @@ def save_default_config(config_path):
         "auto_restart": {
             "enabled": True,
             "respect_manual_stop": True
+        },
+        "auto_login": {
+            "enabled": False,
+            "username": "",
+            "password": ""
         },
         "web_auth": {
             "username": "admin",

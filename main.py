@@ -15,21 +15,22 @@ from logger import get_logger
 from event_manager import get_event_manager
 from config import load_config
 from process_manager import (
-    is_admin, 
-    run_as_admin, 
+    is_admin,
+    run_as_admin,
     check_admin,
     get_global_manual_stop_status
 )
 from monitor import check_and_manage_llbot_async, check_and_manage_yunzai_async, async_http_check
 from web_server import (
-    flask_available, 
-    init_web_server, 
+    flask_available,
+    init_web_server,
     start_web_server,
     current_config,
     current_status,
     manual_stop_status
 )
 from update_checker import check_and_update_resources
+from auto_login import apply_config_from_dict, get_auto_login_status
 
 # 初始化日志记录器
 logger = get_logger()
@@ -292,6 +293,23 @@ def main():
         # 初始化Web服务器
         if flask_available:
             init_web_server(config, current_status)
+
+        # 应用自动登录配置（如果配置中启用了）
+        if config.get('auto_login', {}).get('enabled', False):
+            logger.info("应用自动登录配置", extra={'event_type': 'auto_login_apply'})
+            try:
+                auto_login_result = apply_config_from_dict(config)
+                if auto_login_result['success']:
+                    print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 自动登录配置已应用")
+                else:
+                    print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 自动登录配置应用失败: {auto_login_result['message']}")
+            except Exception as e:
+                logger.warning(f"自动登录配置应用失败: {str(e)}", extra={'event_type': 'warning', 'error': str(e)})
+        else:
+            # 检查当前自动登录状态
+            auto_login_status = get_auto_login_status()
+            if auto_login_status['enabled']:
+                logger.info("自动登录当前已启用（非本程序配置）", extra={'event_type': 'auto_login_detected'})
 
         # 检查管理员权限，如果未以管理员权限运行则请求权限
         is_admin_now = is_admin()
