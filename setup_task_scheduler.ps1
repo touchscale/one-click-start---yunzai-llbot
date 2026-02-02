@@ -89,8 +89,8 @@ $action = New-ScheduledTaskAction `
     -Argument "`"$MainScript`"" `
     -WorkingDirectory $ScriptDir
 
-# Create trigger - run when user logs in (since main.py is a continuous monitor)
-$trigger = New-ScheduledTaskTrigger -AtLogOn -User $currentUser
+# Create trigger - run every minute (periodic monitoring)
+$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 1)
 
 $principal = New-ScheduledTaskPrincipal `
     -UserId $currentUser `
@@ -133,10 +133,12 @@ Write-Host "  Run As: $currentUser" -ForegroundColor White
 Write-Host "  Trigger: Every 1 minute" -ForegroundColor White
 Write-Host "  Run Mode: Interactive with visible Python window" -ForegroundColor White
 Write-Host "  Script Path: $MainScript" -ForegroundColor White
+Write-Host "  Behavior: Checks every minute, auto-restarts on failure" -ForegroundColor White
 Write-Host ""
 Write-Host "Setup Complete!" -ForegroundColor Green
-Write-Host "  - Monitor will run periodically" -ForegroundColor White
+Write-Host "  - Monitor will check every minute" -ForegroundColor White
 Write-Host "  - Python window will be visible" -ForegroundColor White
+Write-Host "  - Auto-restarts if process exits (up to 999 times)" -ForegroundColor White
 Write-Host ""
 
 # Verify task creation
