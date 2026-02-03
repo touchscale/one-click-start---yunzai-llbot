@@ -692,6 +692,22 @@ def register_routes(app):
                 if 'password' not in safe_config['auto_login']:
                     safe_config['auto_login']['password'] = '***'
 
+            # 确保 git_update 配置项存在
+            if 'git_update' not in safe_config:
+                safe_config['git_update'] = {
+                    'enabled': False,
+                    'check_interval': 3600,
+                    'auto_pull': False
+                }
+            else:
+                # 确保 git_update 的所有子字段都存在
+                if 'enabled' not in safe_config['git_update']:
+                    safe_config['git_update']['enabled'] = False
+                if 'check_interval' not in safe_config['git_update']:
+                    safe_config['git_update']['check_interval'] = 3600
+                if 'auto_pull' not in safe_config['git_update']:
+                    safe_config['git_update']['auto_pull'] = False
+
             return jsonify(safe_config)
         except Exception as e:
             logger.error(f"获取配置信息失败: {str(e)}", extra={
@@ -746,6 +762,22 @@ def register_routes(app):
                 if 'password' not in safe_config['auto_login']:
                     safe_config['auto_login']['password'] = '***'
 
+            # 确保 git_update 配置项存在
+            if 'git_update' not in safe_config:
+                safe_config['git_update'] = {
+                    'enabled': False,
+                    'check_interval': 3600,
+                    'auto_pull': False
+                }
+            else:
+                # 确保 git_update 的所有子字段都存在
+                if 'enabled' not in safe_config['git_update']:
+                    safe_config['git_update']['enabled'] = False
+                if 'check_interval' not in safe_config['git_update']:
+                    safe_config['git_update']['check_interval'] = 3600
+                if 'auto_pull' not in safe_config['git_update']:
+                    safe_config['git_update']['auto_pull'] = False
+
             # 渲染配置页面
             return render_template("config.html", config=safe_config)
         except Exception as e:
@@ -766,7 +798,7 @@ def register_routes(app):
                 return jsonify({'error': '无效的JSON数据'}), 400
 
             # 验证配置数据
-            required_sections = ['llbot', 'yunzai', 'http_check', 'auto_restart', 'auto_login', 'web_auth']
+            required_sections = ['llbot', 'yunzai', 'http_check', 'auto_restart', 'auto_login', 'web_auth', 'git_update']
             for section in required_sections:
                 if section not in data:
                     return jsonify({'error': f'缺少配置项: {section}'}), 400
@@ -809,6 +841,14 @@ def register_routes(app):
             # If username is not provided, we'll keep the existing username
             if 'username' in data['web_auth'] and not data['web_auth'].get('username'):
                 return jsonify({'error': '用户名不能为空'}), 400
+            
+            # 验证 git_update 配置
+            if not isinstance(data['git_update'].get('enabled'), bool):
+                return jsonify({'error': 'Git更新检测启用状态必须是布尔值'}), 400
+            if not isinstance(data['git_update'].get('check_interval'), (int, float)) or data['git_update']['check_interval'] < 1:
+                return jsonify({'error': 'Git更新检测间隔必须大于0'}), 400
+            if not isinstance(data['git_update'].get('auto_pull'), bool):
+                return jsonify({'error': 'Git自动拉取启用状态必须是布尔值'}), 400
             
             # First, save the original password in case we need to restore it
             original_password = current_config.get('web_auth', {}).get('password', 'admin123')
@@ -862,7 +902,7 @@ def register_routes(app):
 
                     # 验证关键配置项是否正确保存
                     verification_errors = []
-                    for section in ['llbot', 'yunzai', 'http_check', 'auto_restart', 'auto_login', 'web_auth']:
+                    for section in ['llbot', 'yunzai', 'http_check', 'auto_restart', 'auto_login', 'web_auth', 'git_update']:
                         if section in current_config:
                             if section not in saved_config:
                                 verification_errors.append(f"配置节 {section} 未保存到文件")

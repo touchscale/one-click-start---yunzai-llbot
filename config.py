@@ -93,6 +93,27 @@ def interactive_config():
         config['auto_login']['username'] = ""
         config['auto_login']['password'] = ""
 
+    print("\n【Git仓库更新检测配置】")
+    config['git_update'] = {}
+    git_update_input = input("启用Git仓库自动更新检测? (Y/N，默认: N): ").strip()
+    config['git_update']['enabled'] = git_update_input.lower() in ['y', 'yes']
+    if config['git_update']['enabled']:
+        check_interval_input = input("检测间隔秒数 (默认: 3600，即1小时): ").strip()
+        if check_interval_input:
+            try:
+                config['git_update']['check_interval'] = int(check_interval_input)
+            except ValueError:
+                print("无效输入，使用默认值")
+                config['git_update']['check_interval'] = 3600
+        else:
+            config['git_update']['check_interval'] = 3600
+        
+        auto_pull_input = input("检测到更新后自动拉取并重启? (Y/N，默认: N): ").strip()
+        config['git_update']['auto_pull'] = auto_pull_input.lower() in ['y', 'yes']
+    else:
+        config['git_update']['check_interval'] = 3600
+        config['git_update']['auto_pull'] = False
+
     logger.info("交互式配置完成", extra={'event_type': 'config_complete'})
     print("\n配置完成！")
     return config
@@ -252,6 +273,11 @@ def validate_config(config, config_path="config.yaml"):
         'web_auth': {
             'username': str,
             'password': str
+        },
+        'git_update': {
+            'enabled': bool,
+            'check_interval': int,
+            'auto_pull': bool
         }
     }
     
@@ -278,11 +304,18 @@ def validate_config(config, config_path="config.yaml"):
                         config[section][field] = DEFAULT_CONFIG['yunzai'].get('wait_seconds', 5)
                     elif section == 'http_check' and field == 'timeout':
                         config[section][field] = DEFAULT_CONFIG['http_check'].get('timeout', 5)
+                    elif section == 'git_update' and field == 'check_interval':
+                        config[section][field] = DEFAULT_CONFIG['git_update'].get('check_interval', 3600)
                 elif expected_type == bool:
                     if section == 'auto_restart' and field == 'enabled':
                         config[section][field] = DEFAULT_CONFIG['auto_restart'].get('enabled', True)
                     elif section == 'auto_restart' and field == 'respect_manual_stop':
                         config[section][field] = DEFAULT_CONFIG['auto_restart'].get('respect_manual_stop', True)
+                    elif section == 'git_update':
+                        if field == 'enabled':
+                            config[section][field] = DEFAULT_CONFIG['git_update'].get('enabled', False)
+                        elif field == 'auto_pull':
+                            config[section][field] = DEFAULT_CONFIG['git_update'].get('auto_pull', False)
         else:
             # 检查该部分中的字段
             for field, expected_type in fields.items():
@@ -517,6 +550,11 @@ def save_default_config(config_path):
         "web_auth": {
             "username": "admin",
             "password": "Admin123"
+        },
+        "git_update": {
+            "enabled": False,
+            "check_interval": 3600,
+            "auto_pull": False
         }
     }
     with open(config_path, 'w', encoding='utf-8') as file:
