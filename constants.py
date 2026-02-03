@@ -21,6 +21,12 @@ DEFAULT_CONFIG = {
     "web_auth": {
         "username": "admin",
         "password": "Admin123"
+    },
+    "git_update": {
+        "enabled": False,
+        "check_interval": 900,
+        "auto_pull": False,
+        "auto_restart": False
     }
 }
 
