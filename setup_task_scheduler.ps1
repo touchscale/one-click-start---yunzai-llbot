@@ -97,7 +97,7 @@ $principal = New-ScheduledTaskPrincipal `
     -LogonType Interactive `
     -RunLevel Highest
 
-# Create task settings with retry
+# Create task settings with retry and prevent parallel execution
 $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
@@ -105,7 +105,8 @@ $settings = New-ScheduledTaskSettingsSet `
     -DontStopOnIdleEnd `
     -ExecutionTimeLimit "0" `
     -RestartInterval (New-TimeSpan -Minutes 1) `
-    -RestartCount 999
+    -RestartCount 999 `
+    -MultipleInstances IgnoreNew
 
 Write-Host "Registering task..." -ForegroundColor Cyan
 
