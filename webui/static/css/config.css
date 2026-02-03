@@ -122,6 +122,103 @@ body.dark-theme .form-check-input {
     color: #e0e0e0 !important;
 }
 
+/* 暗色主题下的 Alert 样式优化 */
+body.dark-theme .alert-success {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, rgba(20, 184, 166, 0.25) 100%) !important;
+    border: 2px solid rgba(34, 197, 94, 0.5) !important;
+    color: #4ade80 !important;
+    box-shadow: 0 8px 32px rgba(34, 197, 94, 0.3), 0 0 20px rgba(34, 197, 94, 0.15) !important;
+    backdrop-filter: blur(10px) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+body.dark-theme .alert-success::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    animation: alert-shine 3s ease-in-out infinite;
+}
+
+body.dark-theme .alert-info {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(168, 85, 247, 0.25) 100%) !important;
+    border: 2px solid rgba(99, 102, 241, 0.5) !important;
+    color: #818cf8 !important;
+    box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3), 0 0 20px rgba(99, 102, 241, 0.15) !important;
+    backdrop-filter: blur(10px) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+body.dark-theme .alert-info::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    animation: alert-shine 3s ease-in-out infinite;
+}
+
+body.dark-theme .alert-warning {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.25) 0%, rgba(251, 146, 60, 0.25) 100%) !important;
+    border: 2px solid rgba(251, 191, 36, 0.5) !important;
+    color: #fbbf24 !important;
+    box-shadow: 0 8px 32px rgba(251, 191, 36, 0.3), 0 0 20px rgba(251, 191, 36, 0.15) !important;
+    backdrop-filter: blur(10px) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+body.dark-theme .alert-warning::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    animation: alert-shine 3s ease-in-out infinite;
+}
+
+body.dark-theme .alert-danger {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(244, 63, 94, 0.25) 100%) !important;
+    border: 2px solid rgba(239, 68, 68, 0.5) !important;
+    color: #f87171 !important;
+    box-shadow: 0 8px 32px rgba(239, 68, 68, 0.3), 0 0 20px rgba(239, 68, 68, 0.15) !important;
+    backdrop-filter: blur(10px) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+body.dark-theme .alert-danger::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    animation: alert-shine 3s ease-in-out infinite;
+}
+
+@keyframes alert-shine {
+    0% {
+        left: -100%;
+    }
+    50% {
+        left: 100%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
 /* 彻底修复 tab-content 和 tab-pane 的白色背景问题 */
 body.dark-theme .tab-content {
     background-color: rgba(30, 30, 40, 0.95) !important;
@@ -244,4 +341,355 @@ body.dark-theme .config-value {
 
 body.dark-theme .config-description {
     color: #a0a0a0 !important;
+}
+
+/* 更新模态框优化样式 */
+#updateModal .modal-content {
+    border-radius: 16px;
+    border: none;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+}
+
+#updateModal .modal-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    padding: 20px 24px;
+}
+
+#updateModal .modal-header .modal-title {
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 1.25rem;
+}
+
+#updateModal .modal-header .modal-title i {
+    color: #ffffff;
+}
+
+#updateModal .modal-header .btn-close {
+    color: #ffffff;
+    opacity: 0.8;
+    transition: all 0.3s ease;
+}
+
+#updateModal .modal-header .btn-close:hover {
+    opacity: 1;
+    transform: rotate(90deg);
+}
+
+#updateModal .modal-body {
+    padding: 24px;
+    background: #ffffff;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+#updateModal .modal-footer {
+    background: #f8f9fa;
+    border-top: 1px solid #e9ecef;
+    padding: 16px 24px;
+    gap: 8px;
+}
+
+#updateModal .btn {
+    border-radius: 8px;
+    font-weight: 500;
+    padding: 10px 20px;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#updateModal .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+#updateModal .btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+}
+
+#updateModal .btn-primary:hover {
+    background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
+}
+
+#updateModal .btn-success {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    border: none;
+}
+
+#updateModal .btn-success:hover {
+    background: linear-gradient(135deg, #0e8076 0%, #2fd66b 100%);
+}
+
+#updateModal .btn-warning {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    border: none;
+}
+
+#updateModal .btn-warning:hover {
+    background: linear-gradient(135deg, #de81e8 0%, #e34a5f 100%);
+}
+
+#updateModal .btn-outline-secondary {
+    border: 2px solid #e9ecef;
+    color: #6c757d;
+}
+
+#updateModal .btn-outline-secondary:hover {
+    border-color: #adb5bd;
+    background: #f8f9fa;
+}
+
+/* 进度条优化 */
+#updateModal .progress {
+    height: 16px;
+    border-radius: 8px;
+    background: #d1d5db;
+    border: 2px solid #9ca3af;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    position: relative;
+}
+
+#updateModal .progress-bar {
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #667eea 100%);
+    background-size: 200% 100%;
+    border-radius: 6px;
+    box-shadow: 0 0 10px rgba(102, 126, 234, 0.6);
+    animation: progress-shine 2s ease-in-out infinite;
+}
+
+@keyframes progress-shine {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* 添加进度条条纹效果 */
+#updateModal .progress-bar-striped {
+    background-image: linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.3) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgba(255, 255, 255, 0.3) 50%,
+        rgba(255, 255, 255, 0.3) 75%,
+        transparent 75%,
+        transparent
+    );
+    background-size: 1rem 1rem;
+}
+
+/* 进度条动画时的条纹效果 */
+#updateModal .progress-bar-striped.progress-bar-animated {
+    animation: progress-shine 2s linear infinite, progress-stripes 1s linear infinite;
+}
+
+@keyframes progress-stripes {
+    0% {
+        background-position: 0 0;
+    }
+    100% {
+        background-position: 1rem 0;
+    }
+}
+
+/* 进度条光晕效果 */
+#updateModal .progress::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.3),
+        transparent
+    );
+    animation: progress-glow 2s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes progress-glow {
+    0% {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+/* 深色主题进度条 */
+body.dark-theme #updateModal .progress {
+    background: #374151;
+    border-color: #4b5563;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+body.dark-theme #updateModal .progress-bar {
+    background: linear-gradient(90deg, #818cf8 0%, #c084fc 50%, #818cf8 100%);
+    box-shadow: 0 0 15px rgba(129, 140, 248, 0.8);
+}
+
+/* 结果展示优化 */
+#updateModal #updateResult .alert {
+    border-radius: 12px;
+    border: none;
+    padding: 20px;
+    margin: 0;
+}
+
+#updateModal #updateResult .alert strong {
+    font-weight: 600;
+    font-size: 1.05rem;
+}
+
+#updateModal #updateResult .alert ul {
+    margin: 12px 0;
+    padding-left: 20px;
+}
+
+#updateModal #updateResult .alert li {
+    margin: 8px 0;
+    line-height: 1.6;
+}
+
+#updateModal #updateResult .alert code {
+    background: rgba(0, 0, 0, 0.05);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+#updateModal #updateResult .alert-success {
+    background: linear-gradient(135deg, rgba(17, 153, 142, 0.1) 0%, rgba(56, 239, 125, 0.1) 100%);
+    color: #11998e;
+}
+
+#updateModal #updateResult .alert-info {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+    color: #667eea;
+}
+
+#updateModal #updateResult .alert-warning {
+    background: linear-gradient(135deg, rgba(240, 147, 251, 0.1) 0%, rgba(245, 87, 108, 0.1) 100%);
+    color: #f5576c;
+}
+
+#updateModal #updateResult .alert-danger {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%);
+    color: #dc2626;
+}
+
+/* 深色主题适配 */
+body.dark-theme #updateModal .modal-content {
+    background: #2d2d3a !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+body.dark-theme #updateModal .modal-body {
+    background: #252535 !important;
+}
+
+body.dark-theme #updateModal .modal-footer {
+    background: #1f1f2e !important;
+    border-top-color: #3d3d4d !important;
+}
+
+body.dark-theme #updateModal .progress {
+    background: #3d3d4d !important;
+}
+
+body.dark-theme #updateModal #updateResult .alert code {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: #a0d0ff;
+}
+
+/* Git更新信息样式 */
+.git-update-info {
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 12px 0;
+    font-size: 14px;
+}
+
+body.dark-theme .git-update-info {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.git-update-info div {
+    margin: 8px 0;
+    padding: 4px 0;
+    border-bottom: 1px dashed rgba(0, 0, 0, 0.1);
+}
+
+body.dark-theme .git-update-info div {
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.git-update-info div:last-child {
+    border-bottom: none;
+}
+
+.git-update-info strong {
+    color: #495057;
+    font-weight: 600;
+}
+
+body.dark-theme .git-update-info strong {
+    color: #e0e0e0;
+}
+
+.git-update-info code {
+    background: rgba(0, 0, 0, 0.05);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    color: #667eea;
+}
+
+body.dark-theme .git-update-info code {
+    background: rgba(255, 255, 255, 0.1);
+    color: #a0d0ff;
+}
+
+/* 按钮组布局优化 */
+.modal-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.modal-footer .btn {
+    flex: 1 1 auto;
+    min-width: 140px;
+}
+
+/* 响应式优化 */
+@media (max-width: 576px) {
+    #updateModal .modal-footer {
+        flex-direction: column;
+    }
+
+    #updateModal .modal-footer .btn {
+        width: 100%;
+    }
 }

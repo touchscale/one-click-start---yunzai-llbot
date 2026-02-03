@@ -1015,6 +1015,71 @@ def register_routes(app):
             })
             return jsonify({'error': f'强制更新失败: {str(e)}'}), 500
 
+    @app.route('/api/check-git-updates', methods=['POST'])
+    @requires_auth
+    def api_check_git_updates():
+        """手动检查Git仓库更新"""
+        try:
+            from git_update_checker import check_repo_update, get_current_branch, get_local_commit, get_remote_commit
+            import os
+            
+            # 获取当前脚本所在目录
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            
+            # 检查当前目录是否是Git仓库
+            from git_update_checker import is_git_repo
+            if not is_git_repo(current_dir):
+                return jsonify({
+                    'message': '当前目录不是Git仓库',
+                    'has_update': False,
+                    'branch': None,
+                    'local_commit': None,
+                    'remote_commit': None
+                }), 400
+            
+            # 获取当前分支
+            branch = get_current_branch(current_dir)
+            
+            # 获取本地和远程提交哈希
+            local_commit = get_local_commit(current_dir)
+            remote_commit = get_remote_commit(current_dir)
+            
+            # 检查是否有更新
+            has_update, status_output = check_repo_update(current_dir)
+            
+            logger.info(f"手动检查Git仓库更新: {current_dir}, 分支: {branch}, 有更新: {has_update}", extra={
+                'event_type': EventType.INFO,
+                'repo_path': current_dir,
+                'branch': branch,
+                'has_update': has_update
+            })
+            
+            if has_update:
+                return jsonify({
+                    'message': f'Git仓库检测到更新！当前分支: {branch}',
+                    'has_update': True,
+                    'branch': branch,
+                    'local_commit': local_commit,
+                    'remote_commit': remote_commit,
+                    'status_output': status_output
+                })
+            else:
+                return jsonify({
+                    'message': f'Git仓库已是最新版本。当前分支: {branch}',
+                    'has_update': False,
+                    'branch': branch,
+                    'local_commit': local_commit,
+                    'remote_commit': remote_commit,
+                    'status_output': status_output
+                })
+        except Exception as e:
+            logger.error(f"检查Git仓库更新失败: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'error': str(e),
+                'action': 'manual_git_update_check_failure'
+            })
+            return jsonify({'error': f'检查Git仓库更新失败: {str(e)}'}), 500
+
 def start_web_server(host='127.0.0.1', port=5000):
     """启动Web服务器"""
     from logger import get_logger

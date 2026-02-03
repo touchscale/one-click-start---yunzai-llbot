@@ -105,6 +105,12 @@ async function saveConfig() {
         web_auth: {
             username: document.getElementById('auth-username').value,
             password: document.getElementById('auth-password').value
+        },
+        git_update: {
+            enabled: document.getElementById('git-update-enabled').checked,
+            check_interval: parseInt(document.getElementById('git-update-check-interval').value),
+            auto_pull: document.getElementById('git-update-auto-pull').checked,
+            auto_restart: document.getElementById('git-update-auto-restart').checked
         }
     };
 
@@ -363,6 +369,72 @@ async function forceUpdates() {
     }
 }
 
+// 检查Git仓库更新
+async function checkGitUpdates() {
+    const updateProgress = document.getElementById('updateProgress');
+    const updateResult = document.getElementById('updateResult');
+    const updateResultAlert = document.getElementById('updateResultAlert');
+    const updateAlert = document.getElementById('updateAlert');
+
+    // 显示进度，隐藏结果
+    updateProgress.style.display = 'block';
+    updateResult.style.display = 'none';
+    updateAlert.innerHTML = '';
+
+    try {
+        const response = await fetch('/api/check-git-updates', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        const data = await response.json();
+
+        // 隐藏进度，显示结果
+        updateProgress.style.display = 'none';
+        updateResult.style.display = 'block';
+
+        if (response.ok) {
+            const result = data;
+            let message = `<strong>${data.message}</strong><br><br>`;
+            message += `<div style="font-size: 14px; margin: 10px 0;">`;
+            message += `<div><strong>当前分支:</strong> <code>${result.branch || '未知'}</code></div>`;
+            if (result.local_commit) {
+                message += `<div><strong>本地提交:</strong> <code>${result.local_commit.substring(0, 8)}</code></div>`;
+            }
+            if (result.remote_commit) {
+                message += `<div><strong>远程提交:</strong> <code>${result.remote_commit.substring(0, 8)}</code></div>`;
+            }
+            message += `</div>`;
+
+            if (result.has_update) {
+                message += `<div class="alert alert-warning mt-3" style="margin: 10px 0 0 0;">`;
+                message += `<i class="fas fa-exclamation-triangle me-2"></i>`;
+                message += `<strong>发现新版本！</strong><br>`;
+                message += `建议执行 <code>git pull</code> 拉取最新代码。`;
+                message += `</div>`;
+            } else {
+                message += `<div class="alert alert-success mt-3" style="margin: 10px 0 0 0;">`;
+                message += `<i class="fas fa-check-circle me-2"></i>`;
+                message += `<strong>当前已是最新版本</strong>`;
+                message += `</div>`;
+            }
+
+            updateResultAlert.className = result.has_update ? 'alert alert-warning' : 'alert alert-success';
+            updateResultAlert.innerHTML = message;
+        } else {
+            updateResultAlert.className = 'alert alert-danger';
+            updateResultAlert.innerHTML = `<strong>检查Git仓库更新失败</strong><br>${data.error}`;
+        }
+    } catch (error) {
+        updateProgress.style.display = 'none';
+        updateResult.style.display = 'block';
+        updateResultAlert.className = 'alert alert-danger';
+        updateResultAlert.innerHTML = `<strong>检查Git仓库更新失败</strong><br>${error}`;
+    }
+}
+
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
     // 初始化密码字段显示为 ***
@@ -395,6 +467,10 @@ document.addEventListener('DOMContentLoaded', function() {
         // 监听隐藏事件
         modal.addEventListener('hidden.bs.modal', function() {
             modal.setAttribute('aria-hidden', 'true');
+            // 移除焦点，避免焦点保留在具有 aria-hidden 属性的元素上
+            if (document.activeElement && modal.contains(document.activeElement)) {
+                document.activeElement.blur();
+            }
         });
     });
 });
