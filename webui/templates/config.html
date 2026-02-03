@@ -439,7 +439,7 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="updateModalLabel"><i class="fas fa-download me-2 text-primary"></i>前端资源更新</h5>
+                    <h5 class="modal-title" id="updateModalLabel"><i class="fas fa-sync-alt me-2 text-primary"></i>系统更新检查</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -456,8 +456,15 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">关闭</button>
-                    <button type="button" class="btn btn-primary" onclick="checkUpdates()">检查更新</button>
-                    <button type="button" class="btn btn-warning" onclick="forceUpdates()">强制更新</button>
+                    <button type="button" class="btn btn-success" onclick="checkGitUpdates()">
+                        <i class="fas fa-code-branch me-2"></i>检查Git仓库更新
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="checkUpdates()">
+                        <i class="fas fa-download me-2"></i>检查前端资源更新
+                    </button>
+                    <button type="button" class="btn btn-warning" onclick="forceUpdates()">
+                        <i class="fas fa-redo me-2"></i>强制更新前端资源
+                    </button>
                 </div>
             </div>
         </div>
