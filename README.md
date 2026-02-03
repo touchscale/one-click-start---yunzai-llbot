@@ -23,6 +23,8 @@
 - ✅ 支持通过Web手动停止后不自动重启，通过配置控制自动重启行为
 - ✅ 前端资源自动更新检查，支持检查和强制更新Bootstrap等前端库
 - ✅ Windows自动登录配置，支持启用或禁用系统自动登录功能
+- ✅ Git仓库自动更新检测，定期检测监控脚本仓库是否有更新
+- ✅ 支持自动拉取更新并重启监控脚本，或提示用户手动重启
 
 ---
 
@@ -125,6 +127,16 @@ pip install -r requirements.txt
 </details>
 
 <details>
+<summary><b>🔄 git_update_checker.py - Git仓库更新检测模块</b></summary>
+
+- 定期检测当前监控脚本仓库是否有更新
+- 支持自动拉取最新代码
+- 支持自动重启监控脚本或提示用户手动重启
+- 可配置检测间隔时间和自动重启行为
+
+</details>
+
+<details>
 <summary><b>🔐 password_crypt.py - 密码加密存储模块</b></summary>
 
 - 使用 Fernet 对称加密算法对密码进行加密存储
@@ -192,6 +204,7 @@ main.py (主入口)
   │   └── pid_manager.py (PID文件管理)
   ├── monitor.py (监控逻辑)
   ├── update_checker.py (前端资源更新)
+  ├── git_update_checker.py (Git更新检测)
   ├── password_crypt.py (密码加密)
   ├── password_validator.py (密码验证)
   ├── auto_login.py (自动登录配置)
@@ -288,6 +301,16 @@ python main.py
 
 </details>
 
+<details>
+<summary><b>🔄 Git仓库更新检测配置</b></summary>
+
+- 启用Git仓库自动更新检测：是否启用定期检测仓库更新（默认false）
+- 检测间隔秒数：检测仓库更新的间隔时间（默认900秒，即15分钟）
+- 检测到更新后自动拉取：检测到更新后是否自动执行git pull（默认false）
+- 拉取成功后自动重启：拉取成功后是否自动重启监控脚本（默认false）
+
+</details>
+
 ### 2. 后续运行
 
 配置完成后，后续运行时脚本会自动加载配置文件并开始监控：
@@ -342,6 +365,13 @@ auto_login:
   enabled: false            # 是否启用Windows自动登录
   username: ""              # 自动登录用户名
   password: ""              # 自动登录密码（会在保存时自动加密）
+
+# Git仓库更新检测设置
+git_update:
+  enabled: false            # 是否启用Git仓库自动更新检测
+  check_interval: 900       # 检测间隔秒数（默认900秒，即15分钟）
+  auto_pull: false          # 检测到更新后是否自动拉取
+  auto_restart: false       # 拉取成功后是否自动重启监控脚本
 ```
 
 ### 4. 管理员权限
@@ -487,6 +517,16 @@ Web管理界面提供以下功能：
 </details>
 
 <details>
+<summary><b>12. Git仓库更新检测（git_update_checker.py）</b></summary>
+
+- 定期检测当前脚本仓库是否有更新
+- 支持自动拉取最新代码
+- 支持自动重启监控脚本或提示用户手动重启
+- 通过配置控制检测间隔和自动重启行为
+
+</details>
+
+<details>
 <summary><b>13. 日志管理（logger.py）</b></summary>
 
 - 结构化日志记录
@@ -512,6 +552,9 @@ Web管理界面提供以下功能：
 - 密码验证模块强制要求密码长度8-64位，必须包含大小写字母和数字
 - Windows自动登录功能需要管理员权限，启用时会修改系统注册表
 - 启用自动登录后，系统会在重启时自动使用配置的用户名和密码登录
+- Git更新检测功能会监控当前脚本仓库
+- 启用auto_pull后，检测到更新会自动执行git pull
+- 启用auto_restart后，拉取成功会自动重启监控脚本，否则会提示用户手动重启
 
 ---
 
