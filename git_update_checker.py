@@ -209,6 +209,7 @@ def git_update_monitor(config, restart_callback=None):
     
     check_interval = config.get('git_update', {}).get('check_interval', 3600)
     auto_pull = config.get('git_update', {}).get('auto_pull', False)
+    auto_restart = config.get('git_update', {}).get('auto_restart', False)
     
     # 获取当前脚本所在目录
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -226,7 +227,8 @@ def git_update_monitor(config, restart_callback=None):
         'event_type': EventType.INFO,
         'repo_path': current_dir,
         'check_interval': check_interval,
-        'auto_pull': auto_pull
+        'auto_pull': auto_pull,
+        'auto_restart': auto_restart
     })
     
     while git_update_running:
@@ -261,8 +263,8 @@ def git_update_monitor(config, restart_callback=None):
                             'status': 'pulled'
                         })
                         
-                        # 自动重启监控脚本
-                        if auto_pull:
+                        # 根据配置决定是否自动重启
+                        if auto_restart:
                             try:
                                 logger.info("开始自动重启监控脚本...", extra={
                                     'event_type': EventType.INFO,
@@ -279,8 +281,16 @@ def git_update_monitor(config, restart_callback=None):
                                     'event_type': EventType.ERROR,
                                     'error': str(e)
                                 })
+                        else:
+                            # 提示用户手动重启
+                            logger.info("当前脚本已更新，请手动重启程序以应用最新版本", extra={
+                                'event_type': EventType.INFO,
+                                'action': 'manual_restart_required'
+                            })
+                            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 监控脚本已更新，请手动重启程序以应用最新版本")
+                        
                         # 如果提供了重启回调，则调用它（兼容旧逻辑）
-                        elif restart_callback:
+                        if restart_callback:
                             try:
                                 logger.info("触发监控脚本重启...", extra={
                                     'event_type': EventType.INFO,

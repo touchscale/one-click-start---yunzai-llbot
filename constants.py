@@ -25,7 +25,8 @@ DEFAULT_CONFIG = {
     "git_update": {
         "enabled": False,
         "check_interval": 3600,
-        "auto_pull": False
+        "auto_pull": False,
+        "auto_restart": False
     }
 }
 

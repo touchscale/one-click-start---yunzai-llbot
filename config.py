@@ -110,9 +110,16 @@ def interactive_config():
         
         auto_pull_input = input("检测到更新后自动拉取并重启? (Y/N，默认: N): ").strip()
         config['git_update']['auto_pull'] = auto_pull_input.lower() in ['y', 'yes']
+        
+        if config['git_update']['auto_pull']:
+            auto_restart_input = input("拉取成功后自动重启监控脚本? (Y/N，默认: N): ").strip()
+            config['git_update']['auto_restart'] = auto_restart_input.lower() in ['y', 'yes']
+        else:
+            config['git_update']['auto_restart'] = False
     else:
         config['git_update']['check_interval'] = 3600
         config['git_update']['auto_pull'] = False
+        config['git_update']['auto_restart'] = False
 
     logger.info("交互式配置完成", extra={'event_type': 'config_complete'})
     print("\n配置完成！")
@@ -277,7 +284,8 @@ def validate_config(config, config_path="config.yaml"):
         'git_update': {
             'enabled': bool,
             'check_interval': int,
-            'auto_pull': bool
+            'auto_pull': bool,
+            'auto_restart': bool
         }
     }
     
@@ -316,6 +324,8 @@ def validate_config(config, config_path="config.yaml"):
                             config[section][field] = DEFAULT_CONFIG['git_update'].get('enabled', False)
                         elif field == 'auto_pull':
                             config[section][field] = DEFAULT_CONFIG['git_update'].get('auto_pull', False)
+                        elif field == 'auto_restart':
+                            config[section][field] = DEFAULT_CONFIG['git_update'].get('auto_restart', False)
         else:
             # 检查该部分中的字段
             for field, expected_type in fields.items():
@@ -554,7 +564,8 @@ def save_default_config(config_path):
         "git_update": {
             "enabled": False,
             "check_interval": 3600,
-            "auto_pull": False
+            "auto_pull": False,
+            "auto_restart": False
         }
     }
     with open(config_path, 'w', encoding='utf-8') as file:

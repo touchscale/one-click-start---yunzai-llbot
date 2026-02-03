@@ -697,7 +697,8 @@ def register_routes(app):
                 safe_config['git_update'] = {
                     'enabled': False,
                     'check_interval': 3600,
-                    'auto_pull': False
+                    'auto_pull': False,
+                    'auto_restart': False
                 }
             else:
                 # 确保 git_update 的所有子字段都存在
@@ -707,6 +708,8 @@ def register_routes(app):
                     safe_config['git_update']['check_interval'] = 3600
                 if 'auto_pull' not in safe_config['git_update']:
                     safe_config['git_update']['auto_pull'] = False
+                if 'auto_restart' not in safe_config['git_update']:
+                    safe_config['git_update']['auto_restart'] = False
 
             return jsonify(safe_config)
         except Exception as e:
@@ -767,7 +770,8 @@ def register_routes(app):
                 safe_config['git_update'] = {
                     'enabled': False,
                     'check_interval': 3600,
-                    'auto_pull': False
+                    'auto_pull': False,
+                    'auto_restart': False
                 }
             else:
                 # 确保 git_update 的所有子字段都存在
@@ -777,6 +781,8 @@ def register_routes(app):
                     safe_config['git_update']['check_interval'] = 3600
                 if 'auto_pull' not in safe_config['git_update']:
                     safe_config['git_update']['auto_pull'] = False
+                if 'auto_restart' not in safe_config['git_update']:
+                    safe_config['git_update']['auto_restart'] = False
 
             # 渲染配置页面
             return render_template("config.html", config=safe_config)
@@ -849,6 +855,8 @@ def register_routes(app):
                 return jsonify({'error': 'Git更新检测间隔必须大于0'}), 400
             if not isinstance(data['git_update'].get('auto_pull'), bool):
                 return jsonify({'error': 'Git自动拉取启用状态必须是布尔值'}), 400
+            if not isinstance(data['git_update'].get('auto_restart'), bool):
+                return jsonify({'error': 'Git自动重启启用状态必须是布尔值'}), 400
             
             # First, save the original password in case we need to restore it
             original_password = current_config.get('web_auth', {}).get('password', 'admin123')
