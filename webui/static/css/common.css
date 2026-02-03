@@ -511,3 +511,94 @@ body.dark-theme .btn-back:hover {
 body.dark-theme .btn-info:hover {
     box-shadow: 0 5px 15px rgba(23, 162, 184, 0.4) !important;
 }
+
+/* 配置保存成功提醒优化 */
+.alert-success.config-saved {
+    background: linear-gradient(135deg, rgba(40, 167, 69, 0.15) 0%, rgba(32, 201, 151, 0.15) 100%);
+    border: 2px solid #28a745;
+    border-radius: 12px;
+    padding: 16px 20px;
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.2);
+    animation: config-saved-slide 0.5s ease-out;
+}
+
+.alert-success.config-saved::before {
+    content: '✓';
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    background: linear-gradient(135deg, #28a745, #20c997);
+    border-radius: 50%;
+    color: white;
+    text-align: center;
+    line-height: 24px;
+    margin-right: 12px;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+@keyframes config-saved-slide {
+    0% {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* 深色主题下的配置保存提醒 */
+body.dark-theme .alert-success.config-saved {
+    background: linear-gradient(135deg, rgba(81, 207, 102, 0.2) 0%, rgba(32, 201, 151, 0.2) 100%);
+    border-color: #51cf66;
+    box-shadow: 0 4px 15px rgba(81, 207, 102, 0.3);
+    color: #51cf66 !important;
+}
+
+body.dark-theme .alert-success.config-saved::before {
+    background: linear-gradient(135deg, #51cf66, #20c997);
+}
+
+/* 热重载提示高亮 */
+.alert-success.config-saved .highlight {
+    background: rgba(40, 167, 69, 0.2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    color: #28a745;
+}
+
+body.dark-theme .alert-success.config-saved .highlight {
+    background: rgba(81, 207, 102, 0.3);
+    color: #51cf66;
+}
+
+/* 提醒图标动画 */
+.alert-success.config-saved i {
+    animation: checkmark-pulse 1s ease-in-out;
+}
+
+@keyframes checkmark-pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.2);
+    }
+}
+
+/* 配置保存提醒的关闭按钮样式 */
+.alert-success.config-saved .btn-close {
+    opacity: 0.7;
+    transition: all 0.3s ease;
+}
+
+.alert-success.config-saved .btn-close:hover {
+    opacity: 1;
+    transform: rotate(90deg);
+}
+
+body.dark-theme .alert-success.config-saved .btn-close {
+    color: #51cf66 !important;
+}
