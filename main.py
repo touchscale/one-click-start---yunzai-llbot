@@ -31,6 +31,7 @@ from web_server import (
 )
 from update_checker import check_and_update_resources
 from auto_login import apply_config_from_dict, get_auto_login_status
+from git_update_checker import start_git_update_monitor, stop_git_update_monitor
 
 # 初始化日志记录器
 logger = get_logger()
@@ -219,6 +220,10 @@ def run_monitor_loop(config):
     yunzai_thread.start()
     status_thread.start()
     
+    # 启动Git更新检测线程（如果启用）
+    if config.get('git_update', {}).get('enabled', False):
+        start_git_update_monitor(config)
+    
     # 启动Web服务器（如果Flask可用）
     if flask_available:
         web_thread = threading.Thread(target=start_web_server, daemon=True)
@@ -237,6 +242,9 @@ def run_monitor_loop(config):
     
     # 设置停止标志
     run_monitor_loop.running = False
+    
+    # 停止Git更新检测线程
+    stop_git_update_monitor()
 
 def main():
     """主函数"""
