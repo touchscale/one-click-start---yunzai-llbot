@@ -467,6 +467,10 @@ document.addEventListener('DOMContentLoaded', function() {
         // 监听隐藏事件
         modal.addEventListener('hidden.bs.modal', function() {
             modal.setAttribute('aria-hidden', 'true');
+            // 移除焦点，避免焦点保留在具有 aria-hidden 属性的元素上
+            if (document.activeElement && modal.contains(document.activeElement)) {
+                document.activeElement.blur();
+            }
         });
     });
 });
