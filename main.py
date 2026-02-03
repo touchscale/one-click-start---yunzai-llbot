@@ -221,33 +221,8 @@ def run_monitor_loop(config):
     status_thread.start()
     
     # 启动Git更新检测线程（如果启用）
-    def git_update_restart_callback(repo_name):
-        """Git更新拉取后的重启回调函数"""
-        try:
-            if repo_name == 'monitor':
-                logger.info("准备重启监控脚本...", extra={
-                    'event_type': EventType.PROCESS_STOP,
-                    'reason': 'git_update'
-                })
-                # 停止监控循环
-                run_monitor_loop.running = False
-                # 停止Git更新检测
-                stop_git_update_monitor()
-                # 提示用户手动重启
-                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 监控脚本已更新，请手动重启程序以应用最新版本")
-                logger.info("监控脚本已更新，请手动重启程序以应用最新版本", extra={
-                    'event_type': EventType.INFO,
-                    'action': 'restart_required'
-                })
-        except Exception as e:
-            logger.error(f"重启监控脚本失败: {str(e)}", extra={
-                'event_type': EventType.ERROR,
-                'repo': repo_name,
-                'error': str(e)
-            })
-    
     if config.get('git_update', {}).get('enabled', False):
-        start_git_update_monitor(config, git_update_restart_callback)
+        start_git_update_monitor(config)
     
     # 启动Web服务器（如果Flask可用）
     if flask_available:

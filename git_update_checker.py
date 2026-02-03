@@ -3,6 +3,7 @@
 Git仓库更新检测模块 - 自动检测仓库更新并拉取
 """
 import os
+import sys
 import subprocess
 import threading
 from datetime import datetime
@@ -260,8 +261,26 @@ def git_update_monitor(config, restart_callback=None):
                             'status': 'pulled'
                         })
                         
-                        # 如果提供了重启回调，则调用它
-                        if restart_callback:
+                        # 自动重启监控脚本
+                        if auto_pull:
+                            try:
+                                logger.info("开始自动重启监控脚本...", extra={
+                                    'event_type': EventType.INFO,
+                                    'action': 'auto_restart'
+                                })
+                                # 等待一小段时间确保文件系统同步
+                                time.sleep(2)
+                                # 调用重启函数
+                                restart_monitor_script()
+                                # 停止监控循环，让当前进程退出
+                                git_update_running = False
+                            except Exception as e:
+                                logger.error(f"自动重启监控脚本失败: {str(e)}", extra={
+                                    'event_type': EventType.ERROR,
+                                    'error': str(e)
+                                })
+                        # 如果提供了重启回调，则调用它（兼容旧逻辑）
+                        elif restart_callback:
                             try:
                                 logger.info("触发监控脚本重启...", extra={
                                     'event_type': EventType.INFO,
@@ -352,6 +371,40 @@ def stop_git_update_monitor():
 def is_git_update_monitor_running():
     """检查Git更新检测线程是否正在运行"""
     return git_update_running
+
+def restart_monitor_script():
+    """重启监控脚本"""
+    try:
+        import sys
+        import os
+        
+        # 获取当前脚本路径
+        script_path = os.path.abspath(sys.argv[0])
+        
+        logger.info(f"准备重启监控脚本: {script_path}", extra={
+            'event_type': EventType.INFO,
+            'action': 'restart_script',
+            'script_path': script_path
+        })
+        
+        # 使用Python重新启动脚本
+        subprocess.Popen(
+            [sys.executable, script_path] + sys.argv[1:],
+            creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0
+        )
+        
+        logger.info("监控脚本重启命令已发送", extra={
+            'event_type': EventType.INFO,
+            'action': 'restart_script_sent'
+        })
+        
+        return True
+    except Exception as e:
+        logger.error(f"重启监控脚本失败: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'error': str(e)
+        })
+        return False
 
 if __name__ == "__main__":
     import time
