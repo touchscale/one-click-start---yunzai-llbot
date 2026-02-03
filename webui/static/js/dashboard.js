@@ -735,6 +735,26 @@ function initLogFilters() {
 
 // 页面加载完成后启动自动更新
 document.addEventListener('DOMContentLoaded', function() {
+    // 立即显示加载状态
+    const loadingStates = [
+        { id: 'llbot-status', text: '加载中...', class: 'status-unknown' },
+        { id: 'yunzai-status', text: '加载中...', class: 'status-unknown' },
+        { id: 'redis-status', text: '加载中...', class: 'status-unknown' },
+        { id: 'http-status', text: '加载中...', class: 'status-unknown' }
+    ];
+
+    loadingStates.forEach(item => {
+        const statusEl = document.getElementById(item.id);
+        if (statusEl) {
+            statusEl.textContent = item.text;
+            const indicatorEl = document.getElementById(item.id + '-indicator');
+            if (indicatorEl) {
+                indicatorEl.className = item.class;
+            }
+        }
+    });
+
+    // 立即获取真实状态
     updateStatus();
     updateLogs();
 
@@ -765,6 +785,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         modal.addEventListener('hidden.bs.modal', function() {
             modal.setAttribute('aria-hidden', 'true');
+            // 移除焦点，避免焦点保留在具有 aria-hidden 属性的元素上
+            if (document.activeElement && modal.contains(document.activeElement)) {
+                document.activeElement.blur();
+            }
         });
     });
 });
