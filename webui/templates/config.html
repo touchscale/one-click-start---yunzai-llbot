@@ -141,6 +141,11 @@
                             <i class="fas fa-lock config-icon"></i>Web 认证配置
                         </button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="gitupdate-tab" data-bs-toggle="tab" data-bs-target="#gitupdate" type="button" role="tab">
+                            <i class="fas fa-code-branch config-icon"></i>Git 更新配置
+                        </button>
+                    </li>
                 </ul>
 
                 <!-- 配置内容 -->
@@ -304,6 +309,51 @@
                                         </button>
                                     </div>
                                     <small class="text-muted">显示 *** 表示保持当前密码不变</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Git 更新配置 -->
+                    <div class="tab-pane fade" id="gitupdate" role="tabpanel">
+                        <div class="card config-card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0"><i class="fas fa-code-branch config-icon text-success"></i>Git 更新配置</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="git-update-enabled" {% if config.git_update.enabled %}checked{% endif %}>
+                                    <label class="form-check-label" for="git-update-enabled">
+                                        启用 Git 自动更新检测
+                                    </label>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="git-update-check-interval" class="form-label">检测间隔（秒）</label>
+                                    <input type="number" class="form-control" id="git-update-check-interval" value="{{ config.git_update.check_interval }}" min="60" max="86400">
+                                    <small class="text-muted">默认 900 秒（15分钟），最小 60 秒，最大 86400 秒（24小时）</small>
+                                </div>
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="git-update-auto-pull" {% if config.git_update.auto_pull %}checked{% endif %}>
+                                    <label class="form-check-label" for="git-update-auto-pull">
+                                        自动拉取更新
+                                    </label>
+                                    <small class="text-muted d-block">启用后，检测到更新时自动执行 git pull</small>
+                                </div>
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="git-update-auto-restart" {% if config.git_update.auto_restart %}checked{% endif %}>
+                                    <label class="form-check-label" for="git-update-auto-restart">
+                                        自动重启服务
+                                    </label>
+                                    <small class="text-muted d-block">启用后，拉取更新后自动重启所有服务</small>
+                                </div>
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <strong>注意事项：</strong>
+                                    <ul class="mb-0 mt-2">
+                                        <li>自动拉取和自动重启功能请在测试环境验证后再在生产环境使用</li>
+                                        <li>确保 Git 凭据已正确配置，否则自动拉取将失败</li>
+                                        <li>建议先启用自动更新检测，手动确认后再执行拉取和重启操作</li>
+                                    </ul>
                                 </div>
                             </div>
                         </div>

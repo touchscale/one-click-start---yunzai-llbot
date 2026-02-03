@@ -105,6 +105,12 @@ async function saveConfig() {
         web_auth: {
             username: document.getElementById('auth-username').value,
             password: document.getElementById('auth-password').value
+        },
+        git_update: {
+            enabled: document.getElementById('git-update-enabled').checked,
+            check_interval: parseInt(document.getElementById('git-update-check-interval').value),
+            auto_pull: document.getElementById('git-update-auto-pull').checked,
+            auto_restart: document.getElementById('git-update-auto-restart').checked
         }
     };
 
