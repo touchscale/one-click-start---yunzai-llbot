@@ -50,7 +50,12 @@ def run_monitor_loop(config):
                 
                 # 一次性获取所有进程信息，避免多次调用 psutil.process_iter() 导致的迭代器冲突
                 try:
-                    all_procs = list(psutil.process_iter(['name', 'pid']))
+                    all_procs = []
+                    for proc in psutil.process_iter(['name', 'pid']):
+                        try:
+                            all_procs.append(proc)
+                        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                            continue
                 except Exception as e:
                     logger.warning(f"获取进程列表失败: {str(e)}", extra={
                         'event_type': EventType.WARNING,
