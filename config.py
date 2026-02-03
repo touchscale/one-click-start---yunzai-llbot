@@ -98,15 +98,15 @@ def interactive_config():
     git_update_input = input("启用Git仓库自动更新检测? (Y/N，默认: N): ").strip()
     config['git_update']['enabled'] = git_update_input.lower() in ['y', 'yes']
     if config['git_update']['enabled']:
-        check_interval_input = input("检测间隔秒数 (默认: 3600，即1小时): ").strip()
+        check_interval_input = input("检测间隔秒数 (默认: 900，即15分钟): ").strip()
         if check_interval_input:
             try:
                 config['git_update']['check_interval'] = int(check_interval_input)
             except ValueError:
                 print("无效输入，使用默认值")
-                config['git_update']['check_interval'] = 3600
+                config['git_update']['check_interval'] = 900
         else:
-            config['git_update']['check_interval'] = 3600
+            config['git_update']['check_interval'] = 900
         
         auto_pull_input = input("检测到更新后自动拉取并重启? (Y/N，默认: N): ").strip()
         config['git_update']['auto_pull'] = auto_pull_input.lower() in ['y', 'yes']
@@ -117,7 +117,7 @@ def interactive_config():
         else:
             config['git_update']['auto_restart'] = False
     else:
-        config['git_update']['check_interval'] = 3600
+        config['git_update']['check_interval'] = 900
         config['git_update']['auto_pull'] = False
         config['git_update']['auto_restart'] = False
 
@@ -563,7 +563,7 @@ def save_default_config(config_path):
         },
         "git_update": {
             "enabled": False,
-            "check_interval": 3600,
+            "check_interval": 900,
             "auto_pull": False,
             "auto_restart": False
         }

@@ -207,7 +207,7 @@ def git_update_monitor(config, restart_callback=None):
         logger.info("Git更新检测未启用", extra={'event_type': EventType.INFO, 'enabled': False})
         return
     
-    check_interval = config.get('git_update', {}).get('check_interval', 3600)
+    check_interval = config.get('git_update', {}).get('check_interval', 900)
     auto_pull = config.get('git_update', {}).get('auto_pull', False)
     auto_restart = config.get('git_update', {}).get('auto_restart', False)
     
