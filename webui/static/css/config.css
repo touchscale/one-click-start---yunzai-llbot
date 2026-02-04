@@ -31,6 +31,122 @@
     text-align: center;
 }
 
+/* 配置下拉菜单样式 */
+.config-dropdown-container {
+    position: relative;
+}
+
+.config-dropdown {
+    width: 100%;
+    max-width: 400px;
+}
+
+.config-dropdown-btn {
+    width: 100%;
+    padding: 12px 20px;
+    font-size: 16px;
+    font-weight: 500;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.config-dropdown-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.config-dropdown-btn:focus {
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+}
+
+.config-dropdown-btn::after {
+    margin-left: 10px;
+    transition: transform 0.3s ease;
+}
+
+.config-dropdown-btn.show::after {
+    transform: rotate(180deg);
+}
+
+.config-dropdown-menu {
+    width: 100%;
+    border-radius: 10px;
+    border: none;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    padding: 8px 0;
+    margin-top: 8px;
+    background: #ffffff;
+}
+
+.config-dropdown-item {
+    padding: 12px 20px;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    transition: all 0.2s ease;
+    border-radius: 8px;
+    margin: 4px 12px;
+}
+
+.config-dropdown-item:hover {
+    background: rgba(102, 126, 234, 0.1);
+    transform: translateX(5px);
+}
+
+.config-dropdown-item.active {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+    color: #667eea;
+    font-weight: 500;
+}
+
+.config-dropdown-item .config-icon {
+    margin-right: 12px;
+    width: 24px;
+    text-align: center;
+    font-size: 20px;
+}
+
+/* 配置页面容器 */
+.config-content-container {
+    position: relative;
+    min-height: 400px;
+}
+
+.config-page {
+    display: none;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.4s ease;
+}
+
+.config-page.show {
+    display: block;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.config-page.active {
+    animation: fadeInUp 0.4s ease;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 /* 主题样式 */
 body.light-theme {
     background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
@@ -617,6 +733,25 @@ body.dark-theme #updateModal .progress {
 
 body.dark-theme #updateModal #updateResult .alert code {
     background: rgba(255, 255, 255, 0.1) !important;
+    color: #a0d0ff;
+}
+
+/* 配置下拉菜单深色主题 */
+body.dark-theme .config-dropdown-menu {
+    background: #2d2d3a !important;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+body.dark-theme .config-dropdown-item {
+    color: #e0e0e0;
+}
+
+body.dark-theme .config-dropdown-item:hover {
+    background: rgba(102, 126, 234, 0.2);
+}
+
+body.dark-theme .config-dropdown-item.active {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.25) 0%, rgba(118, 75, 162, 0.25) 100%);
     color: #a0d0ff;
 }
 

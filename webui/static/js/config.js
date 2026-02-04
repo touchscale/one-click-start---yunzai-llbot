@@ -482,11 +482,37 @@ document.addEventListener('DOMContentLoaded', function() {
         autoLoginPasswordField.value = '***';
     }
 
-    // 激活第一个选项卡
-    const firstTab = document.querySelector('#configTabs .nav-link');
-    if (firstTab) {
-        firstTab.click();
-    }
+    // 配置下拉菜单切换逻辑
+    const configDropdownItems = document.querySelectorAll('.config-dropdown-item');
+    const configPages = document.querySelectorAll('.config-page');
+    const currentConfigLabel = document.getElementById('currentConfigLabel');
+
+    configDropdownItems.forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+
+            const configType = this.getAttribute('data-config');
+            const configName = this.querySelector('span').textContent;
+
+            // 更新下拉按钮显示的配置名称
+            currentConfigLabel.textContent = configName;
+
+            // 移除所有激活状态
+            configDropdownItems.forEach(i => i.classList.remove('active'));
+            configPages.forEach(p => {
+                p.classList.remove('show', 'active');
+            });
+
+            // 激活当前选中的配置项
+            this.classList.add('active');
+
+            // 显示对应的配置页面
+            const targetPage = document.getElementById('config-' + configType);
+            if (targetPage) {
+                targetPage.classList.add('show', 'active');
+            }
+        });
+    });
 
     // 修复模态框的 aria-hidden 警告
     const modals = document.querySelectorAll('.modal');

@@ -104,59 +104,76 @@
                     <span id="configAlertMessage"></span>
                 </div>
 
-                <!-- 配置选项卡 -->
-                <ul class="nav nav-tabs mb-4" id="configTabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="llbot-tab" data-bs-toggle="tab" data-bs-target="#llbot" type="button" role="tab">
-                            <i class="fas fa-robot config-icon"></i>llbot 配置
+                <!-- 配置下拉菜单 -->
+                <div class="config-dropdown-container mb-4">
+                    <div class="dropdown config-dropdown">
+                        <button class="btn btn-primary dropdown-toggle config-dropdown-btn" type="button" id="configDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-cog me-2"></i>
+                            <span id="currentConfigLabel">llbot 配置</span>
                         </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="yunzai-tab" data-bs-toggle="tab" data-bs-target="#yunzai" type="button" role="tab">
-                            <i class="fas fa-server config-icon"></i>Yunzai 配置
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="redis-tab" data-bs-toggle="tab" data-bs-target="#redis" type="button" role="tab">
-                            <i class="fas fa-database config-icon"></i>Redis 配置
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="http-tab" data-bs-toggle="tab" data-bs-target="#http" type="button" role="tab">
-                            <i class="fas fa-plug config-icon"></i>HTTP 检查配置
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="auto-tab" data-bs-toggle="tab" data-bs-target="#auto" type="button" role="tab">
-                            <i class="fas fa-redo config-icon"></i>自动重启配置
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="autologin-tab" data-bs-toggle="tab" data-bs-target="#autologin" type="button" role="tab">
-                            <i class="fas fa-user-check config-icon"></i>自动登录配置
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="auth-tab" data-bs-toggle="tab" data-bs-target="#auth" type="button" role="tab">
-                            <i class="fas fa-lock config-icon"></i>Web 认证配置
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="gitupdate-tab" data-bs-toggle="tab" data-bs-target="#gitupdate" type="button" role="tab">
-                            <i class="fas fa-code-branch config-icon"></i>Git 更新配置
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="onebot-tab" data-bs-toggle="tab" data-bs-target="#onebot" type="button" role="tab">
-                            <i class="fas fa-robot config-icon"></i>OneBot 配置
-                        </button>
-                    </li>
-                </ul>
+                        <ul class="dropdown-menu config-dropdown-menu" aria-labelledby="configDropdownBtn">
+                            <li>
+                                <a class="dropdown-item config-dropdown-item active" href="#" data-config="llbot">
+                                    <i class="fas fa-robot config-icon text-primary"></i>
+                                    <span>llbot 配置</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item config-dropdown-item" href="#" data-config="yunzai">
+                                    <i class="fas fa-server config-icon text-success"></i>
+                                    <span>Yunzai 配置</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item config-dropdown-item" href="#" data-config="redis">
+                                    <i class="fas fa-database config-icon text-info"></i>
+                                    <span>Redis 配置</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item config-dropdown-item" href="#" data-config="http">
+                                    <i class="fas fa-plug config-icon text-warning"></i>
+                                    <span>HTTP 检查配置</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item config-dropdown-item" href="#" data-config="auto">
+                                    <i class="fas fa-redo config-icon text-secondary"></i>
+                                    <span>自动重启配置</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item config-dropdown-item" href="#" data-config="autologin">
+                                    <i class="fas fa-user-check config-icon text-primary"></i>
+                                    <span>自动登录配置</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item config-dropdown-item" href="#" data-config="auth">
+                                    <i class="fas fa-lock config-icon text-danger"></i>
+                                    <span>Web 认证配置</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item config-dropdown-item" href="#" data-config="gitupdate">
+                                    <i class="fas fa-code-branch config-icon text-success"></i>
+                                    <span>Git 更新配置</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item config-dropdown-item" href="#" data-config="onebot">
+                                    <i class="fas fa-robot config-icon text-primary"></i>
+                                    <span>OneBot 配置</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
 
                 <!-- 配置内容 -->
-                <div class="tab-content" id="configTabContent">
+                <div class="config-content-container">
                     <!-- llbot 配置 -->
-                    <div class="tab-pane fade show active" id="llbot" role="tabpanel">
+                    <div class="config-page show active" id="config-llbot">
                         <div class="card config-card">
                             <div class="card-header">
                                 <h5 class="card-title mb-0"><i class="fas fa-robot config-icon text-primary"></i>llbot 配置</h5>
@@ -179,7 +196,7 @@
                     </div>
 
                     <!-- Yunzai 配置 -->
-                    <div class="tab-pane fade" id="yunzai" role="tabpanel">
+                    <div class="config-page" id="config-yunzai">
                         <div class="card config-card">
                             <div class="card-header">
                                 <h5 class="card-title mb-0"><i class="fas fa-server config-icon text-success"></i>Yunzai 配置</h5>
@@ -202,7 +219,7 @@
                     </div>
 
                     <!-- Redis 配置 -->
-                    <div class="tab-pane fade" id="redis" role="tabpanel">
+                    <div class="config-page" id="config-redis">
                         <div class="card config-card">
                             <div class="card-header">
                                 <h5 class="card-title mb-0"><i class="fas fa-database config-icon text-info"></i>Redis 配置</h5>
@@ -217,7 +234,7 @@
                     </div>
 
                     <!-- HTTP 检查配置 -->
-                    <div class="tab-pane fade" id="http" role="tabpanel">
+                    <div class="config-page" id="config-http">
                         <div class="card config-card">
                             <div class="card-header">
                                 <h5 class="card-title mb-0"><i class="fas fa-plug config-icon text-warning"></i>HTTP 检查配置</h5>
@@ -236,7 +253,7 @@
                     </div>
 
                     <!-- 自动重启配置 -->
-                    <div class="tab-pane fade" id="auto" role="tabpanel">
+                    <div class="config-page" id="config-auto">
                         <div class="card config-card">
                             <div class="card-header">
                                 <h5 class="card-title mb-0"><i class="fas fa-redo config-icon text-secondary"></i>自动重启配置</h5>
@@ -259,7 +276,7 @@
                     </div>
 
                     <!-- 自动登录配置 -->
-                    <div class="tab-pane fade" id="autologin" role="tabpanel">
+                    <div class="config-page" id="config-autologin">
                         <div class="card config-card">
                             <div class="card-header">
                                 <h5 class="card-title mb-0"><i class="fas fa-user-check config-icon text-primary"></i>自动登录配置</h5>
@@ -295,7 +312,7 @@
                     </div>
 
                     <!-- Web 认证配置 -->
-                    <div class="tab-pane fade" id="auth" role="tabpanel">
+                    <div class="config-page" id="config-auth">
                         <div class="card config-card">
                             <div class="card-header">
                                 <h5 class="card-title mb-0"><i class="fas fa-lock config-icon text-danger"></i>Web 认证配置</h5>
@@ -320,7 +337,7 @@
                     </div>
 
                     <!-- Git 更新配置 -->
-                    <div class="tab-pane fade" id="gitupdate" role="tabpanel">
+                    <div class="config-page" id="config-gitupdate">
                         <div class="card config-card">
                             <div class="card-header">
                                 <h5 class="card-title mb-0"><i class="fas fa-code-branch config-icon text-success"></i>Git 更新配置</h5>
@@ -365,7 +382,7 @@
                     </div>
 
                     <!-- OneBot 配置 -->
-                    <div class="tab-pane fade" id="onebot" role="tabpanel">
+                    <div class="config-page" id="config-onebot">
                         <div class="card config-card">
                             <div class="card-header">
                                 <h5 class="card-title mb-0"><i class="fas fa-robot config-icon text-primary"></i>OneBot 配置</h5>
