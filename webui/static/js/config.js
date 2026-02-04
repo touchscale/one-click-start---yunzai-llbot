@@ -472,6 +472,7 @@ async function checkGitUpdates() {
 
 // 初始化配置页面的函数
 function initConfigPage() {
+    console.log('initConfigPage called');
     // 初始化密码字段显示为 ***
     const authPasswordField = document.getElementById('auth-password');
     const autoLoginPasswordField = document.getElementById('auto-login-password');
@@ -487,22 +488,42 @@ function initConfigPage() {
     const sidebarChildLinks = document.querySelectorAll('.sidebar-child-link');
     const configPages = document.querySelectorAll('.config-page');
 
-    // 默认展开配置管理子菜单并激活第一个配置项
+    console.log('sidebarChildLinks count:', sidebarChildLinks.length);
+    console.log('configPages count:', configPages.length);
+    console.log('sidebarChildLinks:', sidebarChildLinks);
+
+    // 默认展开配置管理子菜单
     if (sidebarItemHasChildren) {
         sidebarItemHasChildren.classList.add('expanded');
 
-        // 激活第一个配置项和对应的页面
-        const firstChildLink = sidebarItemHasChildren.querySelector('.sidebar-child-link');
-        const firstConfigPage = document.getElementById('config-llbot');
+        // 从 URL hash 中获取要激活的配置项
+        const hash = window.location.hash.replace('#', '');
+        const targetConfig = hash || sessionStorage.getItem('targetConfig');
+        sessionStorage.removeItem('targetConfig'); // 清除存储的配置项
 
-        if (firstChildLink && firstConfigPage) {
-            firstChildLink.classList.add('active');
-            firstConfigPage.classList.add('show', 'active');
+        // 激活配置项和对应的页面
+        let targetLink = null;
+        let targetPage = null;
+
+        if (targetConfig) {
+            // 如果有指定的配置项，激活它
+            targetLink = sidebarItemHasChildren.querySelector(`.sidebar-child-link[data-config="${targetConfig}"]`);
+            targetPage = document.getElementById('config-' + targetConfig);
+        }
+
+        // 如果没有指定配置项或找不到对应的配置项，激活第一个
+        if (!targetLink || !targetPage) {
+            targetLink = sidebarItemHasChildren.querySelector('.sidebar-child-link');
+            targetPage = document.getElementById('config-llbot');
+        }
+
+        if (targetLink && targetPage) {
+            showConfigPage(targetLink, targetPage);
         }
     }
 
-    // 点击配置管理主菜单切换展开/收起（只在配置页面处理）
-    if (sidebarItemHasChildren && document.body.getAttribute('data-page') === 'config') {
+    // 点击配置管理主菜单切换展开/收起
+    if (sidebarItemHasChildren) {
         const sidebarLink = sidebarItemHasChildren.querySelector('.sidebar-link');
         if (sidebarLink) {
             // 防止重复绑定事件
@@ -518,33 +539,86 @@ function initConfigPage() {
 
     // 点击子菜单项切换配置页面
     sidebarChildLinks.forEach(link => {
+        console.log('Processing sidebar child link:', link, 'href:', link.href, 'getAttribute:', link.getAttribute('href'));
         // 防止重复绑定事件
         if (!link.hasAttribute('data-initialized')) {
             link.addEventListener('click', function(e) {
+                console.log('Sidebar child link clicked:', this.getAttribute('data-config'));
                 e.preventDefault();
+                e.stopPropagation();
 
                 const configType = this.getAttribute('data-config');
-
-                // 移除所有子菜单的激活状态
-                sidebarChildLinks.forEach(l => l.classList.remove('active'));
-                configPages.forEach(p => {
-                    p.classList.remove('show', 'active');
-                });
-
-                // 激活当前选中的子菜单项
-                this.classList.add('active');
-
-                // 显示对应的配置页面
                 const targetPage = document.getElementById('config-' + configType);
+
+                console.log('Target page:', targetPage, 'configType:', configType);
+
                 if (targetPage) {
-                    targetPage.classList.add('show', 'active');
+                    // 先切换到目标页面
+                    showConfigPage(this, targetPage);
+                    // 然后使用 pushState 更新 URL hash (不会触发 hashchange 事件)
+                    const currentUrl = window.location.pathname;
+                    history.pushState({}, '', currentUrl + '#' + configType);
+                } else {
+                    console.error('Target page not found for config type:', configType);
                 }
             });
             link.setAttribute('data-initialized', 'true');
+            console.log('Event listener bound to link:', link);
+        } else {
+            console.log('Link already initialized:', link);
         }
     });
 
+    // 监听 hash 变化
+    if (!window.hasHashChangeListener) {
+        window.addEventListener('hashchange', function() {
+            // 如果是用户点击导致的 hash 变化,跳过处理
+            if (window.isHashChangeFromClick) {
+                return;
+            }
+
+            const hash = window.location.hash.replace('#', '');
+            if (hash) {
+                const targetLink = document.querySelector(`.sidebar-child-link[data-config="${hash}"]`);
+                const targetPage = document.getElementById('config-' + hash);
+                if (targetLink && targetPage) {
+                    showConfigPage(targetLink, targetPage);
+                }
+            }
+        });
+        window.hasHashChangeListener = true;
+    }
+
     // 修复模态框的 aria-hidden 警告
+    fixModalAriaWarnings();
+}
+
+// 显示指定的配置页面
+function showConfigPage(link, page) {
+    const isDarkTheme = document.body.classList.contains('dark-theme');
+
+    // 获取所有子菜单链接和配置页面
+    const allChildLinks = document.querySelectorAll('.sidebar-child-link');
+    const allConfigPages = document.querySelectorAll('.config-page');
+
+    // 移除所有子菜单的激活状态
+    allChildLinks.forEach(l => l.classList.remove('active'));
+    allConfigPages.forEach(p => {
+        p.classList.remove('show', 'active');
+        // 清除行内样式
+        p.style.opacity = '';
+        p.style.transform = '';
+    });
+
+    // 激活当前选中的子菜单项
+    link.classList.add('active');
+
+    // 显示对应的配置页面
+    page.classList.add('show', 'active');
+}
+
+// 修复模态框的 aria-hidden 警告
+function fixModalAriaWarnings() {
     const modals = document.querySelectorAll('.modal');
     modals.forEach(modal => {
         if (!modal.hasAttribute('data-modal-initialized')) {

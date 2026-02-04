@@ -13,9 +13,13 @@
             if (savedTheme === 'system') {
                 actualTheme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
             }
+            // 立即应用主题类到 body
+            document.body.classList.add(actualTheme + '-theme');
+            // 立即设置背景色
             if (actualTheme === 'dark') {
-                document.documentElement.classList.add('dark-theme');
-                document.documentElement.style.background = 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)';
+                document.body.style.background = 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)';
+            } else {
+                document.body.style.background = 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)';
             }
         } catch(e) {}
     })();

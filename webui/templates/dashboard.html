@@ -13,9 +13,13 @@
             if (savedTheme === 'system') {
                 actualTheme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
             }
+            // 立即应用主题类到 body
+            document.body.classList.add(actualTheme + '-theme');
+            // 立即设置背景色
             if (actualTheme === 'dark') {
-                document.documentElement.classList.add('dark-theme');
-                document.documentElement.style.background = 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)';
+                document.body.style.background = 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)';
+            } else {
+                document.body.style.background = 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)';
             }
         } catch(e) {}
     })();
@@ -50,39 +54,39 @@
                     <i class="fas fa-chevron-down sidebar-arrow"></i>
                 </a>
                 <div class="sidebar-children">
-                    <a href="/config#llbot" class="sidebar-child-link" data-config="llbot">
+                    <a href="/config" class="sidebar-child-link" data-config="llbot">
                         <i class="fas fa-robot config-icon text-primary"></i>
                         <span>llbot 配置</span>
                     </a>
-                    <a href="/config#yunzai" class="sidebar-child-link" data-config="yunzai">
+                    <a href="/config" class="sidebar-child-link" data-config="yunzai">
                         <i class="fas fa-server config-icon text-success"></i>
                         <span>Yunzai 配置</span>
                     </a>
-                    <a href="/config#redis" class="sidebar-child-link" data-config="redis">
+                    <a href="/config" class="sidebar-child-link" data-config="redis">
                         <i class="fas fa-database config-icon text-info"></i>
                         <span>Redis 配置</span>
                     </a>
-                    <a href="/config#http" class="sidebar-child-link" data-config="http">
+                    <a href="/config" class="sidebar-child-link" data-config="http">
                         <i class="fas fa-plug config-icon text-warning"></i>
                         <span>HTTP 检查配置</span>
                     </a>
-                    <a href="/config#auto" class="sidebar-child-link" data-config="auto">
+                    <a href="/config" class="sidebar-child-link" data-config="auto">
                         <i class="fas fa-redo config-icon text-secondary"></i>
                         <span>自动重启配置</span>
                     </a>
-                    <a href="/config#autologin" class="sidebar-child-link" data-config="autologin">
+                    <a href="/config" class="sidebar-child-link" data-config="autologin">
                         <i class="fas fa-user-check config-icon text-primary"></i>
                         <span>自动登录配置</span>
                     </a>
-                    <a href="/config#auth" class="sidebar-child-link" data-config="auth">
+                    <a href="/config" class="sidebar-child-link" data-config="auth">
                         <i class="fas fa-lock config-icon text-danger"></i>
                         <span>Web 认证配置</span>
                     </a>
-                    <a href="/config#gitupdate" class="sidebar-child-link" data-config="gitupdate">
+                    <a href="/config" class="sidebar-child-link" data-config="gitupdate">
                         <i class="fas fa-code-branch config-icon text-success"></i>
                         <span>Git 更新配置</span>
                     </a>
-                    <a href="/config#onebot" class="sidebar-child-link" data-config="onebot">
+                    <a href="/config" class="sidebar-child-link" data-config="onebot">
                         <i class="fas fa-robot config-icon text-primary"></i>
                         <span>OneBot 配置</span>
                     </a>
@@ -359,10 +363,11 @@
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
     <script>
-        // 处理侧边栏配置管理子菜单的展开/收起
+        // 处理侧边栏配置管理子菜单的展开/收起和点击跳转
         document.addEventListener('DOMContentLoaded', function() {
             const sidebarItemHasChildren = document.querySelector('.sidebar-item-has-children');
             const sidebarLink = sidebarItemHasChildren ? sidebarItemHasChildren.querySelector('.sidebar-link') : null;
+            const sidebarChildLinks = document.querySelectorAll('.sidebar-child-link');
 
             if (sidebarItemHasChildren && sidebarLink) {
                 // 防止重复绑定事件
@@ -377,6 +382,20 @@
                     sidebarLink.setAttribute('data-sidebar-initialized', 'true');
                 }
             }
+
+            // 处理子菜单项点击事件
+            sidebarChildLinks.forEach(link => {
+                if (!link.hasAttribute('data-child-initialized')) {
+                    link.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const configType = this.getAttribute('data-config');
+                        // 跳转到配置页面并存储要激活的配置项
+                        sessionStorage.setItem('targetConfig', configType);
+                        window.location.href = '/config';
+                    });
+                    link.setAttribute('data-child-initialized', 'true');
+                }
+            });
         });
     </script>
 </body>
