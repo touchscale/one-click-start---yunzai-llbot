@@ -27,6 +27,13 @@ DEFAULT_CONFIG = {
         "check_interval": 900,
         "auto_pull": False,
         "auto_restart": False
+    },
+    "onebot": {
+        "enabled": False,
+        "ws_url": "",
+        "access_token": "",
+        "reconnect_interval": 5,
+        "authorized_users": []
     }
 }
 

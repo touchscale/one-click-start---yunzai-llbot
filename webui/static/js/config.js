@@ -111,6 +111,16 @@ async function saveConfig() {
             check_interval: parseInt(document.getElementById('git-update-check-interval').value),
             auto_pull: document.getElementById('git-update-auto-pull').checked,
             auto_restart: document.getElementById('git-update-auto-restart').checked
+        },
+        onebot: {
+            enabled: document.getElementById('onebot-enabled').checked,
+            ws_url: document.getElementById('onebot-ws-url').value,
+            access_token: document.getElementById('onebot-access-token').value,
+            reconnect_interval: parseInt(document.getElementById('onebot-reconnect-interval').value),
+            authorized_users: document.getElementById('onebot-authorized-users').value
+                .split(',')
+                .map(id => id.trim())
+                .filter(id => id !== '')
         }
     };
 
@@ -158,6 +168,31 @@ async function saveConfig() {
     if (!configData.web_auth.username) {
         showAlert('用户名不能为空', 'warning');
         return;
+    }
+
+    // 验证 OneBot 配置
+    if (configData.onebot.enabled) {
+        if (!configData.onebot.ws_url) {
+            showAlert('启用 OneBot 时 WebSocket URL 不能为空', 'warning');
+            return;
+        }
+        if (!configData.onebot.ws_url.startsWith('ws://') && !configData.onebot.ws_url.startsWith('wss://')) {
+            showAlert('WebSocket URL 应以 ws:// 或 wss:// 开头', 'warning');
+            return;
+        }
+        if (configData.onebot.reconnect_interval < 1 || configData.onebot.reconnect_interval > 300) {
+            showAlert('OneBot 重连间隔必须在 1-300 秒之间', 'warning');
+            return;
+        }
+        // 验证授权用户列表格式
+        if (configData.onebot.authorized_users.length > 0) {
+            for (let userId of configData.onebot.authorized_users) {
+                if (!/^\d+$/.test(userId)) {
+                    showAlert('授权用户列表中包含无效的 QQ 号码: ' + userId, 'warning');
+                    return;
+                }
+            }
+        }
     }
     // 验证密码字段 - only check if the user provided a new password
     if (configData.web_auth.password && configData.web_auth.password !== '***') {

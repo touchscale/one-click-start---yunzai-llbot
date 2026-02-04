@@ -146,6 +146,11 @@
                             <i class="fas fa-code-branch config-icon"></i>Git 更新配置
                         </button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="onebot-tab" data-bs-toggle="tab" data-bs-target="#onebot" type="button" role="tab">
+                            <i class="fas fa-robot config-icon"></i>OneBot 配置
+                        </button>
+                    </li>
                 </ul>
 
                 <!-- 配置内容 -->
@@ -353,6 +358,54 @@
                                         <li>自动拉取和自动重启功能请在测试环境验证后再在生产环境使用</li>
                                         <li>确保 Git 凭据已正确配置，否则自动拉取将失败</li>
                                         <li>建议先启用自动更新检测，手动确认后再执行拉取和重启操作</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- OneBot 配置 -->
+                    <div class="tab-pane fade" id="onebot" role="tabpanel">
+                        <div class="card config-card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0"><i class="fas fa-robot config-icon text-primary"></i>OneBot 配置</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="onebot-enabled" {% if config.onebot.enabled %}checked{% endif %}>
+                                    <label class="form-check-label" for="onebot-enabled">
+                                        启用 OneBot 远程控制
+                                    </label>
+                                    <small class="text-muted d-block">启用后可通过 QQ 机器人远程管理监控脚本</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="onebot-ws-url" class="form-label">WebSocket URL</label>
+                                    <input type="text" class="form-control" id="onebot-ws-url" value="{{ config.onebot.ws_url }}" placeholder="例如: ws://localhost:3001">
+                                    <small class="text-muted">OneBot 反向 WebSocket 地址，通常格式为 ws://host:port</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="onebot-access-token" class="form-label">Access Token</label>
+                                    <input type="text" class="form-control" id="onebot-access-token" value="{{ config.onebot.access_token }}" placeholder="留空表示不使用 Token">
+                                    <small class="text-muted">访问令牌，如果 OneBot 配置了 Token 则需要填写</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="onebot-reconnect-interval" class="form-label">重连间隔（秒）</label>
+                                    <input type="number" class="form-control" id="onebot-reconnect-interval" value="{{ config.onebot.reconnect_interval }}" min="1" max="300">
+                                    <small class="text-muted">连接断开后自动重连的等待时间，默认 5 秒</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="onebot-authorized-users" class="form-label">授权用户列表</label>
+                                    <textarea class="form-control" id="onebot-authorized-users" rows="3" placeholder="例如: 123456,789012">{{ config.onebot.authorized_users|join(',') }}</textarea>
+                                    <small class="text-muted">允许使用 OneBot 指令的 QQ 号码列表，用逗号分隔。留空表示允许所有用户（不推荐）</small>
+                                </div>
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>使用说明：</strong>
+                                    <ul class="mb-0 mt-2">
+                                        <li>需要安装 websockets 库: pip install websockets</li>
+                                        <li>配置完成后重启监控脚本生效</li>
+                                        <li>通过 QQ 发送 /help 查看可用指令</li>
+                                        <li>支持指令: /status, /start, /stop, /restart, /check_update, /update</li>
                                     </ul>
                                 </div>
                             </div>
