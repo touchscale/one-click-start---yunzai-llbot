@@ -13,7 +13,7 @@ from process_manager import (
 )
 from web_server import current_status, current_config
 from update_checker import check_and_update_resources
-from git_update_checker import check_git_update, pull_git_update
+from git_update_checker import check_repo_update, pull_repo_update
 
 logger = get_logger()
 event_manager = get_event_manager()
@@ -345,11 +345,16 @@ def handle_check_update(message: Dict, args: List[str]) -> str:
         
         if update_type in ['all', 'git']:
             # 检查 Git 仓库更新
-            git_result = check_git_update()
-            if git_result['has_update']:
+            from git_update_checker import get_local_commit, get_remote_commit
+            import os
+            repo_path = os.path.dirname(os.path.abspath(__file__))
+            has_update, _ = check_repo_update(repo_path)
+            if has_update:
+                local_commit = get_local_commit(repo_path)
+                remote_commit = get_remote_commit(repo_path)
                 results.append(f"📦 Git 仓库有新版本可用")
-                results.append(f"   本地: {git_result.get('local_commit', '')[:8]}")
-                results.append(f"   远程: {git_result.get('remote_commit', '')[:8]}")
+                results.append(f"   本地: {local_commit[:8] if local_commit else 'N/A'}")
+                results.append(f"   远程: {remote_commit[:8] if remote_commit else 'N/A'}")
                 results.append(f"   使用 /update git 拉取更新")
             else:
                 results.append("✅ Git 仓库已是最新版本")
@@ -397,11 +402,13 @@ def handle_update(message: Dict, args: List[str]) -> str:
         
         elif update_type == 'git':
             # 拉取 Git 更新
-            result = pull_git_update()
-            if result['success']:
-                return f"✅ Git 仓库已更新到最新版本\n{result.get('message', '')}"
+            import os
+            repo_path = os.path.dirname(os.path.abspath(__file__))
+            success, output = pull_repo_update(repo_path)
+            if success:
+                return f"✅ Git 仓库已更新到最新版本\n{output}"
             else:
-                return f"❌ Git 更新失败: {result.get('message', '未知错误')}"
+                return f"❌ Git 更新失败: {output}"
         
         else:
             return f"❌ 未知更新类型: {update_type}\n可用类型: frontend, git"
