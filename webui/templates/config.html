@@ -27,7 +27,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/config.css') }}">
 </head>
-<body>
+<body data-page="config">
     <!-- 侧边栏 -->
     <div class="sidebar">
         <div class="sidebar-header">
@@ -42,11 +42,50 @@
                     <span>系统监控</span>
                 </a>
             </div>
-            <div class="sidebar-item">
+            <div class="sidebar-item sidebar-item-has-children">
                 <a href="/config" class="sidebar-link active" data-page="config">
                     <i class="fas fa-cogs"></i>
                     <span>配置管理</span>
+                    <i class="fas fa-chevron-down sidebar-arrow"></i>
                 </a>
+                <div class="sidebar-children">
+                    <a href="#" class="sidebar-child-link active" data-config="llbot">
+                        <i class="fas fa-robot config-icon text-primary"></i>
+                        <span>llbot 配置</span>
+                    </a>
+                    <a href="#" class="sidebar-child-link" data-config="yunzai">
+                        <i class="fas fa-server config-icon text-success"></i>
+                        <span>Yunzai 配置</span>
+                    </a>
+                    <a href="#" class="sidebar-child-link" data-config="redis">
+                        <i class="fas fa-database config-icon text-info"></i>
+                        <span>Redis 配置</span>
+                    </a>
+                    <a href="#" class="sidebar-child-link" data-config="http">
+                        <i class="fas fa-plug config-icon text-warning"></i>
+                        <span>HTTP 检查配置</span>
+                    </a>
+                    <a href="#" class="sidebar-child-link" data-config="auto">
+                        <i class="fas fa-redo config-icon text-secondary"></i>
+                        <span>自动重启配置</span>
+                    </a>
+                    <a href="#" class="sidebar-child-link" data-config="autologin">
+                        <i class="fas fa-user-check config-icon text-primary"></i>
+                        <span>自动登录配置</span>
+                    </a>
+                    <a href="#" class="sidebar-child-link" data-config="auth">
+                        <i class="fas fa-lock config-icon text-danger"></i>
+                        <span>Web 认证配置</span>
+                    </a>
+                    <a href="#" class="sidebar-child-link" data-config="gitupdate">
+                        <i class="fas fa-code-branch config-icon text-success"></i>
+                        <span>Git 更新配置</span>
+                    </a>
+                    <a href="#" class="sidebar-child-link" data-config="onebot">
+                        <i class="fas fa-robot config-icon text-primary"></i>
+                        <span>OneBot 配置</span>
+                    </a>
+                </div>
             </div>
         </nav>
         <div class="sidebar-footer">
@@ -102,72 +141,6 @@
                 <div id="configAlert" class="alert alert-info alert-box mb-4" style="display: none;">
                     <i class="fas fa-info-circle me-2"></i>
                     <span id="configAlertMessage"></span>
-                </div>
-
-                <!-- 配置下拉菜单 -->
-                <div class="config-dropdown-container mb-4">
-                    <div class="dropdown config-dropdown">
-                        <button class="btn btn-primary dropdown-toggle config-dropdown-btn" type="button" id="configDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-cog me-2"></i>
-                            <span id="currentConfigLabel">llbot 配置</span>
-                        </button>
-                        <ul class="dropdown-menu config-dropdown-menu" aria-labelledby="configDropdownBtn">
-                            <li>
-                                <a class="dropdown-item config-dropdown-item active" href="#" data-config="llbot">
-                                    <i class="fas fa-robot config-icon text-primary"></i>
-                                    <span>llbot 配置</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item config-dropdown-item" href="#" data-config="yunzai">
-                                    <i class="fas fa-server config-icon text-success"></i>
-                                    <span>Yunzai 配置</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item config-dropdown-item" href="#" data-config="redis">
-                                    <i class="fas fa-database config-icon text-info"></i>
-                                    <span>Redis 配置</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item config-dropdown-item" href="#" data-config="http">
-                                    <i class="fas fa-plug config-icon text-warning"></i>
-                                    <span>HTTP 检查配置</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item config-dropdown-item" href="#" data-config="auto">
-                                    <i class="fas fa-redo config-icon text-secondary"></i>
-                                    <span>自动重启配置</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item config-dropdown-item" href="#" data-config="autologin">
-                                    <i class="fas fa-user-check config-icon text-primary"></i>
-                                    <span>自动登录配置</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item config-dropdown-item" href="#" data-config="auth">
-                                    <i class="fas fa-lock config-icon text-danger"></i>
-                                    <span>Web 认证配置</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item config-dropdown-item" href="#" data-config="gitupdate">
-                                    <i class="fas fa-code-branch config-icon text-success"></i>
-                                    <span>Git 更新配置</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item config-dropdown-item" href="#" data-config="onebot">
-                                    <i class="fas fa-robot config-icon text-primary"></i>
-                                    <span>OneBot 配置</span>
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
                 </div>
 
                 <!-- 配置内容 -->

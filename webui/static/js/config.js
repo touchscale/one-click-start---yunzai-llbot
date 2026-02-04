@@ -470,8 +470,8 @@ async function checkGitUpdates() {
     }
 }
 
-// 页面加载完成后初始化
-document.addEventListener('DOMContentLoaded', function() {
+// 初始化配置页面的函数
+function initConfigPage() {
     // 初始化密码字段显示为 ***
     const authPasswordField = document.getElementById('auth-password');
     const autoLoginPasswordField = document.getElementById('auto-login-password');
@@ -482,56 +482,97 @@ document.addEventListener('DOMContentLoaded', function() {
         autoLoginPasswordField.value = '***';
     }
 
-    // 配置下拉菜单切换逻辑
-    const configDropdownItems = document.querySelectorAll('.config-dropdown-item');
+    // 侧边栏子菜单切换逻辑
+    const sidebarItemHasChildren = document.querySelector('.sidebar-item-has-children');
+    const sidebarChildLinks = document.querySelectorAll('.sidebar-child-link');
     const configPages = document.querySelectorAll('.config-page');
-    const currentConfigLabel = document.getElementById('currentConfigLabel');
 
-    configDropdownItems.forEach(item => {
-        item.addEventListener('click', function(e) {
-            e.preventDefault();
+    // 默认展开配置管理子菜单并激活第一个配置项
+    if (sidebarItemHasChildren) {
+        sidebarItemHasChildren.classList.add('expanded');
 
-            const configType = this.getAttribute('data-config');
-            const configName = this.querySelector('span').textContent;
+        // 激活第一个配置项和对应的页面
+        const firstChildLink = sidebarItemHasChildren.querySelector('.sidebar-child-link');
+        const firstConfigPage = document.getElementById('config-llbot');
 
-            // 更新下拉按钮显示的配置名称
-            currentConfigLabel.textContent = configName;
+        if (firstChildLink && firstConfigPage) {
+            firstChildLink.classList.add('active');
+            firstConfigPage.classList.add('show', 'active');
+        }
+    }
 
-            // 移除所有激活状态
-            configDropdownItems.forEach(i => i.classList.remove('active'));
-            configPages.forEach(p => {
-                p.classList.remove('show', 'active');
-            });
-
-            // 激活当前选中的配置项
-            this.classList.add('active');
-
-            // 显示对应的配置页面
-            const targetPage = document.getElementById('config-' + configType);
-            if (targetPage) {
-                targetPage.classList.add('show', 'active');
+    // 点击配置管理主菜单切换展开/收起（只在配置页面处理）
+    if (sidebarItemHasChildren && document.body.getAttribute('data-page') === 'config') {
+        const sidebarLink = sidebarItemHasChildren.querySelector('.sidebar-link');
+        if (sidebarLink) {
+            // 防止重复绑定事件
+            if (!sidebarLink.hasAttribute('data-initialized')) {
+                sidebarLink.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    sidebarItemHasChildren.classList.toggle('expanded');
+                });
+                sidebarLink.setAttribute('data-initialized', 'true');
             }
-        });
+        }
+    }
+
+    // 点击子菜单项切换配置页面
+    sidebarChildLinks.forEach(link => {
+        // 防止重复绑定事件
+        if (!link.hasAttribute('data-initialized')) {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+
+                const configType = this.getAttribute('data-config');
+
+                // 移除所有子菜单的激活状态
+                sidebarChildLinks.forEach(l => l.classList.remove('active'));
+                configPages.forEach(p => {
+                    p.classList.remove('show', 'active');
+                });
+
+                // 激活当前选中的子菜单项
+                this.classList.add('active');
+
+                // 显示对应的配置页面
+                const targetPage = document.getElementById('config-' + configType);
+                if (targetPage) {
+                    targetPage.classList.add('show', 'active');
+                }
+            });
+            link.setAttribute('data-initialized', 'true');
+        }
     });
 
     // 修复模态框的 aria-hidden 警告
     const modals = document.querySelectorAll('.modal');
     modals.forEach(modal => {
-        // 移除初始的 aria-hidden 属性，让 Bootstrap 动态管理
-        modal.removeAttribute('aria-hidden');
-
-        // 监听显示事件
-        modal.addEventListener('show.bs.modal', function() {
+        if (!modal.hasAttribute('data-modal-initialized')) {
+            // 移除初始的 aria-hidden 属性，让 Bootstrap 动态管理
             modal.removeAttribute('aria-hidden');
-        });
 
-        // 监听隐藏事件
-        modal.addEventListener('hidden.bs.modal', function() {
-            modal.setAttribute('aria-hidden', 'true');
-            // 移除焦点，避免焦点保留在具有 aria-hidden 属性的元素上
-            if (document.activeElement && modal.contains(document.activeElement)) {
-                document.activeElement.blur();
-            }
-        });
+            // 监听显示事件
+            modal.addEventListener('show.bs.modal', function() {
+                modal.removeAttribute('aria-hidden');
+            });
+
+            // 监听隐藏事件
+            modal.addEventListener('hidden.bs.modal', function() {
+                modal.setAttribute('aria-hidden', 'true');
+                // 移除焦点，避免焦点保留在具有 aria-hidden 属性的元素上
+                if (document.activeElement && modal.contains(document.activeElement)) {
+                    document.activeElement.blur();
+                }
+            });
+            modal.setAttribute('data-modal-initialized', 'true');
+        }
     });
-});
+}
+
+// 页面加载完成后初始化
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initConfigPage);
+} else {
+    // DOM 已经加载完成，直接初始化
+    initConfigPage();
+}

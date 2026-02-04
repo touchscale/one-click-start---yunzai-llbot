@@ -31,86 +31,72 @@
     text-align: center;
 }
 
-/* 配置下拉菜单样式 */
-.config-dropdown-container {
+/* 侧边栏子菜单样式 */
+.sidebar-item-has-children {
     position: relative;
 }
 
-.config-dropdown {
-    width: 100%;
-    max-width: 400px;
-}
-
-.config-dropdown-btn {
-    width: 100%;
-    padding: 12px 20px;
-    font-size: 16px;
-    font-weight: 500;
-    border-radius: 10px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border: none;
-    color: #ffffff;
+.sidebar-item-has-children .sidebar-link {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    cursor: pointer;
 }
 
-.config-dropdown-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-}
-
-.config-dropdown-btn:focus {
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
-}
-
-.config-dropdown-btn::after {
-    margin-left: 10px;
+.sidebar-arrow {
+    font-size: 12px;
     transition: transform 0.3s ease;
+    margin-left: auto;
 }
 
-.config-dropdown-btn.show::after {
+.sidebar-item-has-children.expanded .sidebar-arrow {
     transform: rotate(180deg);
 }
 
-.config-dropdown-menu {
-    width: 100%;
-    border-radius: 10px;
-    border: none;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-    padding: 8px 0;
-    margin-top: 8px;
-    background: #ffffff;
+.sidebar-children {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    background: rgba(0, 0, 0, 0.02);
 }
 
-.config-dropdown-item {
-    padding: 12px 20px;
-    font-size: 15px;
+.sidebar-item-has-children.expanded .sidebar-children {
+    max-height: 500px;
+}
+
+.sidebar-child-link {
     display: flex;
     align-items: center;
+    padding: 10px 20px 10px 55px;
+    color: #6c757d;
+    text-decoration: none;
     transition: all 0.2s ease;
-    border-radius: 8px;
-    margin: 4px 12px;
+    font-size: 14px;
+    position: relative;
 }
 
-.config-dropdown-item:hover {
-    background: rgba(102, 126, 234, 0.1);
-    transform: translateX(5px);
+.sidebar-child-link:hover {
+    color: #007bff;
+    background: rgba(0, 123, 255, 0.1);
 }
 
-.config-dropdown-item.active {
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
-    color: #667eea;
+.sidebar-child-link.active {
+    color: #007bff;
+    background: rgba(0, 123, 255, 0.15);
     font-weight: 500;
+    border-left: 3px solid #007bff;
 }
 
-.config-dropdown-item .config-icon {
-    margin-right: 12px;
+.sidebar-child-link .config-icon {
+    font-size: 18px;
     width: 24px;
     text-align: center;
-    font-size: 20px;
+    margin-right: 10px;
+}
+
+/* 确保配置管理子菜单默认展开 */
+.sidebar-item-has-children > .sidebar-link.active + .sidebar-children {
+    max-height: 500px;
 }
 
 /* 配置页面容器 */
@@ -736,23 +722,24 @@ body.dark-theme #updateModal #updateResult .alert code {
     color: #a0d0ff;
 }
 
-/* 配置下拉菜单深色主题 */
-body.dark-theme .config-dropdown-menu {
-    background: #2d2d3a !important;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+/* 侧边栏子菜单深色主题 */
+body.dark-theme .sidebar-children {
+    background: rgba(255, 255, 255, 0.05);
 }
 
-body.dark-theme .config-dropdown-item {
-    color: #e0e0e0;
+body.dark-theme .sidebar-child-link {
+    color: #a0a0a0;
 }
 
-body.dark-theme .config-dropdown-item:hover {
-    background: rgba(102, 126, 234, 0.2);
-}
-
-body.dark-theme .config-dropdown-item.active {
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.25) 0%, rgba(118, 75, 162, 0.25) 100%);
+body.dark-theme .sidebar-child-link:hover {
     color: #a0d0ff;
+    background: rgba(160, 208, 255, 0.1);
+}
+
+body.dark-theme .sidebar-child-link.active {
+    color: #a0d0ff;
+    background: rgba(160, 208, 255, 0.15);
+    border-left-color: #a0d0ff;
 }
 
 /* Git更新信息样式 */
