@@ -32,6 +32,8 @@ from web_server import (
 from update_checker import check_and_update_resources
 from auto_login import apply_config_from_dict, get_auto_login_status
 from git_update_checker import start_git_update_monitor, stop_git_update_monitor
+from onebot_client import init_onebot_client, get_onebot_client
+from onebot_handlers import register_all_handlers
 
 # 初始化日志记录器
 logger = get_logger()
@@ -229,6 +231,27 @@ def run_monitor_loop(config):
     if config.get('git_update', {}).get('enabled', False):
         start_git_update_monitor(config)
     
+    # 启动OneBot客户端（如果启用）
+    onebot_client = None
+    if config.get('onebot', {}).get('enabled', False):
+        try:
+            onebot_client = init_onebot_client(config.get('onebot', {}))
+            if onebot_client:
+                # 注册所有指令处理器
+                register_all_handlers(onebot_client)
+                # 启动客户端
+                onebot_client.start()
+                logger.info("OneBot 客户端已启动", extra={
+                    'event_type': EventType.INFO,
+                    'feature': 'onebot_client'
+                })
+        except Exception as e:
+            logger.error(f"OneBot 客户端启动失败: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'feature': 'onebot_client',
+                'error': str(e)
+            })
+    
     # 启动Web服务器（如果Flask可用）
     if flask_available:
         web_thread = threading.Thread(target=start_web_server, daemon=True)
@@ -247,6 +270,21 @@ def run_monitor_loop(config):
     
     # 设置停止标志
     run_monitor_loop.running = False
+    
+    # 停止OneBot客户端
+    if onebot_client:
+        try:
+            onebot_client.stop()
+            logger.info("OneBot 客户端已停止", extra={
+                'event_type': EventType.INFO,
+                'feature': 'onebot_client'
+            })
+        except Exception as e:
+            logger.error(f"OneBot 客户端停止失败: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'feature': 'onebot_client',
+                'error': str(e)
+            })
     
     # 停止Git更新检测线程
     stop_git_update_monitor()

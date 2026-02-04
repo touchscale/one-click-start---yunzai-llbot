@@ -25,6 +25,7 @@
 - ✅ Windows自动登录配置，支持启用或禁用系统自动登录功能
 - ✅ Git仓库自动更新检测，定期检测监控脚本仓库是否有更新
 - ✅ 支持自动拉取更新并重启监控脚本，或提示用户手动重启
+- ✅ OneBot 11 协议支持，通过 QQ 机器人远程管理监控系统（支持 WebSocket 反向连接）
 
 ---
 
@@ -193,6 +194,29 @@ pip install -r requirements.txt
 
 </details>
 
+<details>
+<summary><b>🤖 onebot_client.py - OneBot 11 客户端模块</b></summary>
+
+- WebSocket 反向连接支持
+- 自动重连机制
+- 指令消息接收和解析
+- 支持私聊和群聊消息
+- 用户权限验证
+- 异步消息处理
+
+</details>
+
+<details>
+<summary><b>📋 onebot_handlers.py - OneBot 指令处理器模块</b></summary>
+
+- 状态查询指令处理
+- 服务控制指令（启动/停止/重启）
+- 更新管理指令
+- 指令路由和参数解析
+- 错误处理和友好提示
+
+</details>
+
 ### 模块间关系
 
 ```
@@ -208,7 +232,9 @@ main.py (主入口)
   ├── password_crypt.py (密码加密)
   ├── password_validator.py (密码验证)
   ├── auto_login.py (自动登录配置)
-  └── web_server.py (Web界面)
+  ├── web_server.py (Web界面)
+  ├── onebot_client.py (OneBot客户端)
+  └── onebot_handlers.py (OneBot指令处理)
 ```
 
 ### 设计特点
@@ -311,6 +337,17 @@ python main.py
 
 </details>
 
+<details>
+<summary><b>🤖 OneBot 11 配置</b></summary>
+
+- 启用OneBot功能：是否启用OneBot 11协议支持（默认false）
+- WebSocket地址：OneBot实现端的WebSocket反向连接地址（例如：ws://localhost:8080）
+- 访问令牌：连接OneBot所需的访问令牌（可选，但强烈推荐设置）
+- 重连间隔：断线重连的间隔时间（默认5秒）
+- 授权用户列表：允许使用OneBot指令的QQ号码列表（为空则允许所有用户）
+
+</details>
+
 ### 2. 后续运行
 
 配置完成后，后续运行时脚本会自动加载配置文件并开始监控：
@@ -372,13 +409,47 @@ git_update:
   check_interval: 900       # 检测间隔秒数（默认900秒，即15分钟）
   auto_pull: false          # 检测到更新后是否自动拉取
   auto_restart: false       # 拉取成功后是否自动重启监控脚本
+
+# OneBot 11 协议配置（通过 QQ 机器人远程管理）
+onebot:
+  enabled: false                          # 是否启用 OneBot 功能
+  ws_url: ws://localhost:8080             # OneBot WebSocket 反向连接地址
+  access_token: ""                        # 访问令牌（可选，推荐设置）
+  reconnect_interval: 5                   # 重连间隔（秒）
+  authorized_users: []                    # 授权用户 QQ 号列表，为空则允许所有用户使用
 ```
 
-### 4. 管理员权限
+### 4. OneBot 远程管理（可选）
+
+如果启用了 OneBot 功能，可以通过 QQ 机器人远程管理监控系统。支持的指令包括：
+
+<details>
+<summary><b>📋 指令列表</b></summary>
+
+- `/status` - 查看所有服务状态
+- `/start <服务>` - 启动指定服务（llbot/yunzai/redis/all）
+- `/stop <服务>` - 停止指定服务（llbot/yunzai/redis/all）
+- `/restart <服务>` - 重启指定服务（llbot/yunzai/redis/all）
+- `/check_update` - 检查更新（frontend/git/all）
+- `/update <类型>` - 执行更新（frontend/git）
+- `/help` - 显示帮助信息
+
+</details>
+
+**使用示例：**
+```
+/status                    # 查看状态
+/start all                 # 启动所有服务
+/restart llbot             # 重启 llbot
+/check_update all          # 检查所有更新
+/update git                # 拉取 Git 更新
+```
+
+### 5. 管理员权限
 
 脚本启动时会自动请求管理员权限，以确保进程终止功能正常运行。
 
-### 5. Web管理界面
+### 6. Web管理界面
 
 脚本启动后会自动运行Web管理界面，访问地址为：[http://127.0.0.1:5000](http://127.0.0.1:5000)
 
@@ -391,7 +462,7 @@ Web管理界面提供以下功能：
 - 前端资源更新检查：检查并更新Bootstrap等前端库
 - 需要通过Web认证后才能访问管理界面
 
-### 6. 日志管理
+### 7. 日志管理
 
 - 系统会自动轮转日志文件，每天午夜创建新的日志文件
 - 每天0点自动清理超过一天的旧日志文件
@@ -535,6 +606,28 @@ Web管理界面提供以下功能：
 
 </details>
 
+<details>
+<summary><b>14. OneBot 客户端（onebot_client.py）</b></summary>
+
+- WebSocket 反向连接到 OneBot 实现端
+- 自动重连机制，确保连接稳定
+- 接收和解析 QQ 消息指令
+- 用户权限验证
+- 异步消息处理和回复
+
+</details>
+
+<details>
+<summary><b>15. OneBot 指令处理（onebot_handlers.py）</b></summary>
+
+- 处理状态查询指令
+- 处理服务控制指令（启动/停止/重启）
+- 处理更新管理指令
+- 指令路由和参数解析
+- 错误处理和友好提示
+
+</details>
+
 ---
 
 ## 注意事项
@@ -545,6 +638,10 @@ Web管理界面提供以下功能：
 - 配置文件中的路径请使用双反斜杠 `\\` 或正斜杠 `/` 作为路径分隔符
 - Web管理界面默认运行在端口5000，如需修改可在代码中调整
 - 如需使用Web管理界面，请确保已安装Flask：`pip install Flask`
+- 如需使用OneBot功能，请确保已安装websockets：`pip install websockets`
+- OneBot功能使用WebSocket反向连接，需要配置正确的OneBot实现端地址
+- 建议为OneBot连接设置访问令牌以确保安全性
+- 可以通过配置`authorized_users`限制只有特定QQ用户可以使用OneBot指令
 - 所有模块之间的通信通过事件管理器实现，确保线程安全
 - 日志文件保存在 `logs/` 目录下，每天自动轮转
 - PID文件保存在 `pids/` 目录下，用于精确跟踪进程状态
