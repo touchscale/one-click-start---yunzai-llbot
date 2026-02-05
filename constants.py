@@ -30,8 +30,8 @@ DEFAULT_CONFIG = {
     },
     "onebot": {
         "enabled": False,
-        "ws_url": "",
-        "access_token": "",
+        "ws_url": "ws://localhost:8080",  # 反向 WebSocket 服务器监听地址，OneBot 会主动连接到此地址
+        "access_token": "",  # 访问令牌，用于验证 OneBot 连接
         "reconnect_interval": 5,
         "authorized_users": []
     }
