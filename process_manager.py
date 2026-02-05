@@ -123,7 +123,7 @@ def terminate_yunzai_git_bash_process():
         from pid_manager import read_pid, verify_pid, remove_pid_file
         yunzai_pid = read_pid('yunzai')
 
-        if yunzai_pid is None or not verify_pid(yunzai_pid):
+        if yunzai_pid is None or not verify_pid(yunzai_pid, 'yunzai'):
             logger.warning("未找到有效的yunzai进程PID，跳过终止", extra={
                 'event_type': 'warning',
                 'action': 'skip_terminate_git_bash',
@@ -255,7 +255,7 @@ def terminate_llbot_process_tree(llbot_path=None):
         # 仅使用PID文件获取llbot进程PID
         from pid_manager import read_pid, verify_pid, remove_pid_file
         llbot_pid = read_pid('llbot')
-        if llbot_pid and verify_pid(llbot_pid):
+        if llbot_pid and verify_pid(llbot_pid, 'llbot'):
             logger.info(f"通过PID文件找到llbot进程: PID {llbot_pid}", extra={
                 'event_type': EventType.PROCESS_STOP,
                 'method': 'pid_file',
