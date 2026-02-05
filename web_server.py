@@ -793,12 +793,6 @@ def register_routes(app):
             })
             return render_template("login.html", error_msg="加载配置页面失败，请重试。", username_hint=get_web_auth_config().get("username", "admin")), 500
 
-    # 配置页面测试（不需要认证，用于测试下拉菜单功能）
-    @app.route('/config-test')
-    def config_test_page():
-        """配置页面测试页面"""
-        return render_template("config-test.html")
-
     # 配置更新API
     @app.route('/api/config/update', methods=['POST'])
     @requires_auth
