@@ -256,7 +256,9 @@ class OneBotClient:
                         'raw_data': data
                     })
         elif message_type == 'group':
-            group_name = sender.get('group_name', 'unknown') if sender else 'unknown'
+            # 在 OneBot 11 中，群名通常在 data 的 group_name 字段中
+            # 或者从 sender 的 card 或 group_name 中获取
+            group_name = data.get('group_name') or (sender.get('group_name', 'unknown') if sender else 'unknown')
             display_name = sender_card if sender_card else sender_nickname
             logger.info(f"收到群消息 - 群: {group_name}({group_id}) | 发送者: {display_name}({user_id}) | 内容: {message_display}", extra={
                         'event_type': EventType.INFO,
