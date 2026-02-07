@@ -214,7 +214,7 @@ function generateStatusHTML(data, timestamp) {
       ${getStatusItem('Yunzai', yunzai.running, yunzai.pid)}
       ${getStatusItem('Redis', redis.running, redis.pid)}
       ${getStatusItem('HTTP服务', http.accessible, null)}
-      ${getStatusItem('自动重启', autoRestart.enabled, null)}
+      ${getStatusItem('自动重启', autoRestart.enabled === true, null)}
     </div>
     <div class="footer">
       更新时间: ${timestamp}
