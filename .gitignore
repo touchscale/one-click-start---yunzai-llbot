@@ -8,3 +8,5 @@ logs
 __pycache__
 tools
 pids
+image_generator/node_modules
+image_generator/package-lock.json

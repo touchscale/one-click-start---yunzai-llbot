@@ -21,7 +21,7 @@ event_manager = get_event_manager()
 
 def handle_status(message: Dict, args: List[str]) -> str:
     """
-    处理状态查询指令，返回状态图片（使用 Pillow 绘制）
+    处理状态查询指令，返回状态图片
     
     Args:
         message: 消息数据
@@ -30,139 +30,38 @@ def handle_status(message: Dict, args: List[str]) -> str:
     Returns:
         状态图片的 base64 编码（CQ 码格式）
     """
+    # 使用 Puppeteer 生成图片
     try:
-        from PIL import Image, ImageDraw, ImageFont
-        import io
-        import base64
-        from datetime import datetime
+        from puppeteer_generator import generate_status_image, check_dependencies
         
-        # 构建状态信息
-        llbot_status = current_status.get('llbot', {})
-        llbot_running = llbot_status.get('running')
-        llbot_pid = llbot_status.get('pid')
-        
-        yunzai_status = current_status.get('yunzai', {})
-        yunzai_running = yunzai_status.get('running')
-        yunzai_pid = yunzai_status.get('pid')
-        
-        redis_status = current_status.get('redis', {})
-        redis_running = redis_status.get('running')
-        redis_pid = redis_status.get('pid')
-        
-        http_status = current_status.get('http_check', {})
-        http_accessible = http_status.get('accessible')
-        
-        auto_restart_config = current_config.get('auto_restart', {})
-        auto_restart_enabled = auto_restart_config.get('enabled')
-        
-        # 创建图片
-        width, height = 650, 480
-        image = Image.new('RGB', (width, height), color='#1a1a2e')
-        draw = ImageDraw.Draw(image)
-        
-        # 尝试加载字体
-        try:
-            font_title = ImageFont.truetype("C:\\Windows\\Fonts\\msyhbd.ttc", 28)
-            font_large = ImageFont.truetype("C:\\Windows\\Fonts\\msyh.ttc", 20)
-            font_medium = ImageFont.truetype("C:\\Windows\\Fonts\\msyh.ttc", 16)
-            font_small = ImageFont.truetype("C:\\Windows\\Fonts\\msyh.ttc", 13)
-        except:
-            font_title = ImageFont.load_default()
-            font_large = ImageFont.load_default()
-            font_medium = ImageFont.load_default()
-            font_small = ImageFont.load_default()
-        
-        # 标题
-        title = "监控系统状态"
-        title_bbox = draw.textbbox((0, 0), title, font=font_title)
-        title_width = title_bbox[2] - title_bbox[0]
-        draw.text(((width - title_width) // 2, 25), title, fill='#e94560', font=font_title)
-        
-        # 装饰线
-        draw.line([(20, 75), (width - 20, 75)], fill='#0f3460', width=3)
-        
-        # 状态列表
-        y_pos = 100
-        
-        def draw_status_card(label, is_running, pid=None):
-            nonlocal y_pos
-            
-            card_height = 50
-            card_y = y_pos
-            
-            # 卡片背景
-            draw.rectangle([20, card_y, width - 20, card_y + card_height], 
-                          fill='#16213e', outline='#0f3460', width=2)
-            
-            # 状态指示器
-            circle_radius = 10
-            circle_x = 45
-            circle_y = card_y + card_height // 2
-            
-            if is_running:
-                # 绿色圆圈
-                draw.ellipse([circle_x - circle_radius, circle_y - circle_radius, 
-                            circle_x + circle_radius, circle_y + circle_radius], 
-                          fill='#00b894', outline='#00cec9', width=2)
-                # 勾号
-                draw.line([circle_x - 4, circle_y, circle_x - 1, circle_y + 3], fill='#ffffff', width=2)
-                draw.line([circle_x - 1, circle_y + 3, circle_x + 5, circle_y - 4], fill='#ffffff', width=2)
-                status_color = "#00b894"
-                status_text = "运行中"
-            else:
-                # 红色圆圈
-                draw.ellipse([circle_x - circle_radius, circle_y - circle_radius, 
-                            circle_x + circle_radius, circle_y + circle_radius], 
-                          fill='#d63031', outline='#e17055', width=2)
-                # 叉号
-                draw.line([circle_x - 4, circle_y - 4, circle_x + 4, circle_y + 4], fill='#ffffff', width=2)
-                draw.line([circle_x - 4, circle_y + 4, circle_x + 4, circle_y - 4], fill='#ffffff', width=2)
-                status_color = "#d63031"
-                status_text = "已停止"
-            
-            # 服务名称
-            draw.text((70, card_y + 12), label, fill='#dfe6e9', font=font_large)
-            
-            # 状态文本
-            draw.text((200, card_y + 12), status_text, fill=status_color, font=font_large)
-            
-            # PID
-            if pid:
-                draw.text((400, card_y + 12), f"PID: {pid}", fill='#636e72', font=font_medium)
-            
-            y_pos += card_height + 10
-        
-        # 绘制各个状态
-        draw_status_card("llbot", llbot_running, llbot_pid)
-        draw_status_card("Yunzai", yunzai_running, yunzai_pid)
-        draw_status_card("Redis", redis_running, redis_pid)
-        draw_status_card("HTTP服务", http_accessible, None)
-        draw_status_card("自动重启", auto_restart_enabled, None)
-        
-        # 底部装饰线
-        draw.line([(20, y_pos), (width - 20, y_pos)], fill='#0f3460', width=2)
-        
-        # 时间戳
-        y_pos += 15
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        timestamp_bbox = draw.textbbox((0, 0), timestamp, font=font_small)
-        timestamp_width = timestamp_bbox[2] - timestamp_bbox[0]
-        draw.text(((width - timestamp_width) // 2, y_pos), f"更新时间: {timestamp}", fill='#636e72', font=font_small)
-        
-        # 转换为 base64
-        buffer = io.BytesIO()
-        image.save(buffer, format='PNG')
-        buffer.seek(0)
-        img_base64 = base64.b64encode(buffer.read()).decode('utf-8')
-        
-        return f"[CQ:image,file=base64://{img_base64}]"
-        
+        # 检查依赖
+        dep_check = check_dependencies()
+        if dep_check['ready']:
+            img_base64 = generate_status_image(current_status)
+            return f"[CQ:image,file=base64://{img_base64}]"
+        else:
+            logger.warning(f"Puppeteer 依赖缺失，使用文本格式: {dep_check['message']}", extra={
+                'event_type': EventType.WARNING,
+                'feature': 'onebot_handler',
+                'command': 'status',
+                'fallback': 'text'
+            })
+            return _generate_text_status()
+    except ImportError:
+        logger.warning("puppeteer_generator 模块未找到，使用文本格式", extra={
+            'event_type': EventType.WARNING,
+            'feature': 'onebot_handler',
+            'command': 'status',
+            'fallback': 'text'
+        })
+        return _generate_text_status()
     except Exception as e:
-        logger.error(f"生成状态图片失败: {str(e)}", extra={
+        logger.error(f"使用 Puppeteer 生成状态图片失败，使用文本格式: {str(e)}", extra={
             'event_type': EventType.ERROR,
             'feature': 'onebot_handler',
             'command': 'status',
-            'error': str(e)
+            'error': str(e),
+            'fallback': 'text'
         })
         return _generate_text_status()
 
@@ -335,7 +234,45 @@ def handle_update(message: Dict, args: List[str]) -> str:
 
 
 def handle_help(message: Dict, args: List[str]) -> str:
-    """显示帮助"""
+    """显示帮助（优先返回图片格式）"""
+    # 首先尝试使用 Puppeteer 生成图片
+    try:
+        from puppeteer_generator import generate_help_image, check_dependencies
+        
+        # 检查依赖
+        dep_check = check_dependencies()
+        if dep_check['ready']:
+            img_base64 = generate_help_image()
+            return f"[CQ:image,file=base64://{img_base64}]"
+        else:
+            logger.warning(f"Puppeteer 依赖缺失，使用文本格式: {dep_check['message']}", extra={
+                'event_type': EventType.WARNING,
+                'feature': 'onebot_handler',
+                'command': 'help',
+                'fallback': 'text'
+            })
+            return _generate_text_help()
+    except ImportError:
+        logger.warning("puppeteer_generator 模块未找到，使用文本格式", extra={
+            'event_type': EventType.WARNING,
+            'feature': 'onebot_handler',
+            'command': 'help',
+            'fallback': 'text'
+        })
+        return _generate_text_help()
+    except Exception as e:
+        logger.error(f"使用 Puppeteer 生成帮助图片失败，使用文本格式: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'feature': 'onebot_handler',
+            'command': 'help',
+            'error': str(e),
+            'fallback': 'text'
+        })
+        return _generate_text_help()
+
+
+def _generate_text_help():
+    """生成文本格式的帮助信息（备用方案）"""
     return """📖 指令帮助
 
 📊 /st /status      查看状态
