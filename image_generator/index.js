@@ -3,6 +3,8 @@
  * 用于生成状态图片和帮助图片
  */
 const puppeteer = require('puppeteer');
+const fs = require('fs');
+const path = require('path');
 
 /**
  * 生成图片
@@ -73,6 +75,16 @@ function generateHTML(type, data) {
 }
 
 /**
+ * 读取 CSS 文件内容
+ * @param {string} filename - CSS 文件名
+ * @returns {string} CSS 内容
+ */
+function readCSS(filename) {
+  const cssPath = path.join(__dirname, filename);
+  return fs.readFileSync(cssPath, 'utf-8');
+}
+
+/**
  * 生成状态页面 HTML
  */
 function generateStatusHTML(data, timestamp) {
@@ -97,124 +109,25 @@ function generateStatusHTML(data, timestamp) {
     </div>
   `;
 
+  const statusItems = [
+    getStatusItem('llbot', llbot.running, llbot.pid),
+    getStatusItem('Yunzai', yunzai.running, yunzai.pid),
+    getStatusItem('Redis', redis.running, redis.pid),
+    getStatusItem('HTTP服务', http.accessible, null),
+    getStatusItem('自动重启', autoRestart.enabled === true, null)
+  ].join('');
+
+  const commonCSS = readCSS('common.css');
+  const statusCSS = readCSS('status.css');
+
   return `
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    body {
-      font-family: 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: #fff;
-      padding: 25px;
-      width: 650px;
-    }
-    .container {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 20px;
-      padding: 30px;
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    }
-    .header {
-      text-align: center;
-      margin-bottom: 30px;
-      padding-bottom: 20px;
-      border-bottom: 2px solid rgba(255, 255, 255, 0.15);
-    }
-    .title {
-      font-size: 32px;
-      font-weight: 700;
-      background: linear-gradient(135deg, #fff 0%, #e0e0e0 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-      margin-bottom: 8px;
-    }
-    .status-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .status-item {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      padding: 16px 18px;
-      background: rgba(255, 255, 255, 0.08);
-      border-radius: 12px;
-      border-left: 5px solid;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      backdrop-filter: blur(5px);
-    }
-    .status-item.running {
-      border-left-color: #10b981;
-      background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.1) 100%);
-      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
-    }
-    .status-item.stopped {
-      border-left-color: #ef4444;
-      background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%);
-      box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
-    }
-    .status-indicator {
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 24px;
-      font-weight: bold;
-      flex-shrink: 0;
-    }
-    .status-item.running .status-indicator {
-      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.5);
-    }
-    .status-item.stopped .status-indicator {
-      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.5);
-    }
-    .status-info {
-      flex: 1;
-    }
-    .service-name {
-      font-size: 18px;
-      font-weight: 600;
-      color: #fff;
-      letter-spacing: 0.5px;
-    }
-    .service-status {
-      font-size: 13px;
-      color: rgba(255, 255, 255, 0.75);
-      margin-top: 4px;
-    }
-    .service-pid {
-      font-size: 12px;
-      color: rgba(255, 255, 255, 0.6);
-      background: rgba(0, 0, 0, 0.25);
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-weight: 500;
-    }
-    .footer {
-      text-align: center;
-      margin-top: 25px;
-      padding-top: 20px;
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
-      font-size: 12px;
-      color: rgba(255, 255, 255, 0.6);
-      font-weight: 500;
-    }
+    ${commonCSS}
+    ${statusCSS}
   </style>
 </head>
 <body>
@@ -223,11 +136,7 @@ function generateStatusHTML(data, timestamp) {
       <div class="title">📊 监控系统状态</div>
     </div>
     <div class="status-list">
-      ${getStatusItem('llbot', llbot.running, llbot.pid)}
-      ${getStatusItem('Yunzai', yunzai.running, yunzai.pid)}
-      ${getStatusItem('Redis', redis.running, redis.pid)}
-      ${getStatusItem('HTTP服务', http.accessible, null)}
-      ${getStatusItem('自动重启', autoRestart.enabled === true, null)}
+      ${statusItems}
     </div>
     <div class="footer">
       更新时间: ${timestamp}
@@ -242,119 +151,17 @@ function generateStatusHTML(data, timestamp) {
  * 生成帮助页面 HTML
  */
 function generateHelpHTML(timestamp) {
+  const commonCSS = readCSS('common.css');
+  const helpCSS = readCSS('help.css');
+
   return `
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    body {
-      font-family: 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: #fff;
-      padding: 25px;
-      width: 650px;
-    }
-    .container {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 20px;
-      padding: 30px;
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    }
-    .header {
-      text-align: center;
-      margin-bottom: 30px;
-      padding-bottom: 20px;
-      border-bottom: 2px solid rgba(255, 255, 255, 0.15);
-    }
-    .title {
-      font-size: 32px;
-      font-weight: 700;
-      background: linear-gradient(135deg, #fff 0%, #e0e0e0 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-      margin-bottom: 8px;
-    }
-    .subtitle {
-      font-size: 14px;
-      color: rgba(255, 255, 255, 0.7);
-      font-weight: 500;
-      letter-spacing: 1px;
-    }
-    .section {
-      margin-bottom: 24px;
-    }
-    .section:last-child {
-      margin-bottom: 0;
-    }
-    .section-title {
-      font-size: 18px;
-      font-weight: 600;
-      color: #fff;
-      margin-bottom: 12px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    .command-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .command-item {
-      background: rgba(255, 255, 255, 0.08);
-      padding: 14px 18px;
-      border-radius: 10px;
-      border-left: 4px solid;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      backdrop-filter: blur(5px);
-    }
-    .command-item:nth-child(1) {
-      border-left-color: #60a5fa;
-      box-shadow: 0 4px 12px rgba(96, 165, 250, 0.2);
-    }
-    .command-item:nth-child(2) {
-      border-left-color: #34d399;
-      box-shadow: 0 4px 12px rgba(52, 211, 153, 0.2);
-    }
-    .command-item:nth-child(3) {
-      border-left-color: #fbbf24;
-      box-shadow: 0 4px 12px rgba(251, 191, 36, 0.2);
-    }
-    .command {
-      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-      font-size: 14px;
-      color: #a5f3fc;
-      margin-bottom: 6px;
-      font-weight: 600;
-      letter-spacing: 0.3px;
-    }
-    .description {
-      font-size: 13px;
-      color: rgba(255, 255, 255, 0.7);
-      font-weight: 400;
-      line-height: 1.5;
-    }
-    .footer {
-      text-align: center;
-      margin-top: 25px;
-      padding-top: 20px;
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
-      font-size: 12px;
-      color: rgba(255, 255, 255, 0.6);
-      font-weight: 500;
-    }
+    ${commonCSS}
+    ${helpCSS}
   </style>
 </head>
 <body>
