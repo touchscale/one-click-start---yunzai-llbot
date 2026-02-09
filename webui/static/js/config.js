@@ -111,6 +111,21 @@ async function saveConfig() {
             check_interval: parseInt(document.getElementById('git-update-check-interval').value),
             auto_pull: document.getElementById('git-update-auto-pull').checked,
             auto_restart: document.getElementById('git-update-auto-restart').checked
+        },
+        onebot: {
+            enabled: document.getElementById('onebot-enabled').checked,
+            ws_url: document.getElementById('onebot-ws-url').value,
+            access_token: document.getElementById('onebot-access-token').value,
+            reconnect_interval: parseInt(document.getElementById('onebot-reconnect-interval').value),
+            authorized_users: document.getElementById('onebot-authorized-users').value
+                .split(',')
+                .map(id => id.trim())
+                .filter(id => id !== '')
+        },
+        image_service: {
+            enabled: document.getElementById('image-service-enabled').checked,
+            port: parseInt(document.getElementById('image-service-port').value),
+            url: document.getElementById('image-service-url').value
         }
     };
 
@@ -158,6 +173,47 @@ async function saveConfig() {
     if (!configData.web_auth.username) {
         showAlert('用户名不能为空', 'warning');
         return;
+    }
+
+    // 验证 OneBot 配置
+    if (configData.onebot.enabled) {
+        if (!configData.onebot.ws_url) {
+            showAlert('启用 OneBot 时 WebSocket URL 不能为空', 'warning');
+            return;
+        }
+        if (!configData.onebot.ws_url.startsWith('ws://') && !configData.onebot.ws_url.startsWith('wss://')) {
+            showAlert('WebSocket URL 应以 ws:// 或 wss:// 开头', 'warning');
+            return;
+        }
+        if (configData.onebot.reconnect_interval < 1 || configData.onebot.reconnect_interval > 300) {
+            showAlert('OneBot 重连间隔必须在 1-300 秒之间', 'warning');
+            return;
+        }
+        // 验证授权用户列表格式
+        if (configData.onebot.authorized_users.length > 0) {
+            for (let userId of configData.onebot.authorized_users) {
+                if (!/^\d+$/.test(userId)) {
+                    showAlert('授权用户列表中包含无效的 QQ 号码: ' + userId, 'warning');
+                    return;
+                }
+            }
+        }
+    }
+
+    // 验证图片服务配置
+    if (configData.image_service.enabled) {
+        if (configData.image_service.port < 1024 || configData.image_service.port > 65535) {
+            showAlert('图片服务端口必须在 1024-65535 之间', 'warning');
+            return;
+        }
+        if (!configData.image_service.url) {
+            showAlert('启用图片服务时 URL 不能为空', 'warning');
+            return;
+        }
+        if (!configData.image_service.url.startsWith('http://') && !configData.image_service.url.startsWith('https://')) {
+            showAlert('图片服务 URL 应以 http:// 或 https:// 开头', 'warning');
+            return;
+        }
     }
     // 验证密码字段 - only check if the user provided a new password
     if (configData.web_auth.password && configData.web_auth.password !== '***') {
@@ -435,8 +491,9 @@ async function checkGitUpdates() {
     }
 }
 
-// 页面加载完成后初始化
-document.addEventListener('DOMContentLoaded', function() {
+// 初始化配置页面的函数
+function initConfigPage() {
+    console.log('initConfigPage called');
     // 初始化密码字段显示为 ***
     const authPasswordField = document.getElementById('auth-password');
     const autoLoginPasswordField = document.getElementById('auto-login-password');
@@ -447,30 +504,155 @@ document.addEventListener('DOMContentLoaded', function() {
         autoLoginPasswordField.value = '***';
     }
 
-    // 激活第一个选项卡
-    const firstTab = document.querySelector('#configTabs .nav-link');
-    if (firstTab) {
-        firstTab.click();
+    // 侧边栏子菜单切换逻辑
+    const sidebarItemHasChildren = document.querySelector('.sidebar-item-has-children');
+    const sidebarChildLinks = document.querySelectorAll('.sidebar-child-link');
+    const configPages = document.querySelectorAll('.config-page');
+
+    console.log('sidebarChildLinks count:', sidebarChildLinks.length);
+    console.log('configPages count:', configPages.length);
+    console.log('sidebarChildLinks:', sidebarChildLinks);
+
+    // 从 URL hash 中获取要激活的配置项
+    const hash = window.location.hash.replace('#', '');
+    const targetConfig = hash || sessionStorage.getItem('targetConfig');
+    sessionStorage.removeItem('targetConfig'); // 清除存储的配置项
+
+    // 默认展开配置管理子菜单
+    if (sidebarItemHasChildren) {
+        sidebarItemHasChildren.classList.add('expanded');
+
+        // 激活配置项和对应的页面
+        let targetLink = null;
+        let targetPage = null;
+
+        if (targetConfig) {
+            // 如果有指定的配置项，激活它
+            targetLink = sidebarItemHasChildren.querySelector(`.sidebar-child-link[data-config="${targetConfig}"]`);
+            targetPage = document.getElementById('config-' + targetConfig);
+        }
+
+        // 如果没有指定配置项或找不到对应的配置项，激活第一个
+        if (!targetLink || !targetPage) {
+            targetLink = sidebarItemHasChildren.querySelector('.sidebar-child-link');
+            targetPage = document.getElementById('config-llbot');
+        }
+
+        if (targetLink && targetPage) {
+            showConfigPage(targetLink, targetPage);
+        }
+    }
+
+    // 点击子菜单项切换配置页面
+    sidebarChildLinks.forEach(link => {
+        console.log('Processing sidebar child link:', link, 'href:', link.href, 'getAttribute:', link.getAttribute('href'));
+        // 防止重复绑定事件
+        if (!link.hasAttribute('data-initialized')) {
+            link.addEventListener('click', function(e) {
+                console.log('Sidebar child link clicked:', this.getAttribute('data-config'));
+                e.preventDefault();
+                e.stopPropagation();
+
+                const configType = this.getAttribute('data-config');
+                const targetPage = document.getElementById('config-' + configType);
+
+                console.log('Target page:', targetPage, 'configType:', configType);
+
+                if (targetPage) {
+                    // 先切换到目标页面
+                    showConfigPage(this, targetPage);
+                    // 然后使用 pushState 更新 URL hash (不会触发 hashchange 事件)
+                    const currentUrl = window.location.pathname;
+                    history.pushState({}, '', currentUrl + '#' + configType);
+                } else {
+                    console.error('Target page not found for config type:', configType);
+                }
+            });
+            link.setAttribute('data-initialized', 'true');
+            console.log('Event listener bound to link:', link);
+        } else {
+            console.log('Link already initialized:', link);
+        }
+    });
+
+    // 监听 hash 变化
+    if (!window.hasHashChangeListener) {
+        window.addEventListener('hashchange', function() {
+            // 如果是用户点击导致的 hash 变化,跳过处理
+            if (window.isHashChangeFromClick) {
+                return;
+            }
+
+            const hash = window.location.hash.replace('#', '');
+            if (hash) {
+                const targetLink = document.querySelector(`.sidebar-child-link[data-config="${hash}"]`);
+                const targetPage = document.getElementById('config-' + hash);
+                if (targetLink && targetPage) {
+                    showConfigPage(targetLink, targetPage);
+                }
+            }
+        });
+        window.hasHashChangeListener = true;
     }
 
     // 修复模态框的 aria-hidden 警告
+    fixModalAriaWarnings();
+}
+
+// 显示指定的配置页面
+function showConfigPage(link, page) {
+    const isDarkTheme = document.body.classList.contains('dark-theme');
+
+    // 获取所有子菜单链接和配置页面
+    const allChildLinks = document.querySelectorAll('.sidebar-child-link');
+    const allConfigPages = document.querySelectorAll('.config-page');
+
+    // 移除所有子菜单的激活状态
+    allChildLinks.forEach(l => l.classList.remove('active'));
+    allConfigPages.forEach(p => {
+        p.classList.remove('show', 'active');
+        // 清除行内样式
+        p.style.opacity = '';
+        p.style.transform = '';
+    });
+
+    // 激活当前选中的子菜单项
+    link.classList.add('active');
+
+    // 显示对应的配置页面
+    page.classList.add('show', 'active');
+}
+
+// 修复模态框的 aria-hidden 警告
+function fixModalAriaWarnings() {
     const modals = document.querySelectorAll('.modal');
     modals.forEach(modal => {
-        // 移除初始的 aria-hidden 属性，让 Bootstrap 动态管理
-        modal.removeAttribute('aria-hidden');
-
-        // 监听显示事件
-        modal.addEventListener('show.bs.modal', function() {
+        if (!modal.hasAttribute('data-modal-initialized')) {
+            // 移除初始的 aria-hidden 属性，让 Bootstrap 动态管理
             modal.removeAttribute('aria-hidden');
-        });
 
-        // 监听隐藏事件
-        modal.addEventListener('hidden.bs.modal', function() {
-            modal.setAttribute('aria-hidden', 'true');
-            // 移除焦点，避免焦点保留在具有 aria-hidden 属性的元素上
-            if (document.activeElement && modal.contains(document.activeElement)) {
-                document.activeElement.blur();
-            }
-        });
+            // 监听显示事件
+            modal.addEventListener('show.bs.modal', function() {
+                modal.removeAttribute('aria-hidden');
+            });
+
+            // 监听隐藏事件
+            modal.addEventListener('hidden.bs.modal', function() {
+                modal.setAttribute('aria-hidden', 'true');
+                // 移除焦点，避免焦点保留在具有 aria-hidden 属性的元素上
+                if (document.activeElement && modal.contains(document.activeElement)) {
+                    document.activeElement.blur();
+                }
+            });
+            modal.setAttribute('data-modal-initialized', 'true');
+        }
     });
-});
+}
+
+// 页面加载完成后初始化
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initConfigPage);
+} else {
+    // DOM 已经加载完成，直接初始化
+    initConfigPage();
+}

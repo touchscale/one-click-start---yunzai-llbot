@@ -123,7 +123,7 @@ def terminate_yunzai_git_bash_process():
         from pid_manager import read_pid, verify_pid, remove_pid_file
         yunzai_pid = read_pid('yunzai')
 
-        if yunzai_pid is None or not verify_pid(yunzai_pid):
+        if yunzai_pid is None or not verify_pid(yunzai_pid, 'yunzai'):
             logger.warning("未找到有效的yunzai进程PID，跳过终止", extra={
                 'event_type': 'warning',
                 'action': 'skip_terminate_git_bash',
@@ -255,7 +255,7 @@ def terminate_llbot_process_tree(llbot_path=None):
         # 仅使用PID文件获取llbot进程PID
         from pid_manager import read_pid, verify_pid, remove_pid_file
         llbot_pid = read_pid('llbot')
-        if llbot_pid and verify_pid(llbot_pid):
+        if llbot_pid and verify_pid(llbot_pid, 'llbot'):
             logger.info(f"通过PID文件找到llbot进程: PID {llbot_pid}", extra={
                 'event_type': EventType.PROCESS_STOP,
                 'method': 'pid_file',
@@ -483,7 +483,10 @@ def restart_llbot(config):
                 'error': 'llbot_path_not_configured'
             })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: llbot路径未配置")
-            return
+            return {
+                'success': False,
+                'message': 'llbot路径未配置'
+            }
             
         process_name = os.path.basename(config['llbot']['path'])
         logger.info(f"准备启动llbot进程: {process_name}", extra={
@@ -500,7 +503,10 @@ def restart_llbot(config):
                     'error': 'llbot_directory_not_configured'
                 })
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: llbot目录未配置")
-                return
+                return {
+                    'success': False,
+                    'message': 'llbot目录未配置'
+                }
                 
             logger.info(f"切换到工作目录: {config['llbot']['directory']}", extra={
                 'event_type': EventType.PROCESS_START,
@@ -542,6 +548,11 @@ def restart_llbot(config):
                 })
             
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {process_name} 启动成功 (PID: {process.pid})")
+            return {
+                'success': True,
+                'message': f'llbot 启动成功 (PID: {process.pid})',
+                'pid': process.pid
+            }
         else:
             logger.error(f"llbot可执行文件未找到: {config['llbot']['path']}", extra={
                 'event_type': EventType.ERROR,
@@ -549,6 +560,10 @@ def restart_llbot(config):
                 'path': config['llbot']['path']
             })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {process_name} 未找到，请验证路径: {config['llbot']['path']}")
+            return {
+                'success': False,
+                'message': f'llbot可执行文件未找到: {config["llbot"]["path"]}'
+            }
     except KeyError as e:
         logger.error(f"配置错误 - 缺少必需的配置项: {e}", extra={
             'event_type': EventType.ERROR,
@@ -556,7 +571,10 @@ def restart_llbot(config):
             'missing_key': str(e)
         })
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 配置错误: 缺少必需的配置项 {e}")
-        raise
+        return {
+            'success': False,
+            'message': f'配置错误: 缺少必需的配置项 {e}'
+        }
     except Exception as e:
         logger.error(f"重启llbot时发生未知错误: {str(e)}", extra={
             'event_type': EventType.ERROR,
@@ -565,6 +583,10 @@ def restart_llbot(config):
             'traceback': __import__('traceback').format_exc()
         })
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 重启llbot时发生错误: {str(e)}")
+        return {
+            'success': False,
+            'message': f'重启llbot时发生错误: {str(e)}'
+        }
 
 def start_yunzai(config):
     """启动Yunzai进程"""
@@ -584,7 +606,10 @@ def start_yunzai(config):
                     'error': 'yunzai_directory_not_configured'
                 })
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: Yunzai目录未配置")
-                return None
+                return {
+                    'success': False,
+                    'message': 'Yunzai目录未配置'
+                }
                 
             logger.info(f"切换到工作目录: {config['yunzai']['bash_directory']}", extra={
                 'event_type': EventType.PROCESS_START,
@@ -636,7 +661,11 @@ def start_yunzai(config):
                 'command_used': start_command
             })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Yunzai进程已启动")
-            return result
+            return {
+                'success': True,
+                'message': f'Yunzai 启动成功 (PID: {result.pid})',
+                'pid': result.pid
+            }
         else:
             logger.error(f"Git Bash可执行文件未找到: {config['yunzai']['git_bash_path']}", extra={
                 'event_type': EventType.ERROR, 
@@ -653,7 +682,10 @@ def start_yunzai(config):
                 'suggestion': '请检查Git Bash路径配置是否正确'
             })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Git Bash可执行文件未找到: {config['yunzai']['git_bash_path']}")
-            return None
+            return {
+                'success': False,
+                'message': f'Git Bash可执行文件未找到: {config["yunzai"]["git_bash_path"]}'
+            }
     except FileNotFoundError as e:
         logger.error(f"Git Bash可执行文件或Yunzai目录未找到: {str(e)}", extra={
             'event_type': EventType.ERROR, 
@@ -672,7 +704,10 @@ def start_yunzai(config):
             'suggestion': '请检查Git Bash路径和Yunzai目录配置是否正确'
         })
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Git Bash可执行文件或Yunzai目录未找到: {str(e)}")
-        return None
+        return {
+            'success': False,
+            'message': f'Git Bash可执行文件或Yunzai目录未找到: {str(e)}'
+        }
     except subprocess.SubprocessError as e:
         logger.error(f"启动Yunzai进程时出错: {str(e)}", extra={
             'event_type': EventType.ERROR, 
@@ -689,7 +724,10 @@ def start_yunzai(config):
             'working_directory': config.get('yunzai', {}).get('bash_directory', '')
         })
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 启动Yunzai进程时出错: {str(e)}")
-        return None
+        return {
+            'success': False,
+            'message': f'启动Yunzai进程时出错: {str(e)}'
+        }
     except Exception as e:
         logger.error(f"启动Yunzai进程时发生未知错误: {str(e)}", extra={
             'event_type': EventType.ERROR, 
@@ -707,7 +745,10 @@ def start_yunzai(config):
             'traceback': __import__('traceback').format_exc()
         })
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 启动Yunzai进程时发生未知错误: {str(e)}")
-        return None
+        return {
+            'success': False,
+            'message': f'启动Yunzai进程时发生未知错误: {str(e)}'
+        }
 
 def start_redis(config):
     """启动Redis进程"""
@@ -773,7 +814,11 @@ def start_redis(config):
                 })
             
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {process_name} 启动成功 (PID: {process.pid})")
-            return process
+            return {
+                'success': True,
+                'message': f'Redis 启动成功 (PID: {process.pid})',
+                'pid': process.pid
+            }
         else:
             logger.error(f"Redis可执行文件未找到: {config['redis']['path']}", extra={
                 'event_type': EventType.ERROR,
@@ -781,7 +826,10 @@ def start_redis(config):
                 'path': config['redis']['path']
             })
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {process_name} 未找到，请验证路径: {config['redis']['path']}")
-            return None
+            return {
+                'success': False,
+                'message': f'Redis可执行文件未找到: {config["redis"]["path"]}'
+            }
     except Exception as e:
         logger.error(f"启动Redis时发生错误: {str(e)}", extra={
             'event_type': EventType.ERROR,
@@ -790,4 +838,387 @@ def start_redis(config):
             'traceback': __import__('traceback').format_exc()
         })
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 启动Redis时发生错误: {str(e)}")
-        return None
+        return {
+            'success': False,
+            'message': f'启动Redis时发生错误: {str(e)}'
+        }
+
+def start_llbot(config):
+    """启动llbot进程"""
+    try:
+        logger.info("开始执行start_llbot函数", extra={
+            'event_type': EventType.PROCESS_START,
+            'action': 'start_llbot_start',
+            'config_path': config.get('llbot', {}).get('path', '未配置')
+        })
+        
+        if not config.get('llbot', {}).get('path'):
+            logger.error("llbot路径未配置，无法启动", extra={
+                'event_type': EventType.ERROR,
+                'error': 'llbot_path_not_configured'
+            })
+            return {
+                'success': False,
+                'message': 'llbot路径未配置'
+            }
+            
+        process_name = os.path.basename(config['llbot']['path'])
+        logger.info(f"准备启动llbot进程: {process_name}", extra={
+            'event_type': EventType.PROCESS_START,
+            'process_name': process_name,
+            'full_path': config['llbot']['path']
+        })
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 启动 {process_name}...")
+        
+        if os.path.exists(config['llbot']['path']):
+            if not config.get('llbot', {}).get('directory'):
+                logger.error("llbot目录未配置，无法启动", extra={
+                    'event_type': EventType.ERROR,
+                    'error': 'llbot_directory_not_configured'
+                })
+                return {
+                    'success': False,
+                    'message': 'llbot目录未配置'
+                }
+                
+            logger.info(f"切换到工作目录: {config['llbot']['directory']}", extra={
+                'event_type': EventType.PROCESS_START,
+                'working_directory': config['llbot']['directory']
+            })
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 找到 {process_name}，正在目录中启动: {config['llbot']['directory']}")
+            os.chdir(config['llbot']['directory'])
+            
+            # 启动进程
+            process = subprocess.Popen([config['llbot']['path']])
+            logger.info(f"llbot进程已启动，PID: {process.pid}", extra={
+                'event_type': EventType.PROCESS_START,
+                'process_name': process_name,
+                'pid': process.pid,
+                'command': config['llbot']['path']
+            })
+            
+            # 写入PID文件
+            try:
+                from pid_manager import write_pid
+                write_pid('llbot', process.pid)
+            except Exception as e:
+                logger.warning(f"写入llbot PID文件失败: {str(e)}", extra={
+                    'event_type': 'warning',
+                    'error': str(e)
+                })
+            
+            # 清除手动停止状态
+            try:
+                update_global_manual_stop_status('llbot', False)
+                logger.info("已清除llbot手动停止状态", extra={
+                    'event_type': EventType.PROCESS_START,
+                    'action': 'clear_manual_stop_status'
+                })
+            except Exception as e:
+                logger.warning(f"清除手动停止状态失败: {str(e)}", extra={
+                    'event_type': 'warning',
+                    'error': str(e)
+                })
+            
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {process_name} 启动成功 (PID: {process.pid})")
+            return {
+                'success': True,
+                'message': f'llbot 启动成功 (PID: {process.pid})',
+                'pid': process.pid
+            }
+        else:
+            logger.error(f"llbot可执行文件未找到: {config['llbot']['path']}", extra={
+                'event_type': EventType.ERROR,
+                'error': 'llbot_executable_not_found',
+                'path': config['llbot']['path']
+            })
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {process_name} 未找到，请验证路径: {config['llbot']['path']}")
+            return {
+                'success': False,
+                'message': f'llbot可执行文件未找到: {config["llbot"]["path"]}'
+            }
+    except Exception as e:
+        logger.error(f"启动llbot时发生未知错误: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'error': str(e),
+            'error_class': type(e).__name__,
+            'traceback': __import__('traceback').format_exc()
+        })
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 启动llbot时发生错误: {str(e)}")
+        return {
+            'success': False,
+            'message': f'启动llbot时发生错误: {str(e)}'
+        }
+
+def stop_llbot():
+    """停止llbot进程"""
+    try:
+        logger.info("开始停止llbot进程", extra={
+            'event_type': EventType.PROCESS_STOP,
+            'action': 'stop_llbot'
+        })
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 正在停止llbot...")
+        
+        terminated = terminate_llbot_process_tree()
+        
+        if terminated:
+            # 设置手动停止状态
+            try:
+                update_global_manual_stop_status('llbot', True)
+                logger.info("已设置llbot手动停止状态", extra={
+                    'event_type': EventType.PROCESS_STOP,
+                    'action': 'set_manual_stop_status'
+                })
+            except Exception as e:
+                logger.warning(f"设置手动停止状态失败: {str(e)}", extra={
+                    'event_type': 'warning',
+                    'error': str(e)
+                })
+            
+            logger.info("llbot进程已停止", extra={
+                'event_type': EventType.PROCESS_STOP,
+                'status': 'success'
+            })
+            return {
+                'success': True,
+                'message': 'llbot已停止'
+            }
+        else:
+            logger.warning("未找到需要停止的llbot进程", extra={
+                'event_type': EventType.WARNING,
+                'action': 'stop_llbot',
+                'status': 'no_process_found'
+            })
+            return {
+                'success': True,
+                'message': 'llbot进程未运行或已停止'
+            }
+    except Exception as e:
+        logger.error(f"停止llbot时发生错误: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'error': str(e),
+            'error_class': type(e).__name__,
+            'traceback': __import__('traceback').format_exc()
+        })
+        return {
+            'success': False,
+            'message': f'停止llbot时发生错误: {str(e)}'
+        }
+
+def stop_yunzai():
+    """停止Yunzai进程"""
+    try:
+        logger.info("开始停止Yunzai进程", extra={
+            'event_type': EventType.PROCESS_STOP,
+            'action': 'stop_yunzai'
+        })
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 正在停止Yunzai...")
+        
+        terminated = terminate_yunzai_git_bash_process()
+        
+        if terminated:
+            # 设置手动停止状态
+            try:
+                update_global_manual_stop_status('yunzai', True)
+                logger.info("已设置yunzai手动停止状态", extra={
+                    'event_type': EventType.PROCESS_STOP,
+                    'action': 'set_manual_stop_status'
+                })
+            except Exception as e:
+                logger.warning(f"设置手动停止状态失败: {str(e)}", extra={
+                    'event_type': 'warning',
+                    'error': str(e)
+                })
+            
+            logger.info("Yunzai进程已停止", extra={
+                'event_type': EventType.PROCESS_STOP,
+                'status': 'success'
+            })
+            return {
+                'success': True,
+                'message': 'Yunzai已停止'
+            }
+        else:
+            logger.warning("未找到需要停止的Yunzai进程", extra={
+                'event_type': EventType.WARNING,
+                'action': 'stop_yunzai',
+                'status': 'no_process_found'
+            })
+            return {
+                'success': True,
+                'message': 'Yunzai进程未运行或已停止'
+            }
+    except Exception as e:
+        logger.error(f"停止Yunzai时发生错误: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'error': str(e),
+            'error_class': type(e).__name__,
+            'traceback': __import__('traceback').format_exc()
+        })
+        return {
+            'success': False,
+            'message': f'停止Yunzai时发生错误: {str(e)}'
+        }
+
+def stop_redis():
+    """停止Redis进程"""
+    try:
+        logger.info("开始停止Redis进程", extra={
+            'event_type': EventType.PROCESS_STOP,
+            'action': 'stop_redis'
+        })
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 正在停止Redis...")
+        
+        terminated = terminate_process_by_name('redis-server.exe')
+        
+        if terminated:
+            # 清理PID文件
+            try:
+                from pid_manager import remove_pid_file
+                remove_pid_file('redis')
+            except Exception as e:
+                logger.warning(f"清理redis PID文件失败: {str(e)}", extra={
+                    'event_type': 'warning',
+                    'error': str(e)
+                })
+            
+            # 设置手动停止状态
+            try:
+                update_global_manual_stop_status('redis', True)
+                logger.info("已设置redis手动停止状态", extra={
+                    'event_type': EventType.PROCESS_STOP,
+                    'action': 'set_manual_stop_status'
+                })
+            except Exception as e:
+                logger.warning(f"设置手动停止状态失败: {str(e)}", extra={
+                    'event_type': 'warning',
+                    'error': str(e)
+                })
+            
+            logger.info("Redis进程已停止", extra={
+                'event_type': EventType.PROCESS_STOP,
+                'status': 'success'
+            })
+            return {
+                'success': True,
+                'message': 'Redis已停止'
+            }
+        else:
+            logger.warning("未找到需要停止的Redis进程", extra={
+                'event_type': EventType.WARNING,
+                'action': 'stop_redis',
+                'status': 'no_process_found'
+            })
+            return {
+                'success': True,
+                'message': 'Redis进程未运行或已停止'
+            }
+    except Exception as e:
+        logger.error(f"停止Redis时发生错误: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'error': str(e),
+            'error_class': type(e).__name__,
+            'traceback': __import__('traceback').format_exc()
+        })
+        return {
+            'success': False,
+            'message': f'停止Redis时发生错误: {str(e)}'
+        }
+
+def restart_yunzai(config):
+    """重启Yunzai"""
+    try:
+        logger.info("开始重启Yunzai进程", extra={
+            'event_type': EventType.PROCESS_START,
+            'action': 'restart_yunzai'
+        })
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 正在重启Yunzai...")
+        
+        # 先停止Yunzai
+        stop_result = stop_yunzai()
+        
+        # 等待进程完全终止
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 等待进程完全终止...")
+        time.sleep(2)
+        
+        # 再启动Yunzai
+        start_result = start_yunzai(config)
+        
+        if start_result and start_result.get('success'):
+            logger.info("Yunzai进程已重启", extra={
+                'event_type': EventType.PROCESS_START,
+                'status': 'success'
+            })
+            return {
+                'success': True,
+                'message': 'Yunzai已重启'
+            }
+        else:
+            logger.error("Yunzai重启失败", extra={
+                'event_type': EventType.ERROR,
+                'status': 'failed'
+            })
+            return {
+                'success': False,
+                'message': start_result.get('message', 'Yunzai重启失败') if start_result else 'Yunzai重启失败'
+            }
+    except Exception as e:
+        logger.error(f"重启Yunzai时发生错误: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'error': str(e),
+            'error_class': type(e).__name__,
+            'traceback': __import__('traceback').format_exc()
+        })
+        return {
+            'success': False,
+            'message': f'重启Yunzai时发生错误: {str(e)}'
+        }
+
+def restart_redis(config):
+    """重启Redis"""
+    try:
+        logger.info("开始重启Redis进程", extra={
+            'event_type': EventType.PROCESS_START,
+            'action': 'restart_redis'
+        })
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 正在重启Redis...")
+        
+        # 先停止Redis
+        stop_result = stop_redis()
+        
+        # 等待进程完全终止
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 等待进程完全终止...")
+        time.sleep(2)
+        
+        # 再启动Redis
+        start_result = start_redis(config)
+        
+        if start_result:
+            logger.info("Redis进程已重启", extra={
+                'event_type': EventType.PROCESS_START,
+                'status': 'success'
+            })
+            return {
+                'success': True,
+                'message': 'Redis已重启'
+            }
+        else:
+            logger.error("Redis重启失败", extra={
+                'event_type': EventType.ERROR,
+                'status': 'failed'
+            })
+            return {
+                'success': False,
+                'message': 'Redis重启失败'
+            }
+    except Exception as e:
+        logger.error(f"重启Redis时发生错误: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'error': str(e),
+            'error_class': type(e).__name__,
+            'traceback': __import__('traceback').format_exc()
+        })
+        return {
+            'success': False,
+            'message': f'重启Redis时发生错误: {str(e)}'
+        }

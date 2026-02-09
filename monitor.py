@@ -407,27 +407,44 @@ def check_and_manage_llbot_async(config):
                 llbot_running = False
 
                 # 优先使用PID文件检测
-                from pid_manager import is_process_running, read_pid, get_process_info_from_pid
+                from pid_manager import is_process_running, read_pid, get_process_info_from_pid, verify_pid
                 if is_process_running('llbot'):
-                    llbot_running = True
                     pid = read_pid('llbot')
-                    pid_info = get_process_info_from_pid(pid) if pid else None
-                    logger.info(f"通过PID文件检测到llbot进程正在运行", extra={
-                        'event_type': EventType.PROCESS_CHECK,
-                        'process_name': llbot_process_name,
-                        'status': 'running',
-                        'method': 'pid_file',
-                        'pid': pid,
-                        'process_info': pid_info
-                    })
-                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {(llbot_process_name or 'llbot')} 进程正在运行 (PID: {pid})...")
-                    event_manager.publish(EventType.PROCESS_CHECK, {
-                        'process_name': llbot_process_name,
-                        'status': 'running',
-                        'method': 'pid_file',
-                        'pid': pid,
-                        'process_info': pid_info
-                    })
+                    # 额外验证进程身份，确保PID对应的进程确实是llbot
+                    if pid and verify_pid(pid, 'llbot'):
+                        llbot_running = True
+                        pid_info = get_process_info_from_pid(pid) if pid else None
+                        logger.info(f"通过PID文件检测到llbot进程正在运行", extra={
+                            'event_type': EventType.PROCESS_CHECK,
+                            'process_name': llbot_process_name,
+                            'status': 'running',
+                            'method': 'pid_file',
+                            'pid': pid,
+                            'process_info': pid_info
+                        })
+                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {(llbot_process_name or 'llbot')} 进程正在运行 (PID: {pid})...")
+                        event_manager.publish(EventType.PROCESS_CHECK, {
+                            'process_name': llbot_process_name,
+                            'status': 'running',
+                            'method': 'pid_file',
+                            'pid': pid,
+                            'process_info': pid_info
+                        })
+                    else:
+                        # PID无效或进程身份不匹配，清理PID文件
+                        logger.warning(f"PID文件中的llbot进程 (PID: {pid}) 无效或身份不匹配，清理PID文件", extra={
+                            'event_type': EventType.WARNING,
+                            'pid': pid,
+                            'reason': 'pid_invalid_or_identity_mismatch'
+                        })
+                        try:
+                            from pid_manager import remove_pid_file
+                            remove_pid_file('llbot')
+                        except Exception as e:
+                            logger.warning(f"清理llbot PID文件失败: {str(e)}", extra={
+                                'event_type': EventType.WARNING,
+                                'error': str(e)
+                            })
                 else:
                     logger.debug("PID文件检测: llbot进程未运行", extra={
                         'event_type': EventType.DEBUG,
@@ -879,26 +896,42 @@ def check_and_manage_yunzai_async(config):
 
                 for proc in procs:
                     if 'git-bash' in proc.info['name'].lower():
-                        yunzai_running = True
-                        pid = proc.info['pid']  # 设置pid变量
-                        logger.info(f"通过进程名验证发现Yunzai进程正在运行（PID文件可能丢失）: {proc.info['name']} (PID: {pid})", extra={
-                            'event_type': EventType.PROCESS_CHECK,
-                            'process_name': proc.info['name'],
-                            'status': 'running',
-                            'method': 'process_name_verification',
-                            'pid': pid,
-                            'note': 'pid_file_missing'
-                        })
-                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 发现Yunzai进程正在运行 (PID: {pid})，PID文件可能丢失")
-                        # 更新PID文件
+                        # 验证 git-bash 进程是否在运行 yunzai（检查命令行参数）
                         try:
-                            write_pid('yunzai', pid)
-                        except Exception as e:
-                            logger.warning(f"更新Yunzai PID文件失败: {str(e)}", extra={
-                                'event_type': EventType.WARNING,
-                                'error': str(e)
-                            })
-                        break
+                            cmdline = proc.cmdline()
+                            if cmdline:
+                                cmdline_str = ' '.join(cmdline).lower()
+                                # 检查命令行中是否包含 "node app"
+                                if 'node' in cmdline_str and 'app' in cmdline_str:
+                                    yunzai_running = True
+                                    pid = proc.info['pid']  # 设置pid变量
+                                    logger.info(f"通过进程名验证发现Yunzai进程正在运行（PID文件可能丢失）: {proc.info['name']} (PID: {pid})", extra={
+                                        'event_type': EventType.PROCESS_CHECK,
+                                        'process_name': proc.info['name'],
+                                        'status': 'running',
+                                        'method': 'process_name_verification',
+                                        'pid': pid,
+                                        'note': 'pid_file_missing',
+                                        'cmdline': cmdline_str
+                                    })
+                                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 发现Yunzai进程正在运行 (PID: {pid})，PID文件可能丢失")
+                                    # 更新PID文件
+                                    try:
+                                        write_pid('yunzai', pid)
+                                    except Exception as e:
+                                        logger.warning(f"更新Yunzai PID文件失败: {str(e)}", extra={
+                                            'event_type': EventType.WARNING,
+                                            'error': str(e)
+                                        })
+                                    break
+                                else:
+                                    logger.debug(f"git-bash进程 (PID: {proc.info['pid']}) 不是Yunzai进程，跳过", extra={
+                                        'event_type': EventType.DEBUG,
+                                        'pid': proc.info['pid'],
+                                        'cmdline': cmdline_str
+                                    })
+                        except (psutil.AccessDenied, psutil.NoSuchProcess):
+                            pass
 
             if not yunzai_running:
                 # 检查是否手动停止了Yunzai
