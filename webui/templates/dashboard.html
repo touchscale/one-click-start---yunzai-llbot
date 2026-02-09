@@ -53,43 +53,8 @@
                     <span>配置管理</span>
                     <i class="fas fa-chevron-down sidebar-arrow"></i>
                 </a>
-                <div class="sidebar-children">
-                    <a href="/config" class="sidebar-child-link" data-config="llbot">
-                        <i class="fas fa-robot config-icon text-primary"></i>
-                        <span>llbot 配置</span>
-                    </a>
-                    <a href="/config" class="sidebar-child-link" data-config="yunzai">
-                        <i class="fas fa-server config-icon text-success"></i>
-                        <span>Yunzai 配置</span>
-                    </a>
-                    <a href="/config" class="sidebar-child-link" data-config="redis">
-                        <i class="fas fa-database config-icon text-info"></i>
-                        <span>Redis 配置</span>
-                    </a>
-                    <a href="/config" class="sidebar-child-link" data-config="http">
-                        <i class="fas fa-plug config-icon text-warning"></i>
-                        <span>HTTP 检查配置</span>
-                    </a>
-                    <a href="/config" class="sidebar-child-link" data-config="auto">
-                        <i class="fas fa-redo config-icon text-secondary"></i>
-                        <span>自动重启配置</span>
-                    </a>
-                    <a href="/config" class="sidebar-child-link" data-config="autologin">
-                        <i class="fas fa-user-check config-icon text-primary"></i>
-                        <span>自动登录配置</span>
-                    </a>
-                    <a href="/config" class="sidebar-child-link" data-config="auth">
-                        <i class="fas fa-lock config-icon text-danger"></i>
-                        <span>Web 认证配置</span>
-                    </a>
-                    <a href="/config" class="sidebar-child-link" data-config="gitupdate">
-                        <i class="fas fa-code-branch config-icon text-success"></i>
-                        <span>Git 更新配置</span>
-                    </a>
-                    <a href="/config" class="sidebar-child-link" data-config="onebot">
-                        <i class="fas fa-robot config-icon text-primary"></i>
-                        <span>OneBot 配置</span>
-                    </a>
+                <div class="sidebar-children" id="config-menu-container">
+                    <!-- 配置菜单项将通过 JavaScript 动态生成 -->
                 </div>
             </div>
         </nav>

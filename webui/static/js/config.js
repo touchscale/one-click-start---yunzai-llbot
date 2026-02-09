@@ -121,6 +121,11 @@ async function saveConfig() {
                 .split(',')
                 .map(id => id.trim())
                 .filter(id => id !== '')
+        },
+        image_service: {
+            enabled: document.getElementById('image-service-enabled').checked,
+            port: parseInt(document.getElementById('image-service-port').value),
+            url: document.getElementById('image-service-url').value
         }
     };
 
@@ -192,6 +197,22 @@ async function saveConfig() {
                     return;
                 }
             }
+        }
+    }
+
+    // 验证图片服务配置
+    if (configData.image_service.enabled) {
+        if (configData.image_service.port < 1024 || configData.image_service.port > 65535) {
+            showAlert('图片服务端口必须在 1024-65535 之间', 'warning');
+            return;
+        }
+        if (!configData.image_service.url) {
+            showAlert('启用图片服务时 URL 不能为空', 'warning');
+            return;
+        }
+        if (!configData.image_service.url.startsWith('http://') && !configData.image_service.url.startsWith('https://')) {
+            showAlert('图片服务 URL 应以 http:// 或 https:// 开头', 'warning');
+            return;
         }
     }
     // 验证密码字段 - only check if the user provided a new password
@@ -492,14 +513,14 @@ function initConfigPage() {
     console.log('configPages count:', configPages.length);
     console.log('sidebarChildLinks:', sidebarChildLinks);
 
+    // 从 URL hash 中获取要激活的配置项
+    const hash = window.location.hash.replace('#', '');
+    const targetConfig = hash || sessionStorage.getItem('targetConfig');
+    sessionStorage.removeItem('targetConfig'); // 清除存储的配置项
+
     // 默认展开配置管理子菜单
     if (sidebarItemHasChildren) {
         sidebarItemHasChildren.classList.add('expanded');
-
-        // 从 URL hash 中获取要激活的配置项
-        const hash = window.location.hash.replace('#', '');
-        const targetConfig = hash || sessionStorage.getItem('targetConfig');
-        sessionStorage.removeItem('targetConfig'); // 清除存储的配置项
 
         // 激活配置项和对应的页面
         let targetLink = null;
@@ -519,21 +540,6 @@ function initConfigPage() {
 
         if (targetLink && targetPage) {
             showConfigPage(targetLink, targetPage);
-        }
-    }
-
-    // 点击配置管理主菜单切换展开/收起
-    if (sidebarItemHasChildren) {
-        const sidebarLink = sidebarItemHasChildren.querySelector('.sidebar-link');
-        if (sidebarLink) {
-            // 防止重复绑定事件
-            if (!sidebarLink.hasAttribute('data-initialized')) {
-                sidebarLink.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    sidebarItemHasChildren.classList.toggle('expanded');
-                });
-                sidebarLink.setAttribute('data-initialized', 'true');
-            }
         }
     }
 

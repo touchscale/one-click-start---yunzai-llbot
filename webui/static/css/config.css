@@ -94,11 +94,6 @@
     margin-right: 10px;
 }
 
-/* 确保配置管理子菜单默认展开 */
-.sidebar-item-has-children > .sidebar-link.active + .sidebar-children {
-    max-height: 500px;
-}
-
 /* 配置页面容器 */
 .config-content-container {
     position: relative;

@@ -47,48 +47,13 @@
                 </a>
             </div>
             <div class="sidebar-item sidebar-item-has-children">
-                <a href="/config" class="sidebar-link active" data-page="config">
+                <a href="#" class="sidebar-link active" data-page="config">
                     <i class="fas fa-cogs"></i>
                     <span>配置管理</span>
                     <i class="fas fa-chevron-down sidebar-arrow"></i>
                 </a>
-                <div class="sidebar-children">
-                    <a href="#" class="sidebar-child-link active" data-config="llbot">
-                        <i class="fas fa-robot config-icon text-primary"></i>
-                        <span>llbot 配置</span>
-                    </a>
-                    <a href="#" class="sidebar-child-link" data-config="yunzai">
-                        <i class="fas fa-server config-icon text-success"></i>
-                        <span>Yunzai 配置</span>
-                    </a>
-                    <a href="#" class="sidebar-child-link" data-config="redis">
-                        <i class="fas fa-database config-icon text-info"></i>
-                        <span>Redis 配置</span>
-                    </a>
-                    <a href="#" class="sidebar-child-link" data-config="http">
-                        <i class="fas fa-plug config-icon text-warning"></i>
-                        <span>HTTP 检查配置</span>
-                    </a>
-                    <a href="#" class="sidebar-child-link" data-config="auto">
-                        <i class="fas fa-redo config-icon text-secondary"></i>
-                        <span>自动重启配置</span>
-                    </a>
-                    <a href="#" class="sidebar-child-link" data-config="autologin">
-                        <i class="fas fa-user-check config-icon text-primary"></i>
-                        <span>自动登录配置</span>
-                    </a>
-                    <a href="#" class="sidebar-child-link" data-config="auth">
-                        <i class="fas fa-lock config-icon text-danger"></i>
-                        <span>Web 认证配置</span>
-                    </a>
-                    <a href="#" class="sidebar-child-link" data-config="gitupdate">
-                        <i class="fas fa-code-branch config-icon text-success"></i>
-                        <span>Git 更新配置</span>
-                    </a>
-                    <a href="#" class="sidebar-child-link" data-config="onebot">
-                        <i class="fas fa-robot config-icon text-primary"></i>
-                        <span>OneBot 配置</span>
-                    </a>
+                <div class="sidebar-children" id="config-menu-container">
+                    <!-- 配置菜单项将通过 JavaScript 动态生成 -->
                 </div>
             </div>
         </nav>
@@ -400,6 +365,55 @@
                                         <li>配置完成后重启监控脚本生效</li>
                                         <li>通过 QQ 发送 /help 查看可用指令</li>
                                         <li>支持指令: /status, /start, /stop, /restart, /check_update, /update</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 图片服务配置 -->
+                    <div class="config-page" id="config-imageservice">
+                        <div class="card config-card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0"><i class="fas fa-image config-icon text-info"></i>图片服务配置</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="image-service-enabled" {% if config.image_service.enabled %}checked{% endif %}>
+                                    <label class="form-check-label" for="image-service-enabled">
+                                        启用图片生成服务
+                                    </label>
+                                    <small class="text-muted d-block">启用后自动启动图片生成服务，用于生成状态图片和帮助图片</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="image-service-port" class="form-label">服务端口</label>
+                                    <input type="number" class="form-control" id="image-service-port" value="{{ config.image_service.port }}" min="1024" max="65535">
+                                    <small class="text-muted">图片服务的监听端口，默认 3001</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="image-service-url" class="form-label">服务 URL</label>
+                                    <input type="text" class="form-control" id="image-service-url" value="{{ config.image_service.url }}" placeholder="例如: http://localhost:3001">
+                                    <small class="text-muted">图片服务的完整 URL 地址，通常格式为 http://localhost:port</small>
+                                </div>
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>功能说明：</strong>
+                                    <ul class="mb-0 mt-2">
+                                        <li>图片服务基于 Node.js 和 Puppeteer 实现</li>
+                                        <li>需要安装 Node.js 和 Edge 浏览器</li>
+                                        <li>首次启用时会自动安装 npm 依赖</li>
+                                        <li>支持生成系统状态图片和帮助信息图片</li>
+                                        <li>配置完成后重启监控脚本生效</li>
+                                    </ul>
+                                </div>
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <strong>注意事项：</strong>
+                                    <ul class="mb-0 mt-2">
+                                        <li>确保系统已安装 Node.js (建议 v16+)</li>
+                                        <li>确保系统已安装 Edge 浏览器</li>
+                                        <li>首次启动可能需要 1-2 分钟安装依赖</li>
+                                        <li>如果启动失败，会自动降级到文本模式</li>
                                     </ul>
                                 </div>
                             </div>
