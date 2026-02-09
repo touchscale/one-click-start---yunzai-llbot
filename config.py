@@ -286,6 +286,13 @@ def validate_config(config, config_path="config.yaml"):
             'check_interval': int,
             'auto_pull': bool,
             'auto_restart': bool
+        },
+        'onebot': {
+            'enabled': bool,
+            'ws_url': str,
+            'access_token': str,
+            'reconnect_interval': int,
+            'authorized_users': list
         }
     }
     
@@ -314,6 +321,8 @@ def validate_config(config, config_path="config.yaml"):
                         config[section][field] = DEFAULT_CONFIG['http_check'].get('timeout', 5)
                     elif section == 'git_update' and field == 'check_interval':
                         config[section][field] = DEFAULT_CONFIG['git_update'].get('check_interval', 3600)
+                    elif section == 'onebot' and field == 'reconnect_interval':
+                        config[section][field] = DEFAULT_CONFIG['onebot'].get('reconnect_interval', 5)
                 elif expected_type == bool:
                     if section == 'auto_restart' and field == 'enabled':
                         config[section][field] = DEFAULT_CONFIG['auto_restart'].get('enabled', True)
@@ -326,6 +335,11 @@ def validate_config(config, config_path="config.yaml"):
                             config[section][field] = DEFAULT_CONFIG['git_update'].get('auto_pull', False)
                         elif field == 'auto_restart':
                             config[section][field] = DEFAULT_CONFIG['git_update'].get('auto_restart', False)
+                    elif section == 'onebot' and field == 'enabled':
+                        config[section][field] = DEFAULT_CONFIG['onebot'].get('enabled', False)
+                elif expected_type == list:
+                    if section == 'onebot' and field == 'authorized_users':
+                        config[section][field] = DEFAULT_CONFIG['onebot'].get('authorized_users', [])
         else:
             # 检查该部分中的字段
             for field, expected_type in fields.items():
@@ -345,11 +359,24 @@ def validate_config(config, config_path="config.yaml"):
                             config[section][field] = DEFAULT_CONFIG['yunzai'].get('wait_seconds', 5)
                         elif section == 'http_check' and field == 'timeout':
                             config[section][field] = DEFAULT_CONFIG['http_check'].get('timeout', 5)
+                        elif section == 'onebot' and field == 'reconnect_interval':
+                            config[section][field] = DEFAULT_CONFIG['onebot'].get('reconnect_interval', 5)
                     elif expected_type == bool:
                         if section == 'auto_restart' and field == 'enabled':
                             config[section][field] = DEFAULT_CONFIG['auto_restart'].get('enabled', True)
                         elif section == 'auto_restart' and field == 'respect_manual_stop':
                             config[section][field] = DEFAULT_CONFIG['auto_restart'].get('respect_manual_stop', True)
+                        elif section == 'git_update' and field == 'enabled':
+                            config[section][field] = DEFAULT_CONFIG['git_update'].get('enabled', False)
+                        elif section == 'git_update' and field == 'auto_pull':
+                            config[section][field] = DEFAULT_CONFIG['git_update'].get('auto_pull', False)
+                        elif section == 'git_update' and field == 'auto_restart':
+                            config[section][field] = DEFAULT_CONFIG['git_update'].get('auto_restart', False)
+                        elif section == 'onebot' and field == 'enabled':
+                            config[section][field] = DEFAULT_CONFIG['onebot'].get('enabled', False)
+                    elif expected_type == list:
+                        if section == 'onebot' and field == 'authorized_users':
+                            config[section][field] = DEFAULT_CONFIG['onebot'].get('authorized_users', [])
                 else:
                     # 验证字段类型
                     actual_value = config[section][field]
@@ -368,11 +395,24 @@ def validate_config(config, config_path="config.yaml"):
                                 config[section][field] = DEFAULT_CONFIG['yunzai'].get('wait_seconds', 5)
                             elif section == 'http_check' and field == 'timeout':
                                 config[section][field] = DEFAULT_CONFIG['http_check'].get('timeout', 5)
+                            elif section == 'onebot' and field == 'reconnect_interval':
+                                config[section][field] = DEFAULT_CONFIG['onebot'].get('reconnect_interval', 5)
                         elif expected_type == bool:
                             if section == 'auto_restart' and field == 'enabled':
                                 config[section][field] = DEFAULT_CONFIG['auto_restart'].get('enabled', True)
                             elif section == 'auto_restart' and field == 'respect_manual_stop':
                                 config[section][field] = DEFAULT_CONFIG['auto_restart'].get('respect_manual_stop', True)
+                            elif section == 'git_update' and field == 'enabled':
+                                config[section][field] = DEFAULT_CONFIG['git_update'].get('enabled', False)
+                            elif section == 'git_update' and field == 'auto_pull':
+                                config[section][field] = DEFAULT_CONFIG['git_update'].get('auto_pull', False)
+                            elif section == 'git_update' and field == 'auto_restart':
+                                config[section][field] = DEFAULT_CONFIG['git_update'].get('auto_restart', False)
+                            elif section == 'onebot' and field == 'enabled':
+                                config[section][field] = DEFAULT_CONFIG['onebot'].get('enabled', False)
+                        elif expected_type == list:
+                            if section == 'onebot' and field == 'authorized_users':
+                                config[section][field] = DEFAULT_CONFIG['onebot'].get('authorized_users', [])
                     elif not isinstance(actual_value, expected_type) or (expected_type == int and isinstance(actual_value, bool)):
                         # 特别处理：布尔值不是整数，即使Python中bool是int的子类
                         invalid_types.append(f"{section}.{field} (期望 {expected_type.__name__}，实际 {type(actual_value).__name__})")
@@ -392,6 +432,8 @@ def validate_config(config, config_path="config.yaml"):
                                         config[section][field] = DEFAULT_CONFIG['yunzai'].get('wait_seconds', 5)
                                     elif section == 'http_check' and field == 'timeout':
                                         config[section][field] = DEFAULT_CONFIG['http_check'].get('timeout', 5)
+                                    elif section == 'onebot' and field == 'reconnect_interval':
+                                        config[section][field] = DEFAULT_CONFIG['onebot'].get('reconnect_interval', 5)
                                     else:
                                         config[section][field] = 5  # 默认整数值
                             except (ValueError, TypeError):
@@ -402,6 +444,8 @@ def validate_config(config, config_path="config.yaml"):
                                     config[section][field] = DEFAULT_CONFIG['yunzai'].get('wait_seconds', 5)
                                 elif section == 'http_check' and field == 'timeout':
                                     config[section][field] = DEFAULT_CONFIG['http_check'].get('timeout', 5)
+                                elif section == 'onebot' and field == 'reconnect_interval':
+                                    config[section][field] = DEFAULT_CONFIG['onebot'].get('reconnect_interval', 5)
                                 else:
                                     config[section][field] = 5  # 默认整数值
                         elif expected_type == bool:
@@ -410,6 +454,13 @@ def validate_config(config, config_path="config.yaml"):
                                 config[section][field] = actual_value.lower() in ['true', '1', 'yes', 'on']
                             else:
                                 config[section][field] = bool(actual_value)
+                        elif expected_type == list:
+                            if section == 'onebot' and field == 'authorized_users':
+                                # 尝试将字符串转换为列表
+                                if isinstance(actual_value, str):
+                                    config[section][field] = [uid.strip() for uid in actual_value.split(',') if uid.strip()]
+                                else:
+                                    config[section][field] = DEFAULT_CONFIG['onebot'].get('authorized_users', [])
     
     # 记录验证结果（排除 auto_login.password 字段，因为该字段不应该有默认值）
     non_password_missing_fields = [field for field in missing_fields if field != 'auto_login.password']
@@ -566,6 +617,13 @@ def save_default_config(config_path):
             "check_interval": 900,
             "auto_pull": False,
             "auto_restart": False
+        },
+        "onebot": {
+            "enabled": False,
+            "ws_url": "",
+            "access_token": "",
+            "reconnect_interval": 5,
+            "authorized_users": []
         }
     }
     with open(config_path, 'w', encoding='utf-8') as file:

@@ -31,6 +31,103 @@
     text-align: center;
 }
 
+/* 侧边栏子菜单样式 */
+.sidebar-item-has-children {
+    position: relative;
+}
+
+.sidebar-item-has-children .sidebar-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+}
+
+.sidebar-arrow {
+    font-size: 12px;
+    transition: transform 0.3s ease;
+    margin-left: auto;
+}
+
+.sidebar-item-has-children.expanded .sidebar-arrow {
+    transform: rotate(180deg);
+}
+
+.sidebar-children {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.sidebar-item-has-children.expanded .sidebar-children {
+    max-height: 500px;
+}
+
+.sidebar-child-link {
+    display: flex;
+    align-items: center;
+    padding: 10px 20px 10px 55px;
+    color: #6c757d;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    font-size: 14px;
+    position: relative;
+}
+
+.sidebar-child-link:hover {
+    color: #007bff;
+    background: rgba(0, 123, 255, 0.1);
+}
+
+.sidebar-child-link.active {
+    color: #007bff;
+    background: rgba(0, 123, 255, 0.15);
+    font-weight: 500;
+    border-left: 3px solid #007bff;
+}
+
+.sidebar-child-link .config-icon {
+    font-size: 18px;
+    width: 24px;
+    text-align: center;
+    margin-right: 10px;
+}
+
+/* 配置页面容器 */
+.config-content-container {
+    position: relative;
+    min-height: 400px;
+}
+
+.config-page {
+    display: none;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.4s ease;
+}
+
+.config-page.show {
+    display: block;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.config-page.active {
+    animation: fadeInUp 0.4s ease;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 /* 主题样式 */
 body.light-theme {
     background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
@@ -618,6 +715,26 @@ body.dark-theme #updateModal .progress {
 body.dark-theme #updateModal #updateResult .alert code {
     background: rgba(255, 255, 255, 0.1) !important;
     color: #a0d0ff;
+}
+
+/* 侧边栏子菜单深色主题 */
+body.dark-theme .sidebar-children {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+body.dark-theme .sidebar-child-link {
+    color: #a0a0a0;
+}
+
+body.dark-theme .sidebar-child-link:hover {
+    color: #a0d0ff;
+    background: rgba(160, 208, 255, 0.1);
+}
+
+body.dark-theme .sidebar-child-link.active {
+    color: #a0d0ff;
+    background: rgba(160, 208, 255, 0.15);
+    border-left-color: #a0d0ff;
 }
 
 /* Git更新信息样式 */

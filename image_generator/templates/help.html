@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="./common.css">
+  <link rel="stylesheet" href="./help.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="title">📖 指令帮助</div>
+      <div class="subtitle">llbot & Yunzai 监控系统</div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">📊 状态查询</div>
+      <div class="command-list">
+        <div class="command-item">
+          <div class="command">/st /status</div>
+          <div class="description">查看所有服务状态</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">🔧 服务控制</div>
+      <div class="command-list">
+        <div class="command-item">
+          <div class="command">/s /start [服务]</div>
+          <div class="description">启动服务 (llbot|yunzai|redis|all)</div>
+        </div>
+        <div class="command-item">
+          <div class="command">/t /stop [服务]</div>
+          <div class="description">停止服务 (llbot|yunzai|redis|all)</div>
+        </div>
+        <div class="command-item">
+          <div class="command">/r /restart [服务]</div>
+          <div class="description">重启服务 (llbot|yunzai|redis|all)</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">🔄 更新管理</div>
+      <div class="command-list">
+        <div class="command-item">
+          <div class="command">/cu /check_update</div>
+          <div class="description">检查更新 (frontend|git|all)</div>
+        </div>
+        <div class="command-item">
+          <div class="command">/up /update [类型]</div>
+          <div class="description">执行更新 (frontend|git)</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="footer">
+      生成时间: {{TIMESTAMP}}
+    </div>
+  </div>
+</body>
+</html>

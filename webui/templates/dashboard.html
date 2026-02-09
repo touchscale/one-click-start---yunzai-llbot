@@ -13,9 +13,13 @@
             if (savedTheme === 'system') {
                 actualTheme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
             }
+            // 立即应用主题类到 body
+            document.body.classList.add(actualTheme + '-theme');
+            // 立即设置背景色
             if (actualTheme === 'dark') {
-                document.documentElement.classList.add('dark-theme');
-                document.documentElement.style.background = 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)';
+                document.body.style.background = 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)';
+            } else {
+                document.body.style.background = 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)';
             }
         } catch(e) {}
     })();
@@ -26,8 +30,9 @@
     <link href="{{ url_for('static', filename='vendor/all.css') }}" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/config.css') }}">
 </head>
-<body>
+<body data-page="dashboard">
     <!-- 侧边栏 -->
     <div class="sidebar">
         <div class="sidebar-header">
@@ -42,11 +47,15 @@
                     <span>系统监控</span>
                 </a>
             </div>
-            <div class="sidebar-item">
+            <div class="sidebar-item sidebar-item-has-children">
                 <a href="/config" class="sidebar-link" data-page="config">
                     <i class="fas fa-cogs"></i>
                     <span>配置管理</span>
+                    <i class="fas fa-chevron-down sidebar-arrow"></i>
                 </a>
+                <div class="sidebar-children" id="config-menu-container">
+                    <!-- 配置菜单项将通过 JavaScript 动态生成 -->
+                </div>
             </div>
         </nav>
         <div class="sidebar-footer">
@@ -318,5 +327,41 @@
     <script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    <script>
+        // 处理侧边栏配置管理子菜单的展开/收起和点击跳转
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebarItemHasChildren = document.querySelector('.sidebar-item-has-children');
+            const sidebarLink = sidebarItemHasChildren ? sidebarItemHasChildren.querySelector('.sidebar-link') : null;
+            const sidebarChildLinks = document.querySelectorAll('.sidebar-child-link');
+
+            if (sidebarItemHasChildren && sidebarLink) {
+                // 防止重复绑定事件
+                if (!sidebarLink.hasAttribute('data-sidebar-initialized')) {
+                    sidebarLink.addEventListener('click', function(e) {
+                        // 如果当前页面是 dashboard，阻止默认行为并切换展开/收起
+                        if (document.body.getAttribute('data-page') === 'dashboard') {
+                            e.preventDefault();
+                            sidebarItemHasChildren.classList.toggle('expanded');
+                        }
+                    });
+                    sidebarLink.setAttribute('data-sidebar-initialized', 'true');
+                }
+            }
+
+            // 处理子菜单项点击事件
+            sidebarChildLinks.forEach(link => {
+                if (!link.hasAttribute('data-child-initialized')) {
+                    link.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const configType = this.getAttribute('data-config');
+                        // 跳转到配置页面并存储要激活的配置项
+                        sessionStorage.setItem('targetConfig', configType);
+                        window.location.href = '/config';
+                    });
+                    link.setAttribute('data-child-initialized', 'true');
+                }
+            });
+        });
+    </script>
 </body>
 </html>
