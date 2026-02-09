@@ -34,6 +34,11 @@ DEFAULT_CONFIG = {
         "access_token": "",  # 访问令牌，用于验证 OneBot 连接
         "reconnect_interval": 5,
         "authorized_users": []
+    },
+    "image_service": {
+        "enabled": True,
+        "port": 3001,
+        "url": "http://localhost:3001"
     }
 }
 

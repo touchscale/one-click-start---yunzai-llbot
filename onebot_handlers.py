@@ -30,17 +30,22 @@ def handle_status(message: Dict, args: List[str]) -> str:
     Returns:
         状态图片的 base64 编码（CQ 码格式）
     """
-    # 使用 Puppeteer 生成图片
+    # 使用图片生成服务
     try:
-        from puppeteer_generator import generate_status_image, check_dependencies
+        from image_client import get_image_client, check_dependencies
+        
+        # 获取图片服务配置
+        image_service_config = current_config.get('image_service', {})
+        service_url = image_service_config.get('url', 'http://localhost:3001')
         
         # 检查依赖
-        dep_check = check_dependencies()
+        dep_check = check_dependencies(service_url)
         if dep_check['ready']:
-            img_base64 = generate_status_image(current_status)
+            client = get_image_client(service_url)
+            img_base64 = client.generate_status_image(current_status)
             return f"[CQ:image,file=base64://{img_base64}]"
         else:
-            logger.warning(f"Puppeteer 依赖缺失，使用文本格式: {dep_check['message']}", extra={
+            logger.warning(f"图片服务不可用，使用文本格式: {dep_check['message']}", extra={
                 'event_type': EventType.WARNING,
                 'feature': 'onebot_handler',
                 'command': 'status',
@@ -48,7 +53,7 @@ def handle_status(message: Dict, args: List[str]) -> str:
             })
             return _generate_text_status()
     except ImportError:
-        logger.warning("puppeteer_generator 模块未找到，使用文本格式", extra={
+        logger.warning("image_client 模块未找到，使用文本格式", extra={
             'event_type': EventType.WARNING,
             'feature': 'onebot_handler',
             'command': 'status',
@@ -56,7 +61,7 @@ def handle_status(message: Dict, args: List[str]) -> str:
         })
         return _generate_text_status()
     except Exception as e:
-        logger.error(f"使用 Puppeteer 生成状态图片失败，使用文本格式: {str(e)}", extra={
+        logger.error(f"使用图片服务生成状态图片失败，使用文本格式: {str(e)}", extra={
             'event_type': EventType.ERROR,
             'feature': 'onebot_handler',
             'command': 'status',
@@ -235,17 +240,22 @@ def handle_update(message: Dict, args: List[str]) -> str:
 
 def handle_help(message: Dict, args: List[str]) -> str:
     """显示帮助（优先返回图片格式）"""
-    # 首先尝试使用 Puppeteer 生成图片
+    # 首先尝试使用图片生成服务
     try:
-        from puppeteer_generator import generate_help_image, check_dependencies
+        from image_client import get_image_client, check_dependencies
+        
+        # 获取图片服务配置
+        image_service_config = current_config.get('image_service', {})
+        service_url = image_service_config.get('url', 'http://localhost:3001')
         
         # 检查依赖
-        dep_check = check_dependencies()
+        dep_check = check_dependencies(service_url)
         if dep_check['ready']:
-            img_base64 = generate_help_image()
+            client = get_image_client(service_url)
+            img_base64 = client.generate_help_image()
             return f"[CQ:image,file=base64://{img_base64}]"
         else:
-            logger.warning(f"Puppeteer 依赖缺失，使用文本格式: {dep_check['message']}", extra={
+            logger.warning(f"图片服务不可用，使用文本格式: {dep_check['message']}", extra={
                 'event_type': EventType.WARNING,
                 'feature': 'onebot_handler',
                 'command': 'help',
@@ -253,7 +263,7 @@ def handle_help(message: Dict, args: List[str]) -> str:
             })
             return _generate_text_help()
     except ImportError:
-        logger.warning("puppeteer_generator 模块未找到，使用文本格式", extra={
+        logger.warning("image_client 模块未找到，使用文本格式", extra={
             'event_type': EventType.WARNING,
             'feature': 'onebot_handler',
             'command': 'help',
@@ -261,7 +271,7 @@ def handle_help(message: Dict, args: List[str]) -> str:
         })
         return _generate_text_help()
     except Exception as e:
-        logger.error(f"使用 Puppeteer 生成帮助图片失败，使用文本格式: {str(e)}", extra={
+        logger.error(f"使用图片服务生成帮助图片失败，使用文本格式: {str(e)}", extra={
             'event_type': EventType.ERROR,
             'feature': 'onebot_handler',
             'command': 'help',

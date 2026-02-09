@@ -34,6 +34,7 @@ from auto_login import apply_config_from_dict, get_auto_login_status
 from git_update_checker import start_git_update_monitor, stop_git_update_monitor
 from onebot_client import init_onebot_client, get_onebot_client
 from onebot_handlers import register_all_handlers
+from image_service_manager import get_image_service_manager
 
 # 初始化日志记录器
 logger = get_logger()
@@ -289,6 +290,22 @@ def run_monitor_loop(config):
     # 停止Git更新检测线程
     stop_git_update_monitor()
 
+    # 停止图片服务
+    try:
+        image_service_manager = get_image_service_manager()
+        if image_service_manager.is_running():
+            image_service_manager.stop()
+            logger.info("图片生成服务已停止", extra={
+                'event_type': EventType.INFO,
+                'feature': 'image_service'
+            })
+    except Exception as e:
+        logger.error(f"停止图片服务失败: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'feature': 'image_service',
+            'error': str(e)
+        })
+
 def main():
     """主函数"""
     start_time = time.time()
@@ -340,6 +357,35 @@ def main():
                 'error': str(e)
             })
             print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 前端资源更新检查失败，继续启动程序")
+
+        # 自动启动图片生成服务
+        logger.info("开始启动图片生成服务", extra={
+            'event_type': EventType.INFO,
+            'feature': 'image_service'
+        })
+        try:
+            image_service_manager = get_image_service_manager()
+            if image_service_manager.start(wait_ready=True, timeout=30):
+                print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 图片生成服务启动成功")
+                health = image_service_manager.health_check()
+                if health.get('ready'):
+                    print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 图片服务状态: {health.get('message')}")
+                else:
+                    print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 图片服务状态检查失败: {health.get('message')}")
+            else:
+                print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 图片生成服务启动失败")
+                logger.warning("图片生成服务启动失败，但程序将继续运行", extra={
+                    'event_type': EventType.WARNING,
+                    'feature': 'image_service'
+                })
+        except Exception as e:
+            logger.error(f"图片生成服务启动异常: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'feature': 'image_service',
+                'error': str(e)
+            })
+            print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 图片生成服务启动异常: {str(e)}")
+            print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 程序将继续运行（部分功能可能不可用）")
 
         # 初始化Web服务器
         if flask_available:
