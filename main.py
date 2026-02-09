@@ -148,6 +148,10 @@ def run_monitor_loop(config):
                 else:
                     current_status['http_check'] = {'accessible': False, 'configured': False}
                 
+                # 更新自动重启状态
+                auto_restart_enabled = local_config.get('auto_restart', {}).get('enabled', True)
+                current_status['auto_restart'] = {'enabled': auto_restart_enabled}
+                
                 # 同步手动停止状态 - 从Flask应用同步到全局变量
                 try:
                     from process_manager import global_manual_stop_status
@@ -365,7 +369,7 @@ def main():
         })
         try:
             image_service_manager = get_image_service_manager()
-            if image_service_manager.start(wait_ready=True, timeout=30):
+            if image_service_manager.start(wait_ready=True, timeout=60):
                 print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 图片生成服务启动成功")
                 health = image_service_manager.health_check()
                 if health.get('ready'):

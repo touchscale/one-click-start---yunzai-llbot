@@ -15,19 +15,77 @@ app.use(express.json({ limit: '10mb' }));
 
 // 浏览器实例（单例模式，避免重复启动）
 let browserInstance = null;
+let browserStarting = false;
+
+/**
+ * 自动检测 Edge 浏览器路径
+ */
+function findEdgeBrowser() {
+  const possiblePaths = [
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\msedge.exe'
+  ];
+
+  for (const path of possiblePaths) {
+    if (require('fs').existsSync(path)) {
+      return path;
+    }
+  }
+  return null;
+}
 
 /**
  * 获取浏览器实例
  */
 async function getBrowser() {
-  if (!browserInstance) {
+  if (browserInstance) {
+    return browserInstance;
+  }
+
+  if (browserStarting) {
+    // 如果正在启动，等待启动完成
+    await new Promise(resolve => {
+      const checkInterval = setInterval(() => {
+        if (browserInstance || !browserStarting) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 100);
+    });
+    return browserInstance;
+  }
+
+  browserStarting = true;
+  console.log('[INFO] 正在启动浏览器...');
+
+  try {
+    const executablePath = findEdgeBrowser();
+    if (!executablePath) {
+      console.log('[WARN] 未找到 Edge 浏览器，使用默认浏览器');
+    } else {
+      console.log(`[INFO] 使用浏览器路径: ${executablePath}`);
+    }
+
     browserInstance = await puppeteer.launch({
       headless: 'new',
-      executablePath: 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      executablePath: executablePath,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu'
+      ]
     });
+
+    console.log('[INFO] 浏览器启动成功');
+    return browserInstance;
+  } catch (error) {
+    console.error('[ERROR] 浏览器启动失败:', error.message);
+    browserStarting = false;
+    throw error;
   }
-  return browserInstance;
 }
 
 /**

@@ -75,25 +75,54 @@ class ImageServiceManager:
         })
         
         try:
-            result = subprocess.run(
+            # 使用非阻塞方式，避免死锁
+            process = subprocess.Popen(
                 ["npm", "install"],
                 cwd=self.image_generator_dir,
-                capture_output=True,
-                text=True,
-                timeout=300  # 5分钟超时
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
             )
             
-            if result.returncode == 0:
+            # 等待进程完成，设置超时
+            try:
+                stdout, stderr = process.communicate(timeout=300)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                logger.error("安装 Node.js 依赖超时（5分钟）", extra={
+                    'event_type': EventType.ERROR,
+                    'feature': 'image_service',
+                    'error': 'timeout'
+                })
+                return False
+            
+            # 输出安装结果
+            if stdout:
+                for line in stdout.split('\n'):
+                    line = line.strip()
+                    if line:
+                        logger.info(f"npm: {line}", extra={
+                            'event_type': EventType.INFO,
+                            'feature': 'image_service'
+                        })
+            
+            if stderr:
+                logger.warning(f"npm 警告: {stderr}", extra={
+                    'event_type': EventType.WARNING,
+                    'feature': 'image_service'
+                })
+            
+            if process.returncode == 0:
                 logger.info("Node.js 依赖安装成功", extra={
                     'event_type': EventType.INFO,
                     'feature': 'image_service'
                 })
                 return True
             else:
-                logger.error(f"Node.js 依赖安装失败: {result.stderr}", extra={
+                logger.error(f"Node.js 依赖安装失败，退出码: {process.returncode}", extra={
                     'event_type': EventType.ERROR,
                     'feature': 'image_service',
-                    'error': result.stderr
+                    'error': f'exit code: {process.returncode}'
                 })
                 return False
         except Exception as e:
@@ -104,33 +133,37 @@ class ImageServiceManager:
             })
             return False
     
+    def _is_running_unlocked(self) -> bool:
+        """检查服务是否在运行（不加锁的内部方法）"""
+        if self.process is not None:
+            # 检查进程是否还存在
+            try:
+                return self.process.poll() is None
+            except:
+                self.process = None
+        
+        # 从 PID 文件读取
+        if os.path.exists(self.pid_file):
+            try:
+                with open(self.pid_file, 'r', encoding='utf-8') as f:
+                    pid_str = f.read().strip()
+                    if pid_str and pid_str.isdigit():
+                        pid = int(pid_str)
+                        if psutil.pid_exists(pid):
+                            return True
+            except Exception as e:
+                logger.warning(f"读取 PID 文件失败: {str(e)}", extra={
+                    'event_type': EventType.WARNING,
+                    'feature': 'image_service',
+                    'error': str(e)
+                })
+        
+        return False
+    
     def is_running(self) -> bool:
         """检查服务是否在运行"""
         with self._lock:
-            if self.process is not None:
-                # 检查进程是否还存在
-                try:
-                    return self.process.poll() is None
-                except:
-                    self.process = None
-            
-            # 从 PID 文件读取
-            if os.path.exists(self.pid_file):
-                try:
-                    with open(self.pid_file, 'r', encoding='utf-8') as f:
-                        pid_str = f.read().strip()
-                        if pid_str and pid_str.isdigit():
-                            pid = int(pid_str)
-                            if psutil.pid_exists(pid):
-                                return True
-                except Exception as e:
-                    logger.warning(f"读取 PID 文件失败: {str(e)}", extra={
-                        'event_type': EventType.WARNING,
-                        'feature': 'image_service',
-                        'error': str(e)
-                    })
-            
-            return False
+            return self._is_running_unlocked()
     
     def get_pid(self) -> Optional[int]:
         """获取服务进程 ID"""
@@ -153,7 +186,7 @@ class ImageServiceManager:
             
             return None
     
-    def start(self, wait_ready: bool = True, timeout: int = 30) -> bool:
+    def start(self, wait_ready: bool = True, timeout: int = 60) -> bool:
         """
         启动图片服务
         
@@ -164,6 +197,44 @@ class ImageServiceManager:
         Returns:
             是否启动成功
         """
+        # 先检查 Node.js（不持锁）
+        logger.info("检查 Node.js 环境...", extra={
+            'event_type': EventType.INFO,
+            'feature': 'image_service'
+        })
+        if not self.check_node_installed():
+            logger.error("Node.js 未安装，无法启动图片服务", extra={
+                'event_type': EventType.ERROR,
+                'feature': 'image_service'
+            })
+            return False
+        
+        # 检查服务脚本（不持锁）
+        if not os.path.exists(self.node_script):
+            logger.error(f"图片服务脚本不存在: {self.node_script}", extra={
+                'event_type': EventType.ERROR,
+                'feature': 'image_service'
+            })
+            return False
+        
+        # 检查依赖（不持锁）
+        logger.info("检查 Node.js 依赖...", extra={
+            'event_type': EventType.INFO,
+            'feature': 'image_service'
+        })
+        if not self.check_dependencies_installed():
+            logger.info("开始安装 Node.js 依赖...", extra={
+                'event_type': EventType.INFO,
+                'feature': 'image_service'
+            })
+            if not self.install_dependencies():
+                logger.error("无法安装 Node.js 依赖", extra={
+                    'event_type': EventType.ERROR,
+                    'feature': 'image_service'
+                })
+                return False
+        
+        # 持锁检查状态和启动服务
         with self._lock:
             if self._running:
                 logger.warning("图片服务已在运行中", extra={
@@ -172,33 +243,8 @@ class ImageServiceManager:
                 })
                 return True
             
-            # 检查 Node.js
-            if not self.check_node_installed():
-                logger.error("Node.js 未安装，无法启动图片服务", extra={
-                    'event_type': EventType.ERROR,
-                    'feature': 'image_service'
-                })
-                return False
-            
-            # 检查服务脚本
-            if not os.path.exists(self.node_script):
-                logger.error(f"图片服务脚本不存在: {self.node_script}", extra={
-                    'event_type': EventType.ERROR,
-                    'feature': 'image_service'
-                })
-                return False
-            
-            # 安装依赖（如果需要）
-            if not self.check_dependencies_installed():
-                if not self.install_dependencies():
-                    logger.error("无法安装 Node.js 依赖", extra={
-                        'event_type': EventType.ERROR,
-                        'feature': 'image_service'
-                    })
-                    return False
-            
-            # 检查是否已有实例在运行
-            if self.is_running():
+            # 检查是否已有实例在运行（使用不加锁的版本）
+            if self._is_running_unlocked():
                 logger.info("检测到图片服务已在运行，跳过启动", extra={
                     'event_type': EventType.INFO,
                     'feature': 'image_service'
@@ -237,21 +283,11 @@ class ImageServiceManager:
                 
                 self._running = True
                 
-                logger.info(f"图片生成服务已启动 (PID: {self.process.pid})", extra={
+                logger.info(f"图片生成服务进程已启动 (PID: {self.process.pid})", extra={
                     'event_type': EventType.INFO,
                     'feature': 'image_service',
                     'pid': self.process.pid
                 })
-                
-                # 等待服务就绪
-                if wait_ready:
-                    if not self.wait_for_ready(timeout):
-                        logger.error("图片服务启动超时", extra={
-                            'event_type': EventType.ERROR,
-                            'feature': 'image_service'
-                        })
-                        self.stop()
-                        return False
                 
                 return True
                 
@@ -263,6 +299,23 @@ class ImageServiceManager:
                 })
                 self._running = False
                 return False
+        
+        # 等待服务就绪（在锁外部）
+        if wait_ready:
+            logger.info(f"等待图片服务就绪（最长等待 {timeout} 秒）...", extra={
+                'event_type': EventType.INFO,
+                'feature': 'image_service',
+                'timeout': timeout
+            })
+            if not self.wait_for_ready(timeout):
+                logger.error("图片服务启动超时", extra={
+                    'event_type': EventType.ERROR,
+                    'feature': 'image_service'
+                })
+                self.stop()
+                return False
+        
+        return True
     
     def stop(self) -> bool:
         """停止图片服务"""
