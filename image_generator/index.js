@@ -28,7 +28,7 @@ async function generateImage(type, data = {}) {
     const html = generateHTML(type, data);
 
     // 设置视口
-    await page.setViewport({ width: 700, height: type === 'help' ? 900 : 700 });
+    await page.setViewport({ width: 700, height: type === 'help' ? 900 : 750 });
 
     // 设置页面内容
     await page.setContent(html, { waitUntil: 'networkidle0' });
