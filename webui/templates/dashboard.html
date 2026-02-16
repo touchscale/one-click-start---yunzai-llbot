@@ -129,10 +129,6 @@
                         <div class="stat-value" id="http-stat">0</div>
                         <div class="stat-label">HTTP 服务</div>
                     </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="image-service-stat">0</div>
-                        <div class="stat-label">图片服务</div>
-                    </div>
                 </div>
             </div>
 
@@ -222,29 +218,6 @@
                                 <div class="control-buttons d-grid gap-2">
                                     <button id="http-check-button" class="btn btn-check btn-action" onclick="manualHttpCheck()">
                                         <i class="fas fa-sync-alt"></i> 手动检查
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-lg-3 col-md-6 col-sm-12" id="image-service-container">
-                        <div class="card status-card" id="image-service-card">
-                            <div class="card-header d-flex align-items-center">
-                                <i class="fas fa-image process-icon text-secondary"></i>
-                                <h5 class="card-title mb-0">图片服务</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="d-flex align-items-center mb-3">
-                                    <span id="image-service-status-indicator" class="status-unknown"></span>
-                                    <span id="image-service-status" class="status-text">未知</span>
-                                </div>
-                                <div class="control-buttons d-grid gap-2">
-                                    <button class="btn btn-start btn-action" onclick="controlImageService('start')">
-                                        <i class="fas fa-play"></i> 启动图片服务
-                                    </button>
-                                    <button class="btn btn-stop btn-action" onclick="controlImageService('stop')">
-                                        <i class="fas fa-stop"></i> 停止图片服务
                                     </button>
                                 </div>
                             </div>
