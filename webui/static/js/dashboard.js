@@ -104,6 +104,7 @@ function updateStatus() {
                 updateProcessStatus('llbot', data.llbot);
                 updateProcessStatus('yunzai', data.yunzai);
                 updateProcessStatus('redis', data.redis);
+                updateProcessStatus('image-service', data.image_service);
 
                 const httpStatus = document.getElementById('http-status');
                 const httpIndicator = document.getElementById('http-status-indicator');
@@ -179,6 +180,7 @@ function updateStats(data) {
     const yunzaiStat = document.getElementById('yunzai-stat');
     const redisStat = document.getElementById('redis-stat');
     const httpStat = document.getElementById('http-stat');
+    const imageServiceStat = document.getElementById('image-service-stat');
 
     // 更新 llbot 统计
     if (llbotStat && llbotStat instanceof HTMLElement) {
@@ -243,6 +245,21 @@ function updateStats(data) {
             }
         } catch (error) {
             console.warn('更新http统计失败:', error);
+        }
+    }
+
+    // 更新图片服务统计
+    if (imageServiceStat && imageServiceStat instanceof HTMLElement) {
+        try {
+            if(data.image_service && data.image_service.running) {
+                imageServiceStat.textContent = '运行';
+                imageServiceStat.style.color = '#28a745';
+            } else {
+                imageServiceStat.textContent = '停止';
+                imageServiceStat.style.color = '#dc3545';
+            }
+        } catch (error) {
+            console.warn('更新图片服务统计失败:', error);
         }
     }
 }
@@ -473,6 +490,70 @@ function controlProcess(process, action) {
     })
     .catch(error => {
         console.error('控制进程失败:', error);
+        // 重置按钮状态
+        buttons.forEach(btn => {
+            btn.disabled = false;
+            btn.innerHTML = btn.getAttribute('data-original-content') || btn.innerHTML.replace('<i class="fas fa-spinner fa-spin"></i> ', '');
+        });
+
+        // 检查是否是认证错误
+        if (error.message && error.message.includes('401')) {
+            handleAuthError();
+        } else {
+            showAlert('操作失败: ' + error, 'danger');
+        }
+    });
+}
+
+// 控制图片服务
+function controlImageService(action) {
+    const actionText = action === 'start' ? '启动' : '停止';
+
+    // 禁用按钮并显示加载状态
+    const buttons = document.querySelectorAll(`button[onclick*="controlImageService('"]`);
+    buttons.forEach(btn => {
+        btn.disabled = true;
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${actionText}中...`;
+
+        // 恢复原始内容的函数
+        setTimeout(() => {
+            btn.innerHTML = originalHTML;
+            btn.disabled = false;
+        }, 5000);
+    });
+
+    fetch('/api/control-image-service', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            action: action
+        })
+    })
+    .then(response => {
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data) {
+            // 重置按钮状态
+            buttons.forEach(btn => {
+                btn.disabled = false;
+                btn.innerHTML = btn.getAttribute('data-original-content') || btn.innerHTML.replace('<i class="fas fa-spinner fa-spin"></i> ', '');
+            });
+
+            // 使用Bootstrap的alert显示消息
+            showAlert(data.message, 'success');
+            updateStatus();
+        }
+    })
+    .catch(error => {
+        console.error('控制图片服务失败:', error);
         // 重置按钮状态
         buttons.forEach(btn => {
             btn.disabled = false;

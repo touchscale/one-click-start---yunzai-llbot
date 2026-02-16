@@ -468,6 +468,72 @@ def register_routes(app):
             })
             return jsonify({'message': f'HTTP检查失败: {str(e)}'}), 500
 
+    @app.route('/api/control-image-service', methods=['POST'])
+    @requires_auth
+    def api_control_image_service():
+        """控制图片服务API"""
+        try:
+            data = request.get_json()
+            if not data:
+                return jsonify({'message': '无效的JSON数据'}), 400
+
+            action = data.get('action')
+
+            if not action:
+                return jsonify({'message': '缺少action参数'}), 400
+
+            try:
+                from image_service_manager import get_image_service_manager
+                manager = get_image_service_manager()
+
+                if action == 'start':
+                    if manager.is_running():
+                        return jsonify({'message': '图片服务已在运行中'})
+                    else:
+                        success = manager.start(wait_ready=True, timeout=60)
+                        if success:
+                            logger.info("通过Web界面启动图片服务", extra={
+                                'event_type': EventType.INFO,
+                                'feature': 'image_service',
+                                'source': 'web_interface',
+                                'action': 'start'
+                            })
+                            return jsonify({'message': '图片服务启动成功'})
+                        else:
+                            return jsonify({'message': '图片服务启动失败，请查看日志'}), 500
+                elif action == 'stop':
+                    if not manager.is_running():
+                        return jsonify({'message': '图片服务已停止'})
+                    else:
+                        success = manager.stop()
+                        if success:
+                            logger.info("通过Web界面停止图片服务", extra={
+                                'event_type': EventType.INFO,
+                                'feature': 'image_service',
+                                'source': 'web_interface',
+                                'action': 'stop'
+                            })
+                            return jsonify({'message': '图片服务已停止'})
+                        else:
+                            return jsonify({'message': '图片服务停止失败，请查看日志'}), 500
+                else:
+                    return jsonify({'message': f'无效的action: {action}'}), 400
+            except Exception as inner_e:
+                logger.error(f"执行图片服务{action}操作时失败: {str(inner_e)}", extra={
+                    'event_type': EventType.ERROR,
+                    'feature': 'image_service',
+                    'action': action,
+                    'error': str(inner_e)
+                })
+                return jsonify({'message': f'执行操作失败: {str(inner_e)}'}), 500
+        except Exception as e:
+            logger.error(f"Web界面控制图片服务失败: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'feature': 'image_service',
+                'error': str(e)
+            })
+            return jsonify({'message': f'操作失败: {str(e)}'}), 500
+
     @app.route('/logout')
     def logout():
         """登出功能"""
