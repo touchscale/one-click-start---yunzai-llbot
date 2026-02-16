@@ -151,7 +151,17 @@ def run_monitor_loop(config):
                 # 更新自动重启状态
                 auto_restart_enabled = local_config.get('auto_restart', {}).get('enabled', True)
                 current_status['auto_restart'] = {'enabled': auto_restart_enabled}
-                
+
+                # 检查图片服务状态
+                try:
+                    from image_service_manager import get_image_service_manager
+                    image_manager = get_image_service_manager()
+                    image_running = image_manager.is_running()
+                    image_pid = image_manager.get_pid()
+                    current_status['image_service'] = {'running': image_running, 'pid': image_pid}
+                except:
+                    current_status['image_service'] = {'running': False, 'pid': None}
+
                 # 同步手动停止状态 - 从Flask应用同步到全局变量
                 try:
                     from process_manager import global_manual_stop_status

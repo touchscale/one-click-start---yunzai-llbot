@@ -52,7 +52,8 @@ class ImageServiceClient:
                 'yunzai': status_data.get('yunzai', {}),
                 'redis': status_data.get('redis', {}),
                 'http': status_data.get('http_check', {}),
-                'autoRestart': status_data.get('auto_restart', {})
+                'autoRestart': status_data.get('auto_restart', {}),
+                'imageService': status_data.get('image_service', {})
             }
             
             # 发送请求

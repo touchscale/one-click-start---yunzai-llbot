@@ -25,7 +25,8 @@ current_status = {
     'llbot': {'running': False, 'pid': None},
     'yunzai': {'running': False, 'pid': None},
     'redis': {'running': False, 'pid': None},
-    'http_check': {'accessible': False, 'configured': False}
+    'http_check': {'accessible': False, 'configured': False},
+    'image_service': {'running': False, 'pid': None}
 }
 
 # 手动停止状态跟踪 - 记录通过Web界面手动停止的进程

@@ -126,7 +126,8 @@ function generateStatusHTML(data, timestamp) {
     yunzai = {},
     redis = {},
     http = {},
-    autoRestart = {}
+    autoRestart = {},
+    imageService = {}
   } = data;
 
   const getStatusItem = (label, running, pid) => `
@@ -147,7 +148,8 @@ function generateStatusHTML(data, timestamp) {
     getStatusItem('Yunzai', yunzai.running, yunzai.pid),
     getStatusItem('Redis', redis.running, redis.pid),
     getStatusItem('HTTP服务', http.accessible, null),
-    getStatusItem('自动重启', autoRestart.enabled === true, null)
+    getStatusItem('自动重启', autoRestart.enabled === true, null),
+    getStatusItem('图片服务', imageService.running, imageService.pid)
   ].join('');
 
   const commonCSS = readCSS('common.css');
