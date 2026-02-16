@@ -28,7 +28,7 @@ class ImageServiceManager:
         self.process: Optional[subprocess.Popen] = None
         self.service_url = "http://localhost:3001"
         self._running = False
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
     
     def check_node_installed(self) -> bool:
         """检查 Node.js 是否已安装"""
@@ -151,6 +151,25 @@ class ImageServiceManager:
                         pid = int(pid_str)
                         if psutil.pid_exists(pid):
                             return True
+                        else:
+                            # PID文件中的进程不存在，清理僵尸PID文件
+                            logger.warning(f"检测到僵尸PID文件，进程 {pid} 不存在，正在清理...", extra={
+                                'event_type': EventType.WARNING,
+                                'feature': 'image_service',
+                                'stale_pid': pid
+                            })
+                            try:
+                                os.remove(self.pid_file)
+                                logger.info("僵尸PID文件已清理", extra={
+                                    'event_type': EventType.INFO,
+                                    'feature': 'image_service'
+                                })
+                            except Exception as e:
+                                logger.error(f"清理PID文件失败: {str(e)}", extra={
+                                    'event_type': EventType.ERROR,
+                                    'feature': 'image_service',
+                                    'error': str(e)
+                                })
             except Exception as e:
                 logger.warning(f"读取 PID 文件失败: {str(e)}", extra={
                     'event_type': EventType.WARNING,
