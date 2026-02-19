@@ -80,9 +80,13 @@ function handleAuthError() {
 
 // 检查监控脚本运行状态
 let lastMonitorStatus = null; // 记录上一次的监控状态
+let monitorCheckFailCount = 0; // 监控检查失败计数
 
 function checkMonitorStatus() {
-    fetch('/api/monitor-status')
+    fetch('/api/monitor-status', {
+        method: 'GET',
+        timeout: 5000
+    })
         .then(response => {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -91,24 +95,32 @@ function checkMonitorStatus() {
         })
         .then(data => {
             const currentStatus = data.monitor_running;
-            
-            // 如果状态从运行变为停止，显示提示并跳转
+
+            // 重置失败计数
+            monitorCheckFailCount = 0;
+
+            // 如果状态从运行变为停止，显示提示
             if (lastMonitorStatus === true && currentStatus === false) {
-                // 监控脚本已停止，显示提示并跳转到停止提示页面
-                window.location.href = '/monitor-stopped';
+                // 停止所有定时器
+                stopTimers();
+                // 显示监控停止提示页面
+                showMonitorStoppedMessage();
             }
-            
+
             // 更新上一次状态
             lastMonitorStatus = currentStatus;
         })
         .catch(error => {
             console.error('检查监控状态失败:', error);
-            // 如果检查失败，假设监控脚本可能已停止
-            if (lastMonitorStatus === true) {
+            monitorCheckFailCount++;
+
+            // 如果连续3次检查失败，假设监控脚本可能已停止
+            if (monitorCheckFailCount >= 3 && lastMonitorStatus === true) {
                 lastMonitorStatus = false;
+                monitorCheckFailCount = 0;
                 // 停止所有定时器
                 stopTimers();
-                // 显示静态提示页面
+                // 显示监控停止提示页面
                 showMonitorStoppedMessage();
             }
         });
@@ -176,11 +188,6 @@ function updateStatus() {
         })
         .catch(error => {
             console.error('获取状态失败:', error);
-            // 如果连接失败，停止定时器并显示静态提示页面
-            if (error.message && error.message.includes('Failed to fetch')) {
-                stopTimers();
-                showMonitorStoppedMessage();
-            }
             // 即使获取状态失败，也要确保HTTP检查卡片显示
             const httpCard = document.getElementById('http-check-card');
             const httpContainer = document.getElementById('http-check-container');
@@ -396,11 +403,6 @@ function updateLogs() {
         })
         .catch(error => {
             console.error('获取日志失败:', error);
-            // 如果连接失败，停止定时器并显示静态提示页面
-            if (error.message && error.message.includes('Failed to fetch')) {
-                stopTimers();
-                showMonitorStoppedMessage();
-            }
             // 检查是否是认证错误
             if (error.message && error.message.includes('401')) {
                 handleAuthError();
@@ -629,12 +631,16 @@ function showMonitorStoppedMessage() {
     const contentHtml = `
         <h1 style="font-size: 2.5em; margin-bottom: 20px; font-weight: 600; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);">监控脚本已停止</h1>
         <p style="font-size: 1.2em; margin-bottom: 15px; line-height: 1.6; text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);">检测到监控脚本已停止运行</p>
-        <p style="font-size: 1.2em; margin-bottom: 30px; text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);">请重启程序以继续使用</p>
+        <p style="font-size: 1.2em; margin-bottom: 30px; text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);">系统正在等待监控脚本恢复...</p>
+        <div style="margin-top: 30px; padding: 20px; background: rgba(0, 0, 0, 0.2); border-radius: 10px; font-size: 1.1em;">
+            <div style="display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255, 255, 255, 0.3); border-top: 3px solid white; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 10px; vertical-align: middle;"></div>
+            <span id="connection-status">正在检查监控脚本状态...</span>
+        </div>
         <div style="margin-top: 20px; padding: 15px; background: rgba(255, 255, 255, 0.1); border-radius: 10px; font-size: 0.95em; line-height: 1.5;">
             <strong style="display: block; margin-bottom: 8px; color: #ffd700;">提示：</strong>
-            监控脚本恢复运行后，请点击下方按钮刷新页面，系统将自动跳转到登录界面
+            监控脚本恢复运行后，系统将自动跳转到登录界面
         </div>
-        <button id="refresh-btn" style="margin-top: 30px; padding: 12px 30px; background: rgba(255, 255, 255, 0.2); border: 2px solid white; border-radius: 25px; color: white; font-size: 1em; cursor: pointer; transition: all 0.3s ease;">刷新页面</button>
+        <button id="refresh-btn" style="margin-top: 30px; padding: 12px 30px; background: rgba(255, 255, 255, 0.2); border: 2px solid white; border-radius: 25px; color: white; font-size: 1em; cursor: pointer; transition: all 0.3s ease;">立即刷新</button>
     `;
 
     const styleHtml = `
@@ -646,6 +652,10 @@ function showMonitorStoppedMessage() {
             @keyframes pulse {
                 0%, 100% { transform: scale(1); }
                 50% { transform: scale(1.1); }
+            }
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
             }
             #refresh-btn:hover {
                 background: rgba(255, 255, 255, 0.3);
@@ -665,6 +675,56 @@ function showMonitorStoppedMessage() {
     document.getElementById('refresh-btn').addEventListener('click', function() {
         window.location.reload();
     });
+
+    // 智能监控恢复检测
+    let checkCount = 0;
+    const maxCheckCount = 60; // 最多检查60次（约3分钟）
+
+    function checkMonitorRecovery() {
+        checkCount++;
+        const statusEl = document.getElementById('connection-status');
+
+        // 首先尝试通过 API 检查（如果 Web 服务器已恢复）
+        fetch('/api/monitor-status-file', {
+            method: 'GET',
+            timeout: 5000
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.monitor_recovered) {
+                    // 监控脚本已恢复
+                    statusEl.textContent = '监控脚本已恢复，正在跳转到登录页面...';
+                    setTimeout(() => {
+                        window.location.href = '/login';
+                    }, 1500);
+                } else {
+                    // 监控脚本仍未恢复
+                    if (checkCount < maxCheckCount) {
+                        statusEl.textContent = `监控脚本仍未运行，3秒后再次检查... (${checkCount}/${maxCheckCount})`;
+                        setTimeout(checkMonitorRecovery, 3000);
+                    } else {
+                        statusEl.textContent = '监控脚本长时间未恢复，请点击按钮手动刷新页面';
+                    }
+                }
+            })
+            .catch(error => {
+                // API 检查失败，说明 Web 服务器可能还未恢复
+                if (checkCount < maxCheckCount) {
+                    statusEl.textContent = `Web 服务器未响应，3秒后再次尝试... (${checkCount}/${maxCheckCount})`;
+                    setTimeout(checkMonitorRecovery, 3000);
+                } else {
+                    statusEl.textContent = 'Web 服务器长时间未响应，请点击按钮手动刷新页面';
+                }
+            });
+    }
+
+    // 延迟1秒开始检查
+    setTimeout(checkMonitorRecovery, 1000);
 }
 
 // 显示警告消息

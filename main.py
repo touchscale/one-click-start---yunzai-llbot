@@ -21,6 +21,14 @@ from process_manager import (
     get_global_manual_stop_status
 )
 from monitor import check_and_manage_llbot_async, check_and_manage_yunzai_async, async_http_check
+from monitor_status import (
+    get_monitor_status_manager,
+    set_monitor_running,
+    is_monitor_running,
+    start_monitor_status_update,
+    stop_monitor_status_update,
+    cleanup_monitor_status
+)
 from web_server import (
     flask_available,
     init_web_server,
@@ -36,9 +44,6 @@ from onebot_client import init_onebot_client, get_onebot_client
 from onebot_handlers import register_all_handlers
 from image_service_manager import get_image_service_manager
 
-# 监控脚本运行状态全局变量
-monitor_running = False
-
 # 初始化日志记录器
 logger = get_logger()
 
@@ -47,8 +52,11 @@ event_manager = get_event_manager()
 
 def run_monitor_loop(config):
     """运行监控循环 - 使用多线程并行监控"""
-    global monitor_running
-    monitor_running = True
+    # 设置监控状态为运行
+    set_monitor_running(True)
+
+    # 启动监控状态更新线程
+    start_monitor_status_update()
     
     def update_status_periodically():
         """定期更新状态信息"""
@@ -291,7 +299,12 @@ def run_monitor_loop(config):
     
     # 设置停止标志
     run_monitor_loop.running = False
-    monitor_running = False
+
+    # 设置监控状态为停止
+    set_monitor_running(False)
+
+    # 停止监控状态更新线程
+    stop_monitor_status_update()
     
     # 停止OneBot客户端
     if onebot_client:
@@ -324,6 +337,20 @@ def run_monitor_loop(config):
         logger.error(f"停止图片服务失败: {str(e)}", extra={
             'event_type': EventType.ERROR,
             'feature': 'image_service',
+            'error': str(e)
+        })
+
+    # 清理监控状态
+    try:
+        cleanup_monitor_status()
+        logger.info("监控状态已清理", extra={
+            'event_type': EventType.INFO,
+            'feature': 'monitor_status'
+        })
+    except Exception as e:
+        logger.error(f"清理监控状态失败: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'feature': 'monitor_status',
             'error': str(e)
         })
 

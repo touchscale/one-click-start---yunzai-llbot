@@ -237,7 +237,7 @@ def register_routes(app):
     def before_request():
         """请求前处理：安全检查和输入验证"""
         # 允许访问登录页面、健康检查、监控停止页面和静态文件
-        if request.endpoint in ['login', 'static_files', 'health_check', 'monitor_stopped', 'api_monitor_status'] or request.path.startswith('/static/') or request.path.startswith('/api/change-password') or request.path.startswith('/api/reset-password') or request.path.startswith('/api/monitor-status'):
+        if request.endpoint in ['login', 'static_files', 'health_check', 'monitor_stopped', 'api_monitor_status', 'api_monitor_status_file'] or request.path.startswith('/static/') or request.path.startswith('/api/change-password') or request.path.startswith('/api/reset-password') or request.path.startswith('/api/monitor-status') or request.path.startswith('/api/monitor-status-file'):
             return
 
         # 检查认证状态（对于非登录页面）
@@ -245,7 +245,7 @@ def register_routes(app):
             return redirect('/login')
 
         # 对于API请求，检查认证（排除无需认证的端点）
-        if request.path.startswith('/api/') and request.endpoint not in ['login', 'api_change_password', 'api_reset_password', 'health_check', 'api_monitor_status']:
+        if request.path.startswith('/api/') and request.endpoint not in ['login', 'api_change_password', 'api_reset_password', 'health_check', 'api_monitor_status', 'api_monitor_status_file']:
             if 'logged_in' not in session:
                 if request.is_json:
                     return jsonify({'error': '未认证'}), 401
@@ -734,16 +734,18 @@ def register_routes(app):
     def api_monitor_status():
         """检查监控脚本运行状态，不需要认证"""
         try:
-            # 尝试从main模块导入monitor_running变量
-            try:
-                from main import monitor_running
-                monitor_status = monitor_running
-            except (ImportError, AttributeError):
-                # 如果无法导入，默认为False（监控脚本未运行）
-                monitor_status = False
-            
+            # 使用 monitor_status 模块获取状态
+            from monitor_status import is_monitor_running, load_monitor_status
+
+            # 获取当前运行状态
+            monitor_status = is_monitor_running()
+
+            # 从文件加载详细状态信息
+            file_status = load_monitor_status()
+
             return jsonify({
                 'monitor_running': monitor_status,
+                'last_update': file_status.get('last_update'),
                 'timestamp': datetime.now().isoformat()
             })
         except Exception as e:
@@ -852,6 +854,37 @@ def register_routes(app):
 </body>
 </html>
             """, 200
+
+    # 监控状态文件检查端点（用于前端检查监控是否恢复）
+    @app.route('/api/monitor-status-file')
+    def api_monitor_status_file():
+        """通过文件检查监控脚本运行状态，不需要认证"""
+        try:
+            from monitor_status import is_monitor_recovered, load_monitor_status
+
+            # 检查监控是否已恢复
+            recovered = is_monitor_recovered(check_threshold=10)
+
+            # 从文件加载状态信息
+            file_status = load_monitor_status()
+
+            return jsonify({
+                'monitor_recovered': recovered,
+                'monitor_running': file_status.get('monitor_running', False),
+                'last_update': file_status.get('last_update'),
+                'timestamp': datetime.now().isoformat()
+            })
+        except Exception as e:
+            logger.error(f"检查监控状态文件失败: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'error': str(e)
+            })
+            return jsonify({
+                'monitor_recovered': False,
+                'monitor_running': False,
+                'error': str(e),
+                'timestamp': datetime.now().isoformat()
+            }), 500
 
     # 配置管理页面
     @app.route('/config')
