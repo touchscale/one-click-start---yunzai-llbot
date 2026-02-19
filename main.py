@@ -36,6 +36,9 @@ from onebot_client import init_onebot_client, get_onebot_client
 from onebot_handlers import register_all_handlers
 from image_service_manager import get_image_service_manager
 
+# 监控脚本运行状态全局变量
+monitor_running = False
+
 # 初始化日志记录器
 logger = get_logger()
 
@@ -44,6 +47,9 @@ event_manager = get_event_manager()
 
 def run_monitor_loop(config):
     """运行监控循环 - 使用多线程并行监控"""
+    global monitor_running
+    monitor_running = True
+    
     def update_status_periodically():
         """定期更新状态信息"""
         while getattr(run_monitor_loop, 'running', True):
@@ -285,6 +291,7 @@ def run_monitor_loop(config):
     
     # 设置停止标志
     run_monitor_loop.running = False
+    monitor_running = False
     
     # 停止OneBot客户端
     if onebot_client:
