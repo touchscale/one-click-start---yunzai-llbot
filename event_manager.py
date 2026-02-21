@@ -4,7 +4,6 @@
 """
 import queue
 import threading
-from concurrent.futures import ThreadPoolExecutor
 
 # 全局事件管理器
 event_manager = None
@@ -15,7 +14,6 @@ class EventManager:
         self.handlers = {}
         self.event_queue = queue.Queue()
         self.running = False
-        self.executor = ThreadPoolExecutor(max_workers=4)
     
     def subscribe(self, event_type, handler):
         """订阅事件"""

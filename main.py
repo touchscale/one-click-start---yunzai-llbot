@@ -22,9 +22,7 @@ from process_manager import (
 )
 from monitor import check_and_manage_llbot_async, check_and_manage_yunzai_async, async_http_check
 from monitor_status import (
-    get_monitor_status_manager,
     set_monitor_running,
-    is_monitor_running,
     start_monitor_status_update,
     stop_monitor_status_update,
     cleanup_monitor_status
@@ -40,7 +38,7 @@ from web_server import (
 from update_checker import check_and_update_resources
 from auto_login import apply_config_from_dict, get_auto_login_status
 from git_update_checker import start_git_update_monitor, stop_git_update_monitor
-from onebot_client import init_onebot_client, get_onebot_client
+from onebot_client import init_onebot_client
 from onebot_handlers import register_all_handlers
 from image_service_manager import get_image_service_manager
 

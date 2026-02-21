@@ -2,7 +2,7 @@
 """
 OneBot 指令处理器模块 - 定义各种指令的处理逻辑
 """
-from typing import Dict, List
+from typing import Dict
 from logger import get_logger
 from constants import EventType
 from event_manager import get_event_manager
@@ -19,7 +19,7 @@ logger = get_logger()
 event_manager = get_event_manager()
 
 
-def handle_status(message: Dict, args: List[str]) -> str:
+def handle_status(message: Dict, args) -> str:
     """
     处理状态查询指令，返回状态图片
     
@@ -103,7 +103,7 @@ def _generate_text_status():
         return "\n".join(status_lines)
     except:
         return "生成状态失败"
-def handle_start(message: Dict, args: List[str]) -> str:
+def handle_start(message: Dict, args) -> str:
     """启动服务 /s [服务]"""
     service = args[0].lower() if args else 'all'
     services = {
@@ -131,7 +131,7 @@ def handle_start(message: Dict, args: List[str]) -> str:
         return f"❌ 启动失败: {str(e)}"
 
 
-def handle_stop(message: Dict, args: List[str]) -> str:
+def handle_stop(message: Dict, args) -> str:
     """停止服务 /t [服务]"""
     service = args[0].lower() if args else 'all'
     services = {
@@ -159,7 +159,7 @@ def handle_stop(message: Dict, args: List[str]) -> str:
         return f"❌ 停止失败: {str(e)}"
 
 
-def handle_restart(message: Dict, args: List[str]) -> str:
+def handle_restart(message: Dict, args) -> str:
     """重启服务 /r [服务]"""
     service = args[0].lower() if args else 'all'
     services = {
@@ -187,7 +187,7 @@ def handle_restart(message: Dict, args: List[str]) -> str:
         return f"❌ 重启失败: {str(e)}"
 
 
-def handle_check_update(message: Dict, args: List[str]) -> str:
+def handle_check_update(message: Dict, args) -> str:
     """检查更新"""
     try:
         update_type = args[0].lower() if args else 'all'
@@ -221,7 +221,7 @@ def handle_check_update(message: Dict, args: List[str]) -> str:
         return f"❌ 检查失败: {str(e)}"
 
 
-def handle_update(message: Dict, args: List[str]) -> str:
+def handle_update(message: Dict, args) -> str:
     """执行更新"""
     if not args:
         return "❌ 请指定类型: frontend, git"
@@ -246,7 +246,7 @@ def handle_update(message: Dict, args: List[str]) -> str:
         return f"❌ 更新失败: {str(e)}"
 
 
-def handle_help(message: Dict, args: List[str]) -> str:
+def handle_help(message: Dict, args) -> str:
     """显示帮助（优先返回图片格式）"""
     # 首先尝试使用图片生成服务
     try:
@@ -289,7 +289,7 @@ def handle_help(message: Dict, args: List[str]) -> str:
         return _generate_text_help()
 
 
-def handle_start_image_service(message: Dict, args: List[str]) -> str:
+def handle_start_image_service(message: Dict, args) -> str:
     """启动图片服务"""
     try:
         from image_service_manager import get_image_service_manager
@@ -324,7 +324,7 @@ def handle_start_image_service(message: Dict, args: List[str]) -> str:
         return f"❌ 启动图片服务失败: {str(e)}"
 
 
-def handle_stop_image_service(message: Dict, args: List[str]) -> str:
+def handle_stop_image_service(message: Dict, args) -> str:
     """停止图片服务"""
     try:
         from image_service_manager import get_image_service_manager

@@ -3,9 +3,8 @@
 图片生成客户端模块
 通过 HTTP API 与 Node.js 图片生成服务通信
 """
-import json
 import requests
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from logger import get_logger
 from constants import EventType
 
@@ -173,10 +172,10 @@ class ImageServiceClient:
 
 
 # 全局客户端实例（单例模式）
-_global_client: Optional[ImageServiceClient] = None
+_global_client = None
 
 
-def get_image_client(service_url: str = DEFAULT_SERVICE_URL, timeout: int = DEFAULT_TIMEOUT) -> ImageServiceClient:
+def get_image_client(service_url: str = DEFAULT_SERVICE_URL, timeout: int = DEFAULT_TIMEOUT):
     """
     获取图片服务客户端实例（单例模式）
     

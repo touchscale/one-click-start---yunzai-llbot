@@ -4,8 +4,8 @@
 使用 Fernet 对称加密算法对密码进行加密存储
 """
 import base64
-import hashlib
 import os
+import hashlib
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -152,6 +152,7 @@ class PasswordCrypt:
         Returns:
             密码的 SHA-256 哈希值（十六进制字符串）
         """
+        import hashlib
         return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
     @staticmethod

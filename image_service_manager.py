@@ -4,7 +4,6 @@
 负责启动、停止和管理图片生成服务
 """
 import os
-import sys
 import time
 import psutil
 import subprocess

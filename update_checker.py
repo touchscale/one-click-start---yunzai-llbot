@@ -5,7 +5,6 @@
 import os
 import hashlib
 import requests
-from datetime import datetime
 from logger import get_logger
 from constants import EventType
 
@@ -311,8 +310,7 @@ def check_and_update_resources():
     return {
         'updated': updated_count,
         'skipped': skipped_count,
-        'failed': failed_count,
-        'timestamp': datetime.now().isoformat()
+        'failed': failed_count
     }
 
 def force_update_resources():
@@ -360,11 +358,11 @@ def force_update_resources():
     
     return {
         'updated': updated_count,
-        'failed': failed_count,
-        'timestamp': datetime.now().isoformat()
+        'failed': failed_count
     }
 
 if __name__ == "__main__":
+    from datetime import datetime
     print("=" * 60)
     print("前端资源更新检查工具")
     print("=" * 60)
