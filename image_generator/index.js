@@ -28,7 +28,7 @@ async function generateImage(type, data = {}) {
     const html = generateHTML(type, data);
 
     // 设置视口
-    await page.setViewport({ width: 700, height: type === 'help' ? 900 : 700 });
+    await page.setViewport({ width: 700, height: type === 'help' ? 1100 : 750 });
 
     // 设置页面内容
     await page.setContent(html, { waitUntil: 'networkidle0' });
@@ -195,6 +195,14 @@ function generateHelpHTML(timestamp) {
         <div class="command-item">
           <div class="command">/r /restart [服务]</div>
           <div class="description">重启服务 (llbot|yunzai|redis|all)</div>
+        </div>
+        <div class="command-item">
+          <div class="command">/si /start_image</div>
+          <div class="description">启动图片服务</div>
+        </div>
+        <div class="command-item">
+          <div class="command">/ti /stop_image</div>
+          <div class="description">停止图片服务</div>
         </div>
       </div>
     </div>

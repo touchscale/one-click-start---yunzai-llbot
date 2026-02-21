@@ -1,19 +1,20 @@
 .status-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .status-item {
   display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px 18px;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
   background: rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   border-left: 5px solid;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   backdrop-filter: blur(5px);
+  min-height: 62px;
 }
 
 .status-item.running {
@@ -29,15 +30,16 @@
 }
 
 .status-indicator {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: 22px;
   font-weight: bold;
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .status-item.running .status-indicator {
@@ -52,26 +54,32 @@
 
 .status-info {
   flex: 1;
+  min-width: 0;
 }
 
 .service-name {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: #fff;
   letter-spacing: 0.5px;
+  line-height: 1.4;
 }
 
 .service-status {
-  font-size: 13px;
+  font-size: 12px;
   color: rgba(255, 255, 255, 0.75);
-  margin-top: 4px;
+  margin-top: 3px;
+  line-height: 1.4;
 }
 
 .service-pid {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.65);
   background: rgba(0, 0, 0, 0.25);
-  padding: 6px 12px;
-  border-radius: 6px;
+  padding: 4px 10px;
+  border-radius: 5px;
   font-weight: 500;
+  flex-shrink: 0;
+  white-space: nowrap;
+  margin-top: 2px;
 }

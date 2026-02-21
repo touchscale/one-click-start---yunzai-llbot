@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>监控脚本已停止 - llbot Yunzai 监控系统</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23dc3545' d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z'/%3E%3C/svg%3E">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .container {
+            text-align: center;
+            padding: 60px 40px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            max-width: 600px;
+            width: 90%;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .icon-container {
+            margin-bottom: 30px;
+        }
+
+        .icon-container svg {
+            width: 100px;
+            height: 100px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            font-weight: 600;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        p {
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            line-height: 1.6;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .status {
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            font-size: 1.1em;
+        }
+
+        .status .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .info-box {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            font-size: 0.95em;
+            line-height: 1.5;
+        }
+
+        .info-box strong {
+            display: block;
+            margin-bottom: 8px;
+            color: #ffd700;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 40px 20px;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+
+            p {
+                font-size: 1em;
+            }
+
+            .icon-container svg {
+                width: 80px;
+                height: 80px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon-container">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="10" stroke="white" stroke-width="2" fill="rgba(255,255,255,0.1)"/>
+                <path d="M12 8V12M12 16H12.01" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+        </div>
+        <h1>监控脚本已停止</h1>
+        <p>检测到监控脚本已停止运行</p>
+        <p>系统正在等待监控脚本恢复...</p>
+        
+        <div class="status">
+            <span class="spinner"></span>
+            <span id="status">正在检查监控脚本状态...</span>
+        </div>
+
+        <div class="info-box">
+            <strong>提示：</strong>
+            监控脚本恢复运行后，系统将自动跳转至登录界面。请确保监控脚本已正常启动。
+        </div>
+    </div>
+
+    <script>
+        let checkCount = 0;
+        const maxCheckCount = 20; // 最多检查20次（约60秒）
+
+        function checkMonitorStatus() {
+            checkCount++;
+            
+            fetch('/api/monitor-status')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.monitor_running) {
+                        // 监控脚本已恢复
+                        document.getElementById('status').textContent = '监控脚本已恢复，正在跳转到登录页面...';
+                        setTimeout(() => {
+                            window.location.href = '/login';
+                        }, 1500);
+                    } else {
+                        // 监控脚本仍未运行
+                        if (checkCount < maxCheckCount) {
+                            document.getElementById('status').textContent = `监控脚本仍未运行，3秒后再次检查... (${checkCount}/${maxCheckCount})`;
+                            setTimeout(checkMonitorStatus, 3000);
+                        } else {
+                            // 超过最大检查次数
+                            document.getElementById('status').textContent = '监控脚本长时间未恢复，请手动刷新页面或联系管理员。';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('检查监控状态失败:', error);
+                    if (checkCount < maxCheckCount) {
+                        document.getElementById('status').textContent = `检查失败，3秒后再次尝试... (${checkCount}/${maxCheckCount})`;
+                        setTimeout(checkMonitorStatus, 3000);
+                    } else {
+                        document.getElementById('status').textContent = '检查失败次数过多，请手动刷新页面。';
+                    }
+                });
+        }
+
+        // 页面加载后延迟1秒开始检查
+        setTimeout(checkMonitorStatus, 1000);
+    </script>
+</body>
+</html>

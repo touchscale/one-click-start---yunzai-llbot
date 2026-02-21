@@ -78,6 +78,54 @@ function handleAuthError() {
     window.location.href = '/login';
 }
 
+// 检查监控脚本运行状态
+let lastMonitorStatus = null; // 记录上一次的监控状态
+let monitorCheckFailCount = 0; // 监控检查失败计数
+
+function checkMonitorStatus() {
+    fetch('/api/monitor-status', {
+        method: 'GET',
+        timeout: 5000
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            const currentStatus = data.monitor_running;
+
+            // 重置失败计数
+            monitorCheckFailCount = 0;
+
+            // 如果状态从运行变为停止，显示提示
+            if (lastMonitorStatus === true && currentStatus === false) {
+                // 停止所有定时器
+                stopTimers();
+                // 显示监控停止提示页面
+                showMonitorStoppedMessage();
+            }
+
+            // 更新上一次状态
+            lastMonitorStatus = currentStatus;
+        })
+        .catch(error => {
+            console.error('检查监控状态失败:', error);
+            monitorCheckFailCount++;
+
+            // 如果连续3次检查失败，假设监控脚本可能已停止
+            if (monitorCheckFailCount >= 3 && lastMonitorStatus === true) {
+                lastMonitorStatus = false;
+                monitorCheckFailCount = 0;
+                // 停止所有定时器
+                stopTimers();
+                // 显示监控停止提示页面
+                showMonitorStoppedMessage();
+            }
+        });
+}
+
 // 自动更新状态
 function updateStatus() {
     // 检查是否在 dashboard 页面
@@ -488,6 +536,8 @@ function controlProcess(process, action) {
     });
 }
 
+
+
 // 手动HTTP检查
 function manualHttpCheck() {
     // 禁用按钮并显示加载状态
@@ -529,6 +579,152 @@ function manualHttpCheck() {
             showAlert('检查失败: ' + error, 'danger');
         }
     });
+}
+
+// 显示监控停止消息
+function showMonitorStoppedMessage() {
+    // 防止重复显示
+    if (document.getElementById('monitor-stopped-overlay')) {
+        return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'monitor-stopped-overlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 999999;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    `;
+
+    const container = document.createElement('div');
+    container.style.cssText = `
+        text-align: center;
+        padding: 60px 40px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        backdrop-filter: blur(4px);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        max-width: 600px;
+        width: 90%;
+        animation: fadeIn 0.5s ease-in;
+        color: white;
+    `;
+
+    const iconHtml = `
+        <div style="margin-bottom: 30px;">
+            <svg width="100" height="100" viewBox="0 0 24 24" fill="none" style="animation: pulse 2s infinite;">
+                <circle cx="12" cy="12" r="10" stroke="white" stroke-width="2" fill="rgba(255,255,255,0.1)"/>
+                <path d="M12 8V12M12 16H12.01" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+        </div>
+    `;
+
+    const contentHtml = `
+        <h1 style="font-size: 2.5em; margin-bottom: 20px; font-weight: 600; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);">监控脚本已停止</h1>
+        <p style="font-size: 1.2em; margin-bottom: 15px; line-height: 1.6; text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);">检测到监控脚本已停止运行</p>
+        <p style="font-size: 1.2em; margin-bottom: 30px; text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);">系统正在等待监控脚本恢复...</p>
+        <div style="margin-top: 30px; padding: 20px; background: rgba(0, 0, 0, 0.2); border-radius: 10px; font-size: 1.1em;">
+            <div style="display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255, 255, 255, 0.3); border-top: 3px solid white; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 10px; vertical-align: middle;"></div>
+            <span id="connection-status">正在检查监控脚本状态...</span>
+        </div>
+        <div style="margin-top: 20px; padding: 15px; background: rgba(255, 255, 255, 0.1); border-radius: 10px; font-size: 0.95em; line-height: 1.5;">
+            <strong style="display: block; margin-bottom: 8px; color: #ffd700;">提示：</strong>
+            监控脚本恢复运行后，系统将自动跳转到登录界面
+        </div>
+        <button id="refresh-btn" style="margin-top: 30px; padding: 12px 30px; background: rgba(255, 255, 255, 0.2); border: 2px solid white; border-radius: 25px; color: white; font-size: 1em; cursor: pointer; transition: all 0.3s ease;">立即刷新</button>
+    `;
+
+    const styleHtml = `
+        <style>
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(-20px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            @keyframes pulse {
+                0%, 100% { transform: scale(1); }
+                50% { transform: scale(1.1); }
+            }
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            #refresh-btn:hover {
+                background: rgba(255, 255, 255, 0.3);
+                transform: scale(1.05);
+            }
+            #refresh-btn:active {
+                transform: scale(0.95);
+            }
+        </style>
+    `;
+
+    container.innerHTML = styleHtml + iconHtml + contentHtml;
+    overlay.appendChild(container);
+    document.body.appendChild(overlay);
+
+    // 点击刷新按钮刷新页面
+    document.getElementById('refresh-btn').addEventListener('click', function() {
+        window.location.reload();
+    });
+
+    // 智能监控恢复检测
+    let checkCount = 0;
+    const maxCheckCount = 60; // 最多检查60次（约3分钟）
+
+    function checkMonitorRecovery() {
+        checkCount++;
+        const statusEl = document.getElementById('connection-status');
+
+        // 首先尝试通过 API 检查（如果 Web 服务器已恢复）
+        fetch('/api/monitor-status-file', {
+            method: 'GET',
+            timeout: 5000
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.monitor_recovered) {
+                    // 监控脚本已恢复
+                    statusEl.textContent = '监控脚本已恢复，正在跳转到登录页面...';
+                    setTimeout(() => {
+                        window.location.href = '/login';
+                    }, 1500);
+                } else {
+                    // 监控脚本仍未恢复
+                    if (checkCount < maxCheckCount) {
+                        statusEl.textContent = `监控脚本仍未运行，3秒后再次检查... (${checkCount}/${maxCheckCount})`;
+                        setTimeout(checkMonitorRecovery, 3000);
+                    } else {
+                        statusEl.textContent = '监控脚本长时间未恢复，请点击按钮手动刷新页面';
+                    }
+                }
+            })
+            .catch(error => {
+                // API 检查失败，说明 Web 服务器可能还未恢复
+                if (checkCount < maxCheckCount) {
+                    statusEl.textContent = `Web 服务器未响应，3秒后再次尝试... (${checkCount}/${maxCheckCount})`;
+                    setTimeout(checkMonitorRecovery, 3000);
+                } else {
+                    statusEl.textContent = 'Web 服务器长时间未响应，请点击按钮手动刷新页面';
+                }
+            });
+    }
+
+    // 延迟1秒开始检查
+    setTimeout(checkMonitorRecovery, 1000);
 }
 
 // 显示警告消息
@@ -644,6 +840,7 @@ function ensureHttpCardVisibility() {
 // 定时器ID存储
 let statusIntervalId = null;
 let logsIntervalId = null;
+let monitorStatusIntervalId = null;
 
 // 启动定时器
 function startTimers() {
@@ -655,6 +852,9 @@ function startTimers() {
 
     // 每5秒更新一次日志
     logsIntervalId = setInterval(updateLogs, 5000);
+    
+    // 每3秒检查一次监控脚本运行状态
+    monitorStatusIntervalId = setInterval(checkMonitorStatus, 3000);
 }
 
 // 停止定时器
@@ -666,6 +866,10 @@ function stopTimers() {
     if (logsIntervalId) {
         clearInterval(logsIntervalId);
         logsIntervalId = null;
+    }
+    if (monitorStatusIntervalId) {
+        clearInterval(monitorStatusIntervalId);
+        monitorStatusIntervalId = null;
     }
 }
 

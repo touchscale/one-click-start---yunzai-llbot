@@ -6,7 +6,6 @@ Puppeteer 图片生成器模块
 import json
 import subprocess
 import os
-from typing import Dict, Any
 from logger import get_logger
 from constants import EventType
 
@@ -18,7 +17,7 @@ IMAGE_GENERATOR_DIR = os.path.join(SCRIPT_DIR, 'image_generator')
 NODE_SCRIPT = os.path.join(IMAGE_GENERATOR_DIR, 'index.js')
 
 
-def generate_status_image(status_data: Dict[str, Any]) -> str:
+def generate_status_image(status_data) -> str:
     """
     生成状态图片
     
@@ -88,7 +87,7 @@ def generate_help_image() -> str:
         raise
 
 
-def _call_puppeteer(type_: str, data: Dict[str, Any]) -> str:
+def _call_puppeteer(type_, data) -> str:
     """
     调用 Puppeteer 脚本生成图片
     
@@ -148,7 +147,7 @@ def _call_puppeteer(type_: str, data: Dict[str, Any]) -> str:
         raise RuntimeError(f"数据序列化失败: {str(e)}")
 
 
-def check_dependencies() -> Dict[str, Any]:
+def check_dependencies():
     """
     检查 Puppeteer 生成器依赖是否满足
     

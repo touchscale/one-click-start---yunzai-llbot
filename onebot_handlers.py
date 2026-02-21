@@ -2,7 +2,7 @@
 """
 OneBot 指令处理器模块 - 定义各种指令的处理逻辑
 """
-from typing import Dict, List
+from typing import Dict
 from logger import get_logger
 from constants import EventType
 from event_manager import get_event_manager
@@ -19,7 +19,7 @@ logger = get_logger()
 event_manager = get_event_manager()
 
 
-def handle_status(message: Dict, args: List[str]) -> str:
+def handle_status(message: Dict, args) -> str:
     """
     处理状态查询指令，返回状态图片
     
@@ -92,10 +92,18 @@ def _generate_text_status():
         redis_info = f"{redis_emoji} Redis: {'运行中' if redis_status.get('running') else '已停止'}"
         status_lines.append(redis_info)
         
+        # 添加图片服务状态
+        from image_service_manager import get_image_service_manager
+        image_manager = get_image_service_manager()
+        image_running = image_manager.is_running()
+        image_emoji = "✓" if image_running else "✗"
+        image_info = f"{image_emoji} 图片服务: {'运行中' if image_running else '已停止'}"
+        status_lines.append(image_info)
+        
         return "\n".join(status_lines)
     except:
         return "生成状态失败"
-def handle_start(message: Dict, args: List[str]) -> str:
+def handle_start(message: Dict, args) -> str:
     """启动服务 /s [服务]"""
     service = args[0].lower() if args else 'all'
     services = {
@@ -123,7 +131,7 @@ def handle_start(message: Dict, args: List[str]) -> str:
         return f"❌ 启动失败: {str(e)}"
 
 
-def handle_stop(message: Dict, args: List[str]) -> str:
+def handle_stop(message: Dict, args) -> str:
     """停止服务 /t [服务]"""
     service = args[0].lower() if args else 'all'
     services = {
@@ -151,7 +159,7 @@ def handle_stop(message: Dict, args: List[str]) -> str:
         return f"❌ 停止失败: {str(e)}"
 
 
-def handle_restart(message: Dict, args: List[str]) -> str:
+def handle_restart(message: Dict, args) -> str:
     """重启服务 /r [服务]"""
     service = args[0].lower() if args else 'all'
     services = {
@@ -179,7 +187,7 @@ def handle_restart(message: Dict, args: List[str]) -> str:
         return f"❌ 重启失败: {str(e)}"
 
 
-def handle_check_update(message: Dict, args: List[str]) -> str:
+def handle_check_update(message: Dict, args) -> str:
     """检查更新"""
     try:
         update_type = args[0].lower() if args else 'all'
@@ -213,7 +221,7 @@ def handle_check_update(message: Dict, args: List[str]) -> str:
         return f"❌ 检查失败: {str(e)}"
 
 
-def handle_update(message: Dict, args: List[str]) -> str:
+def handle_update(message: Dict, args) -> str:
     """执行更新"""
     if not args:
         return "❌ 请指定类型: frontend, git"
@@ -238,7 +246,7 @@ def handle_update(message: Dict, args: List[str]) -> str:
         return f"❌ 更新失败: {str(e)}"
 
 
-def handle_help(message: Dict, args: List[str]) -> str:
+def handle_help(message: Dict, args) -> str:
     """显示帮助（优先返回图片格式）"""
     # 首先尝试使用图片生成服务
     try:
@@ -281,6 +289,185 @@ def handle_help(message: Dict, args: List[str]) -> str:
         return _generate_text_help()
 
 
+def handle_start_image_service(message: Dict, args) -> str:
+    """启动图片服务"""
+    try:
+        from image_service_manager import get_image_service_manager
+
+        logger.info("收到启动图片服务指令", extra={
+            'event_type': EventType.INFO,
+            'feature': 'onebot_handler',
+            'command': 'start_image_service',
+            'user_id': message.get('user_id', 'unknown')
+        })
+
+        manager = get_image_service_manager()
+
+        # 检查是否已在运行
+        logger.info("检查图片服务运行状态...", extra={
+            'event_type': EventType.INFO,
+            'feature': 'onebot_handler',
+            'command': 'start_image_service'
+        })
+
+        if manager.is_running():
+            pid = manager.get_pid()
+            logger.info(f"图片服务已在运行中 (PID: {pid})", extra={
+                'event_type': EventType.INFO,
+                'feature': 'onebot_handler',
+                'command': 'start_image_service',
+                'pid': pid
+            })
+            return f"✅ 图片服务已在运行中\n📋 进程 ID: {pid}\n🌐 服务地址: http://localhost:3001"
+
+        # 启动服务
+        logger.info("开始启动图片服务...", extra={
+            'event_type': EventType.INFO,
+            'feature': 'onebot_handler',
+            'command': 'start_image_service'
+        })
+
+        success = manager.start(wait_ready=True, timeout=60)
+
+        if success:
+            pid = manager.get_pid()
+            logger.info(f"图片服务启动成功 (PID: {pid})", extra={
+                'event_type': EventType.INFO,
+                'feature': 'onebot_handler',
+                'command': 'start_image_service',
+                'pid': pid
+            })
+
+            # 检查健康状态
+            logger.info("执行健康检查...", extra={
+                'event_type': EventType.INFO,
+                'feature': 'onebot_handler',
+                'command': 'start_image_service'
+            })
+
+            health = manager.health_check()
+            if health.get('ready'):
+                health_msg = health.get('message', '正常')
+                logger.info(f"健康检查通过: {health_msg}", extra={
+                    'event_type': EventType.INFO,
+                    'feature': 'onebot_handler',
+                    'command': 'start_image_service'
+                })
+                return f"✅ 图片服务启动成功\n📋 进程 ID: {pid}\n🌐 服务地址: http://localhost:3001\n💚 健康状态: {health_msg}"
+            else:
+                health_msg = health.get('message', '未知')
+                logger.warning(f"健康检查失败: {health_msg}", extra={
+                    'event_type': EventType.WARNING,
+                    'feature': 'onebot_handler',
+                    'command': 'start_image_service',
+                    'health_check': health_msg
+                })
+                return f"⚠️ 图片服务启动成功但健康检查异常\n📋 进程 ID: {pid}\n🌐 服务地址: http://localhost:3001\n❗ 健康状态: {health_msg}"
+        else:
+            logger.error("图片服务启动失败", extra={
+                'event_type': EventType.ERROR,
+                'feature': 'onebot_handler',
+                'command': 'start_image_service'
+            })
+            return "❌ 图片服务启动失败\n💡 请检查以下内容：\n   • Node.js 是否已安装\n   • image-generator 目录是否存在\n   • Node.js 依赖是否已安装\n   • 查看日志获取详细错误信息"
+
+    except Exception as e:
+        logger.error(f"启动图片服务失败: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'feature': 'onebot_handler',
+            'command': 'start_image_service',
+            'error': str(e),
+            'error_type': type(e).__name__
+        })
+        return f"❌ 启动图片服务失败\n📝 错误信息: {str(e)}\n💡 请查看日志获取详细信息"
+
+
+def handle_stop_image_service(message: Dict, args) -> str:
+    """停止图片服务"""
+    try:
+        from image_service_manager import get_image_service_manager
+
+        logger.info("收到停止图片服务指令", extra={
+            'event_type': EventType.INFO,
+            'feature': 'onebot_handler',
+            'command': 'stop_image_service',
+            'user_id': message.get('user_id', 'unknown')
+        })
+
+        manager = get_image_service_manager()
+
+        # 检查是否在运行
+        logger.info("检查图片服务运行状态...", extra={
+            'event_type': EventType.INFO,
+            'feature': 'onebot_handler',
+            'command': 'stop_image_service'
+        })
+
+        if not manager.is_running():
+            logger.info("图片服务未运行", extra={
+                'event_type': EventType.INFO,
+                'feature': 'onebot_handler',
+                'command': 'stop_image_service'
+            })
+            return "✅ 图片服务已停止（未发现运行中的进程）"
+
+        pid = manager.get_pid()
+        logger.info(f"发现运行中的图片服务 (PID: {pid})，准备停止...", extra={
+            'event_type': EventType.INFO,
+            'feature': 'onebot_handler',
+            'command': 'stop_image_service',
+            'pid': pid
+        })
+
+        # 停止服务
+        logger.info("开始停止图片服务...", extra={
+            'event_type': EventType.INFO,
+            'feature': 'onebot_handler',
+            'command': 'stop_image_service'
+        })
+
+        success = manager.stop()
+
+        if success:
+            # 等待一下，确保进程完全终止
+            import time
+            time.sleep(1)
+
+            # 再次检查状态
+            is_still_running = manager.is_running()
+            if is_still_running:
+                logger.warning("图片服务可能仍在运行", extra={
+                    'event_type': EventType.WARNING,
+                    'feature': 'onebot_handler',
+                    'command': 'stop_image_service'
+                })
+                return "⚠️ 图片服务停止命令已执行，但检测到进程可能仍在运行\n💡 可能需要强制终止，请稍后再试或查看日志"
+            else:
+                logger.info("图片服务已成功停止", extra={
+                    'event_type': EventType.INFO,
+                    'feature': 'onebot_handler',
+                    'command': 'stop_image_service'
+                })
+                return "✅ 图片服务已成功停止\n📋 所有相关进程已终止\n🔒 端口 3001 已释放"
+        else:
+            logger.error("图片服务停止失败", extra={
+                'event_type': EventType.ERROR,
+                'feature': 'onebot_handler',
+                'command': 'stop_image_service'
+            })
+            return "❌ 图片服务停止失败\n💡 请查看日志获取详细错误信息\n💡 可能需要手动终止进程"
+
+    except Exception as e:
+        logger.error(f"停止图片服务失败: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'feature': 'onebot_handler',
+            'command': 'stop_image_service',
+            'error': str(e),
+            'error_type': type(e).__name__
+        })
+        return f"❌ 停止图片服务失败\n📝 错误信息: {str(e)}\n💡 请查看日志获取详细信息"
+
+
 def _generate_text_help():
     """生成文本格式的帮助信息（备用方案）"""
     return """📖 指令帮助
@@ -291,6 +478,9 @@ def _generate_text_help():
 🔧 /t /stop [服务]  停止服务
 🔧 /r /restart [服务] 重启服务
    服务: llbot, yunzai, redis, all (默认all)
+
+🖼️ /si /start_image 启动图片服务
+🖼️ /ti /stop_image  停止图片服务
 
 🔄 /cu /check_update 检查更新
 🔄 /up /update [类型] 执行更新
@@ -315,6 +505,10 @@ def register_all_handlers(client):
     client.register_handler('t', handle_stop)
     client.register_handler('restart', handle_restart)
     client.register_handler('r', handle_restart)
+    client.register_handler('start_image', handle_start_image_service)
+    client.register_handler('si', handle_start_image_service)
+    client.register_handler('stop_image', handle_stop_image_service)
+    client.register_handler('ti', handle_stop_image_service)
     client.register_handler('check_update', handle_check_update)
     client.register_handler('cu', handle_check_update)
     client.register_handler('update', handle_update)

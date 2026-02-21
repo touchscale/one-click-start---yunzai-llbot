@@ -21,6 +21,12 @@ from process_manager import (
     get_global_manual_stop_status
 )
 from monitor import check_and_manage_llbot_async, check_and_manage_yunzai_async, async_http_check
+from monitor_status import (
+    set_monitor_running,
+    start_monitor_status_update,
+    stop_monitor_status_update,
+    cleanup_monitor_status
+)
 from web_server import (
     flask_available,
     init_web_server,
@@ -32,7 +38,7 @@ from web_server import (
 from update_checker import check_and_update_resources
 from auto_login import apply_config_from_dict, get_auto_login_status
 from git_update_checker import start_git_update_monitor, stop_git_update_monitor
-from onebot_client import init_onebot_client, get_onebot_client
+from onebot_client import init_onebot_client
 from onebot_handlers import register_all_handlers
 from image_service_manager import get_image_service_manager
 
@@ -44,6 +50,12 @@ event_manager = get_event_manager()
 
 def run_monitor_loop(config):
     """运行监控循环 - 使用多线程并行监控"""
+    # 设置监控状态为运行
+    set_monitor_running(True)
+
+    # 启动监控状态更新线程
+    start_monitor_status_update()
+    
     def update_status_periodically():
         """定期更新状态信息"""
         while getattr(run_monitor_loop, 'running', True):
@@ -151,7 +163,17 @@ def run_monitor_loop(config):
                 # 更新自动重启状态
                 auto_restart_enabled = local_config.get('auto_restart', {}).get('enabled', True)
                 current_status['auto_restart'] = {'enabled': auto_restart_enabled}
-                
+
+                # 检查图片服务状态
+                try:
+                    from image_service_manager import get_image_service_manager
+                    image_manager = get_image_service_manager()
+                    image_running = image_manager.is_running()
+                    image_pid = image_manager.get_pid()
+                    current_status['image_service'] = {'running': image_running, 'pid': image_pid}
+                except:
+                    current_status['image_service'] = {'running': False, 'pid': None}
+
                 # 同步手动停止状态 - 从Flask应用同步到全局变量
                 try:
                     from process_manager import global_manual_stop_status
@@ -275,6 +297,12 @@ def run_monitor_loop(config):
     
     # 设置停止标志
     run_monitor_loop.running = False
+
+    # 设置监控状态为停止
+    set_monitor_running(False)
+
+    # 停止监控状态更新线程
+    stop_monitor_status_update()
     
     # 停止OneBot客户端
     if onebot_client:
@@ -307,6 +335,20 @@ def run_monitor_loop(config):
         logger.error(f"停止图片服务失败: {str(e)}", extra={
             'event_type': EventType.ERROR,
             'feature': 'image_service',
+            'error': str(e)
+        })
+
+    # 清理监控状态
+    try:
+        cleanup_monitor_status()
+        logger.info("监控状态已清理", extra={
+            'event_type': EventType.INFO,
+            'feature': 'monitor_status'
+        })
+    except Exception as e:
+        logger.error(f"清理监控状态失败: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'feature': 'monitor_status',
             'error': str(e)
         })
 
