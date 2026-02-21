@@ -355,6 +355,56 @@ def run_monitor_loop(config):
 def main():
     """主函数"""
     start_time = time.time()
+
+    # 检查是否有旧进程正在关闭
+    temp_pid_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pids', 'restarting_monitor.pid')
+    if os.path.exists(temp_pid_file):
+        try:
+            with open(temp_pid_file, 'r') as f:
+                old_pid = int(f.read().strip())
+
+            logger.info(f"检测到旧进程 (PID: {old_pid}) 正在关闭，等待其退出...", extra={
+                'event_type': EventType.INFO,
+                'old_pid': old_pid
+            })
+            print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 检测到旧进程 (PID: {old_pid}) 正在关闭，等待其退出...")
+
+            # 等待旧进程退出，最多等待10秒
+            for i in range(10):
+                try:
+                    if not psutil.pid_exists(old_pid):
+                        logger.info(f"旧进程 (PID: {old_pid}) 已退出", extra={
+                            'event_type': EventType.INFO,
+                            'old_pid': old_pid
+                        })
+                        break
+                except:
+                    break
+                time.sleep(1)
+            else:
+                # 超时后强制终止旧进程
+                try:
+                    old_proc = psutil.Process(old_pid)
+                    old_proc.terminate()
+                    old_proc.wait(timeout=5)
+                    logger.info(f"旧进程 (PID: {old_pid}) 已强制终止", extra={
+                        'event_type': EventType.INFO,
+                        'old_pid': old_pid
+                    })
+                except:
+                    pass
+
+            # 清理临时文件
+            try:
+                os.remove(temp_pid_file)
+            except:
+                pass
+        except Exception as e:
+            logger.warning(f"检查旧进程失败: {str(e)}", extra={
+                'event_type': EventType.WARNING,
+                'error': str(e)
+            })
+
     logger.info("监控程序开始启动", extra={
         'event_type': EventType.PROCESS_START,
         'start_time': __import__('datetime').datetime.fromtimestamp(start_time).isoformat(),

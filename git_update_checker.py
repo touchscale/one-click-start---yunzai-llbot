@@ -383,31 +383,64 @@ def is_git_update_monitor_running():
     return git_update_running
 
 def restart_monitor_script():
-    """重启监控脚本"""
+    """重启监控脚本（先关闭当前窗口，再开启新的）"""
     try:
         import sys
         import os
-        
+        import psutil
+
         # 获取当前脚本路径
         script_path = os.path.abspath(sys.argv[0])
-        
+
+        # 获取当前进程PID
+        current_pid = os.getpid()
+
+        # 保存当前PID到临时文件，供新进程检查
+        temp_pid_file = os.path.join(os.path.dirname(script_path), 'pids', 'restarting_monitor.pid')
+        os.makedirs(os.path.dirname(temp_pid_file), exist_ok=True)
+        with open(temp_pid_file, 'w') as f:
+            f.write(str(current_pid))
+
         logger.info(f"准备重启监控脚本: {script_path}", extra={
             'event_type': EventType.INFO,
             'action': 'restart_script',
-            'script_path': script_path
+            'script_path': script_path,
+            'old_pid': current_pid
         })
-        
-        # 使用Python重新启动脚本
+
+        # 使用Python启动新进程（不创建新窗口）
+        startupinfo = subprocess.STARTUPINFO() if os.name == 'nt' else None
+        if startupinfo:
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
         subprocess.Popen(
             [sys.executable, script_path] + sys.argv[1:],
-            creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
+            startupinfo=startupinfo
         )
-        
-        logger.info("监控脚本重启命令已发送", extra={
+
+        logger.info("新监控脚本已启动，正在关闭当前进程...", extra={
             'event_type': EventType.INFO,
-            'action': 'restart_script_sent'
+            'action': 'restart_script_sent',
+            'new_pid': 'unknown'
         })
-        
+
+        # 停止Git更新监控线程
+        stop_git_update_monitor()
+
+        # 优雅退出当前进程
+        time.sleep(2)  # 等待新进程启动
+
+        # 清理临时PID文件
+        try:
+            if os.path.exists(temp_pid_file):
+                os.remove(temp_pid_file)
+        except:
+            pass
+
+        # 退出当前进程
+        sys.exit(0)
+
         return True
     except Exception as e:
         logger.error(f"重启监控脚本失败: {str(e)}", extra={
