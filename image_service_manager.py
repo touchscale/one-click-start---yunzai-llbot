@@ -165,11 +165,25 @@ class ImageServiceManager:
                                     'feature': 'image_service'
                                 })
                             except Exception as e:
-                                logger.error(f"清理PID文件失败: {str(e)}", extra={
-                                    'event_type': EventType.ERROR,
+                                logger.warning(f"常规删除PID文件失败，尝试使用PowerShell强制删除: {str(e)}", extra={
+                                    'event_type': EventType.WARNING,
                                     'feature': 'image_service',
                                     'error': str(e)
                                 })
+                                try:
+                                    import subprocess
+                                    subprocess.run(['powershell', '-Command', f'Remove-Item -Path "{self.pid_file}" -Force'], 
+                                                 check=True, capture_output=True, timeout=10)
+                                    logger.info("使用PowerShell强制删除PID文件成功", extra={
+                                        'event_type': EventType.INFO,
+                                        'feature': 'image_service'
+                                    })
+                                except Exception as force_e:
+                                    logger.error(f"强制删除PID文件失败: {str(force_e)}", extra={
+                                        'event_type': EventType.ERROR,
+                                        'feature': 'image_service',
+                                        'error': str(force_e)
+                                    })
             except Exception as e:
                 logger.warning(f"读取 PID 文件失败: {str(e)}", extra={
                     'event_type': EventType.WARNING,
