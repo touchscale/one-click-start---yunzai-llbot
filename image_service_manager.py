@@ -171,11 +171,19 @@ class ImageServiceManager:
                                 })
                                 try:
                                     import subprocess
-                                    subprocess.run(['powershell', '-Command', f'Remove-Item -Path "{self.pid_file}" -Force'], 
-                                                 check=True, capture_output=True, timeout=10)
+                                    # 使用单引号包裹路径，避免PowerShell中的转义问题
+                                    cmd = f'Remove-Item -Path \'{self.pid_file}\' -Force'
+                                    subprocess.run(['powershell', '-Command', cmd],
+                                                 check=True, capture_output=True, timeout=10, text=True)
                                     logger.info("使用PowerShell强制删除PID文件成功", extra={
                                         'event_type': EventType.INFO,
                                         'feature': 'image_service'
+                                    })
+                                except subprocess.CalledProcessError as force_e:
+                                    logger.error(f"强制删除PID文件失败: {force_e.stderr if force_e.stderr else str(force_e)}", extra={
+                                        'event_type': EventType.ERROR,
+                                        'feature': 'image_service',
+                                        'error': str(force_e)
                                     })
                                 except Exception as force_e:
                                     logger.error(f"强制删除PID文件失败: {str(force_e)}", extra={
