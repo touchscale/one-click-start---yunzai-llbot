@@ -3,7 +3,6 @@
 Git仓库更新检测模块 - 自动检测仓库更新并拉取
 """
 import os
-import sys
 import subprocess
 import threading
 import time

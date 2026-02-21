@@ -4,7 +4,7 @@
 提供密码强度验证和评分功能
 """
 import re
-from typing import Dict, List, Tuple
+from typing import Dict
 
 
 class PasswordStrength:
@@ -62,7 +62,7 @@ class PasswordValidator:
     }
 
     @staticmethod
-    def validate(password: str) -> Tuple[bool, List[str]]:
+    def validate(password: str):
         """
         验证密码是否符合强密码策略
         

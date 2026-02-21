@@ -236,16 +236,16 @@ def register_routes(app):
     @app.before_request
     def before_request():
         """请求前处理：安全检查和输入验证"""
-        # 允许访问登录页面、健康检查和静态文件
-        if request.endpoint in ['login', 'static_files', 'health_check'] or request.path.startswith('/static/') or request.path.startswith('/api/change-password') or request.path.startswith('/api/reset-password'):
+        # 允许访问登录页面、健康检查、监控停止页面和静态文件
+        if request.endpoint in ['login', 'static_files', 'health_check', 'monitor_stopped', 'api_monitor_status', 'api_monitor_status_file'] or request.path.startswith('/static/') or request.path.startswith('/api/change-password') or request.path.startswith('/api/reset-password') or request.path.startswith('/api/monitor-status') or request.path.startswith('/api/monitor-status-file'):
             return
-            
+
         # 检查认证状态（对于非登录页面）
         if request.endpoint != 'login' and 'logged_in' not in session and not request.path.startswith('/api/'):
             return redirect('/login')
-            
-        # 对于API请求，检查认证
-        if request.path.startswith('/api/') and request.endpoint not in ['login', 'api_change_password', 'api_reset_password', 'health_check']:
+
+        # 对于API请求，检查认证（排除无需认证的端点）
+        if request.path.startswith('/api/') and request.endpoint not in ['login', 'api_change_password', 'api_reset_password', 'health_check', 'api_monitor_status', 'api_monitor_status_file']:
             if 'logged_in' not in session:
                 if request.is_json:
                     return jsonify({'error': '未认证'}), 401
@@ -728,6 +728,163 @@ def register_routes(app):
             'timestamp': datetime.now().isoformat(),
             'service': 'llbot-yunzai-monitor'
         })
+    
+    # 添加监控脚本状态检查端点
+    @app.route('/api/monitor-status')
+    def api_monitor_status():
+        """检查监控脚本运行状态，不需要认证"""
+        try:
+            # 使用 monitor_status 模块获取状态
+            from monitor_status import is_monitor_running, load_monitor_status
+
+            # 获取当前运行状态
+            monitor_status = is_monitor_running()
+
+            # 从文件加载详细状态信息
+            file_status = load_monitor_status()
+
+            return jsonify({
+                'monitor_running': monitor_status,
+                'last_update': file_status.get('last_update'),
+                'timestamp': datetime.now().isoformat()
+            })
+        except Exception as e:
+            logger.error(f"检查监控状态失败: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'error': str(e)
+            })
+            return jsonify({
+                'monitor_running': False,
+                'error': str(e),
+                'timestamp': datetime.now().isoformat()
+            }), 500
+    
+    # 监控脚本停止提示页面
+    @app.route('/monitor-stopped')
+    def monitor_stopped():
+        """显示监控脚本停止的提示页面"""
+        try:
+            return render_template("monitor_stopped.html")
+        except Exception as e:
+            logger.error(f"加载监控停止页面失败: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'error': str(e)
+            })
+            # 如果模板不存在，返回简单的HTML页面
+            return """
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>监控脚本已停止</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            text-align: center;
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+        p {
+            font-size: 1.2em;
+            margin-bottom: 30px;
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="spinner"></div>
+        <h1>监控脚本已停止</h1>
+        <p>检测到监控脚本已停止运行，正在等待恢复...</p>
+        <p id="status">正在检查监控脚本状态...</p>
+    </div>
+    <script>
+        function checkMonitorStatus() {
+            fetch('/api/monitor-status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.monitor_running) {
+                        document.getElementById('status').textContent = '监控脚本已恢复，正在跳转到登录页面...';
+                        setTimeout(() => {
+                            window.location.href = '/login';
+                        }, 1500);
+                    } else {
+                        document.getElementById('status').textContent = '监控脚本仍未运行，3秒后再次检查...';
+                        setTimeout(checkMonitorStatus, 3000);
+                    }
+                })
+                .catch(error => {
+                    console.error('检查监控状态失败:', error);
+                    document.getElementById('status').textContent = '检查失败，3秒后再次尝试...';
+                    setTimeout(checkMonitorStatus, 3000);
+                });
+        }
+        
+        // 页面加载后立即开始检查
+        setTimeout(checkMonitorStatus, 1000);
+    </script>
+</body>
+</html>
+            """, 200
+
+    # 监控状态文件检查端点（用于前端检查监控是否恢复）
+    @app.route('/api/monitor-status-file')
+    def api_monitor_status_file():
+        """通过文件检查监控脚本运行状态，不需要认证"""
+        try:
+            from monitor_status import is_monitor_recovered, load_monitor_status
+
+            # 检查监控是否已恢复
+            recovered = is_monitor_recovered(check_threshold=10)
+
+            # 从文件加载状态信息
+            file_status = load_monitor_status()
+
+            return jsonify({
+                'monitor_recovered': recovered,
+                'monitor_running': file_status.get('monitor_running', False),
+                'last_update': file_status.get('last_update'),
+                'timestamp': datetime.now().isoformat()
+            })
+        except Exception as e:
+            logger.error(f"检查监控状态文件失败: {str(e)}", extra={
+                'event_type': EventType.ERROR,
+                'error': str(e)
+            })
+            return jsonify({
+                'monitor_recovered': False,
+                'monitor_running': False,
+                'error': str(e),
+                'timestamp': datetime.now().isoformat()
+            }), 500
 
     # 配置管理页面
     @app.route('/config')

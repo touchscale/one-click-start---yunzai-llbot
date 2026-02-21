@@ -16,6 +16,9 @@ app.use(express.json({ limit: '10mb' }));
 // 浏览器实例（单例模式，避免重复启动）
 let browserInstance = null;
 let browserStarting = false;
+// 页面池（复用页面避免重复创建开销）
+let pagePool = [];
+const MAX_POOL_SIZE = 2;
 
 /**
  * 自动检测 Edge 浏览器路径
@@ -34,6 +37,42 @@ function findEdgeBrowser() {
     }
   }
   return null;
+}
+
+/**
+ * 获取页面实例（从池中获取或创建新页面）
+ */
+async function getPage() {
+  // 尝试从池中获取可用页面
+  const availablePage = pagePool.find(p => !p.inUse);
+  if (availablePage) {
+    availablePage.inUse = true;
+    return availablePage.page;
+  }
+
+  // 池中无可用页面，创建新页面
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+  
+  // 如果池未满，添加到池中
+  if (pagePool.length < MAX_POOL_SIZE) {
+    pagePool.push({ page, inUse: true });
+  }
+  
+  return page;
+}
+
+/**
+ * 释放页面回池中
+ */
+function releasePage(page) {
+  const pooled = pagePool.find(p => p.page === page);
+  if (pooled) {
+    pooled.inUse = false;
+  } else {
+    // 如果不在池中，直接关闭
+    page.close().catch(() => {});
+  }
 }
 
 /**
@@ -126,7 +165,8 @@ function generateStatusHTML(data, timestamp) {
     yunzai = {},
     redis = {},
     http = {},
-    autoRestart = {}
+    autoRestart = {},
+    imageService = {}
   } = data;
 
   const getStatusItem = (label, running, pid) => `
@@ -147,7 +187,8 @@ function generateStatusHTML(data, timestamp) {
     getStatusItem('Yunzai', yunzai.running, yunzai.pid),
     getStatusItem('Redis', redis.running, redis.pid),
     getStatusItem('HTTP服务', http.accessible, null),
-    getStatusItem('自动重启', autoRestart.enabled === true, null)
+    getStatusItem('自动重启', autoRestart.enabled === true, null),
+    getStatusItem('图片服务', imageService.running, imageService.pid)
   ].join('');
 
   const commonCSS = readCSS('common.css');
@@ -229,6 +270,14 @@ function generateHelpHTML(timestamp) {
           <div class="command">/r /restart [服务]</div>
           <div class="description">重启服务 (llbot|yunzai|redis|all)</div>
         </div>
+        <div class="command-item">
+          <div class="command">/si /start_image</div>
+          <div class="description">启动图片服务</div>
+        </div>
+        <div class="command-item">
+          <div class="command">/ti /stop_image</div>
+          <div class="description">停止图片服务</div>
+        </div>
       </div>
     </div>
     
@@ -260,23 +309,23 @@ function generateHelpHTML(timestamp) {
  */
 app.post('/api/generate-status', async (req, res) => {
   const startTime = Date.now();
-  
+
+  let page = null;
   try {
     const data = req.body || {};
-    const browser = await getBrowser();
-    const page = await browser.newPage();
+    page = await getPage();
 
     const html = generateHTML('status', data);
-    
+
     await page.setViewport({ width: 700, height: 700 });
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    await page.setContent(html, { waitUntil: 'domcontentloaded' });
 
     const screenshot = await page.screenshot({
       type: 'png',
       encoding: 'base64'
     });
 
-    await page.close();
+    releasePage(page);
 
     const duration = Date.now() - startTime;
     console.log(`[INFO] 状态图片生成成功，耗时: ${duration}ms`);
@@ -289,6 +338,7 @@ app.post('/api/generate-status', async (req, res) => {
 
   } catch (error) {
     console.error('[ERROR] 生成状态图片失败:', error.message);
+    if (page) releasePage(page);
     res.status(500).json({
       success: false,
       error: error.message
@@ -301,22 +351,22 @@ app.post('/api/generate-status', async (req, res) => {
  */
 app.post('/api/generate-help', async (req, res) => {
   const startTime = Date.now();
-  
+
+  let page = null;
   try {
-    const browser = await getBrowser();
-    const page = await browser.newPage();
+    page = await getPage();
 
     const html = generateHTML('help', {});
-    
-    await page.setViewport({ width: 700, height: 900 });
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+
+    await page.setViewport({ width: 700, height: 1100 });
+    await page.setContent(html, { waitUntil: 'domcontentloaded' });
 
     const screenshot = await page.screenshot({
       type: 'png',
       encoding: 'base64'
     });
 
-    await page.close();
+    releasePage(page);
 
     const duration = Date.now() - startTime;
     console.log(`[INFO] 帮助图片生成成功，耗时: ${duration}ms`);
@@ -329,6 +379,7 @@ app.post('/api/generate-help', async (req, res) => {
 
   } catch (error) {
     console.error('[ERROR] 生成帮助图片失败:', error.message);
+    if (page) releasePage(page);
     res.status(500).json({
       success: false,
       error: error.message
@@ -352,12 +403,22 @@ app.get('/health', (req, res) => {
  */
 async function gracefulShutdown() {
   console.log('[INFO] 正在关闭服务...');
-  
+
+  // 关闭页面池中的所有页面
+  for (const p of pagePool) {
+    try {
+      await p.page.close();
+    } catch (e) {
+      console.error('[WARN] 关闭页面失败:', e.message);
+    }
+  }
+  pagePool = [];
+
   if (browserInstance) {
     await browserInstance.close();
     console.log('[INFO] 浏览器已关闭');
   }
-  
+
   process.exit(0);
 }
 

@@ -5,9 +5,8 @@
 import os
 import sys
 import logging
-import re
+import time
 from datetime import datetime, timedelta
-from logging.handlers import TimedRotatingFileHandler
 import glob
 import json
 
@@ -95,6 +94,9 @@ def schedule_log_cleanup():
 
 def setup_structured_logging():
     """设置结构化日志记录"""
+    from logging.handlers import TimedRotatingFileHandler
+    import re
+    
     # 创建logs目录（如果不存在）
     if not os.path.exists('logs'):
         os.makedirs('logs')

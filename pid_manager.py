@@ -3,7 +3,6 @@
 进程PID文件管理模块 - 用于精确跟踪和管理进程PID
 """
 import os
-import time
 from datetime import datetime
 from logger import get_logger
 from constants import EventType
