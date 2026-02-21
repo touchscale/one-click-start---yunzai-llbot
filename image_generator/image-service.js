@@ -231,6 +231,14 @@ function generateHelpHTML(timestamp) {
           <div class="command">/r /restart [服务]</div>
           <div class="description">重启服务 (llbot|yunzai|redis|all)</div>
         </div>
+        <div class="command-item">
+          <div class="command">/si /start_image</div>
+          <div class="description">启动图片服务</div>
+        </div>
+        <div class="command-item">
+          <div class="command">/ti /stop_image</div>
+          <div class="description">停止图片服务</div>
+        </div>
       </div>
     </div>
     
@@ -310,7 +318,7 @@ app.post('/api/generate-help', async (req, res) => {
 
     const html = generateHTML('help', {});
     
-    await page.setViewport({ width: 700, height: 900 });
+    await page.setViewport({ width: 700, height: 1100 });
     await page.setContent(html, { waitUntil: 'networkidle0' });
 
     const screenshot = await page.screenshot({
