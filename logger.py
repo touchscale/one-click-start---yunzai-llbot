@@ -13,6 +13,9 @@ import json
 # 全局日志记录器
 logger = None
 
+# 图片服务专用日志记录器
+image_service_logger = None
+
 class StructuredFormatter(logging.Formatter):
     """结构化日志格式化器"""
     def format(self, record):
@@ -37,9 +40,10 @@ def clean_old_log_files():
     logger = get_logger()
     try:
         # 获取logs目录中的所有日志文件
-        log_files = glob.glob("logs/monitor.log.*")
+        log_files = glob.glob("logs/*.log.*")
         current_time = datetime.now()
         
+        deleted_count = 0
         for log_file in log_files:
             # 获取文件的修改时间
             file_time = datetime.fromtimestamp(os.path.getmtime(log_file))
@@ -53,12 +57,11 @@ def clean_old_log_files():
                     'action': 'deleted',
                     'file_age_days': (current_time - file_time).days
                 })
+                deleted_count += 1
         
-        # 同时也删除monitor.log主文件（如果存在）的备份，保留今天和昨天的
-        main_log_files = glob.glob("logs/monitor.log.*")
-        logger.info(f"清理旧日志完成，共处理了 {len(main_log_files)} 个日志文件", extra={
+        logger.info(f"清理旧日志完成，共处理了 {deleted_count} 个日志文件", extra={
             'event_type': 'log_cleanup',
-            'total_files_processed': len(main_log_files),
+            'total_files_processed': deleted_count,
             'action': 'completed'
         })
     except Exception as e:
@@ -101,7 +104,7 @@ def setup_structured_logging():
     if not os.path.exists('logs'):
         os.makedirs('logs')
     
-    # 创建日志记录器
+    # 创建主日志记录器
     logger = logging.getLogger('monitor')
     logger.setLevel(logging.INFO)
     
@@ -137,9 +140,58 @@ def setup_structured_logging():
     
     return logger
 
+def setup_image_service_logging():
+    """设置图片服务专用日志记录器"""
+    from logging.handlers import TimedRotatingFileHandler
+    import re
+    
+    # 创建logs目录（如果不存在）
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
+    
+    # 创建图片服务日志记录器
+    image_logger = logging.getLogger('image_service')
+    image_logger.setLevel(logging.INFO)
+    
+    # 避免重复添加处理器
+    if image_logger.handlers:
+        image_logger.handlers.clear()
+    
+    # 文件处理器 - 使用时间轮转日志，每天0点轮转，保留1天的日志
+    file_handler = TimedRotatingFileHandler(
+        'logs/image_service.log',
+        when='midnight',  # 每天午夜轮转
+        interval=1,       # 间隔1天
+        backupCount=1,    # 只保留1个备份，即只保留前一天的日志
+        encoding='utf-8',
+        atTime=datetime.strptime("00:00", "%H:%M").time()  # 在00:00轮转
+    )
+    # 设置不创建.suffix后缀，直接覆盖旧日志文件
+    file_handler.suffix = "%Y-%m-%d"  # 日期格式
+    file_handler.extMatch = re.compile(r"^\d{4}-\d{2}-\d{2}$")  # 匹配日期格式（必须用 re.compile）
+    file_handler.setFormatter(StructuredFormatter())
+    image_logger.addHandler(file_handler)
+    
+    # 控制台处理器 - 保持人类可读格式
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_formatter = logging.Formatter(
+        '%(asctime)s [%(levelname)s] [图片服务] %(funcName)s:%(lineno)d - %(message)s'
+    )
+    console_handler.setFormatter(console_formatter)
+    image_logger.addHandler(console_handler)
+    
+    return image_logger
+
 def get_logger():
     """获取全局日志记录器实例"""
     global logger
     if logger is None:
         logger = setup_structured_logging()
     return logger
+
+def get_image_service_logger():
+    """获取图片服务日志记录器实例"""
+    global image_service_logger
+    if image_service_logger is None:
+        image_service_logger = setup_image_service_logging()
+    return image_service_logger
