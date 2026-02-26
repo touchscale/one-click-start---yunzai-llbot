@@ -38,13 +38,20 @@
 
 ### 安装步骤
 
-#### 1. 安装Python依赖
+#### 1. 克隆仓库
+
+```bash
+git clone https://gitee.com/touchscale_admin/one-click-start---yunzai-llbot.git
+cd one-click-start---yunzai-llbot
+```
+
+#### 2. 安装Python依赖
 
 ```bash
 pip install -r requirements.txt
 ```
 
-#### 2. 安装图片服务依赖
+#### 3. 安装图片服务依赖
 
 ```bash
 cd image_generator
@@ -52,7 +59,7 @@ npm install
 cd ..
 ```
 
-#### 3. 首次运行配置
+#### 4. 首次运行配置
 
 ```bash
 python main.py
