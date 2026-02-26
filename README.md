@@ -42,6 +42,9 @@
 
 ```bash
 git clone https://gitee.com/touchscale_admin/one-click-start---yunzai-llbot.git
+```
+
+```bash
 cd one-click-start---yunzai-llbot
 ```
 
