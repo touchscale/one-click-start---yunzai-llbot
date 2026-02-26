@@ -58,7 +58,13 @@ pip install -r requirements.txt
 
 ```bash
 cd image_generator
+```
+
+```bash
 npm install
+```
+
+```bash
 cd ..
 ```
 
