@@ -317,18 +317,57 @@ class ImageServiceManager:
                     'feature': 'image_service'
                 })
 
-                # 使用 CREATE_NO_WINDOW 标志避免显示控制台窗口
-                startupinfo = subprocess.STARTUPINFO()
-                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-
+                # 不使用 CREATE_NO_WINDOW，允许日志输出到控制台
                 self.process = subprocess.Popen(
                     ["node", self.node_script],
                     cwd=self.image_generator_dir,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
-                    startupinfo=startupinfo,
-                    creationflags=subprocess.CREATE_NO_WINDOW
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace',
+                    bufsize=1,
+                    universal_newlines=True
                 )
+
+                # 启动线程实时读取 stdout
+                def read_stdout():
+                    for line in iter(self.process.stdout.readline, ''):
+                        if line:
+                            line = line.rstrip()
+                            # 解析日志级别
+                            if '[ERROR]' in line:
+                                image_logger.error(line, extra={
+                                    'event_type': EventType.ERROR,
+                                    'feature': 'image_service'
+                                })
+                            elif '[WARN]' in line:
+                                image_logger.warning(line, extra={
+                                    'event_type': EventType.WARNING,
+                                    'feature': 'image_service'
+                                })
+                            else:
+                                image_logger.info(line, extra={
+                                    'event_type': EventType.INFO,
+                                    'feature': 'image_service'
+                                })
+                    self.process.stdout.close()
+
+                # 启动线程实时读取 stderr
+                def read_stderr():
+                    for line in iter(self.process.stderr.readline, ''):
+                        if line:
+                            line = line.rstrip()
+                            image_logger.error(line, extra={
+                                'event_type': EventType.ERROR,
+                                'feature': 'image_service'
+                            })
+                    self.process.stderr.close()
+
+                stdout_thread = threading.Thread(target=read_stdout, daemon=True)
+                stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+                stdout_thread.start()
+                stderr_thread.start()
 
                 # 保存 PID（使用更可靠的方法）
                 temp_pid_file = self.pid_file + '.tmp'

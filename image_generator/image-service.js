@@ -399,6 +399,62 @@ app.get('/health', (req, res) => {
 });
 
 /**
+ * API: 获取日志
+ */
+app.get('/api/logs', (req, res) => {
+  try {
+    const { lines = 100, level = 'all' } = req.query;
+    
+    // 日志文件路径（相对于 image_generator 目录）
+    const logFilePath = path.join(__dirname, '..', 'logs', 'image_service.log');
+    
+    // 检查日志文件是否存在
+    if (!fs.existsSync(logFilePath)) {
+      return res.json({
+        success: true,
+        logs: [],
+        message: '日志文件不存在'
+      });
+    }
+    
+    // 读取日志文件内容
+    const logContent = fs.readFileSync(logFilePath, 'utf-8');
+    const logLines = logContent.split('\n').filter(line => line.trim());
+    
+    // 获取最后 N 行
+    const requestedLines = parseInt(lines) || 100;
+    const slicedLines = logLines.slice(-requestedLines);
+    
+    // 根据日志级别过滤（可选）
+    let filteredLines = slicedLines;
+    if (level !== 'all') {
+      filteredLines = slicedLines.filter(line => {
+        try {
+          const logObj = JSON.parse(line);
+          return logObj.level === level.toUpperCase();
+        } catch {
+          return true;
+        }
+      });
+    }
+    
+    res.json({
+      success: true,
+      logs: filteredLines,
+      total: filteredLines.length,
+      file: logFilePath
+    });
+    
+  } catch (error) {
+    console.error('[ERROR] 获取日志失败:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * 优雅关闭
  */
 async function gracefulShutdown() {
@@ -432,5 +488,6 @@ app.listen(PORT, () => {
   console.log(`[INFO] API 端点:`);
   console.log(`  - POST /api/generate-status`);
   console.log(`  - POST /api/generate-help`);
+  console.log(`  - GET  /api/logs?lines=100&level=all`);
   console.log(`  - GET  /health`);
 });
