@@ -48,6 +48,23 @@ def run_as_admin():
     logger.info("正在请求管理员权限", extra={'event_type': 'admin_request'})
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 正在请求管理员权限...")
     try:
+        # 清理当前的monitor.pid文件，避免新进程被误判为重复实例
+        try:
+            import os
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            monitor_pid_file = os.path.join(script_dir, 'pids', 'monitor.pid')
+            if os.path.exists(monitor_pid_file):
+                os.remove(monitor_pid_file)
+                logger.info("已清理monitor.pid文件，准备启动管理员进程", extra={
+                    'event_type': 'info',
+                    'action': 'cleanup_monitor_pid_before_admin'
+                })
+        except Exception as e:
+            logger.warning(f"清理monitor.pid文件失败: {str(e)}", extra={
+                'event_type': 'warning',
+                'error': str(e)
+            })
+        
         # 重新运行脚本并请求管理员权限
         import sys
         script = os.path.abspath(sys.argv[0])

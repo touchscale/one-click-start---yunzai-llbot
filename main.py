@@ -360,28 +360,58 @@ def check_single_instance():
         # 检查 PID 文件是否存在
         if os.path.exists(monitor_pid_file):
             with open(monitor_pid_file, 'r') as f:
-                old_pid = int(f.read().strip())
-            
-            # 检查旧进程是否仍在运行
-            if psutil.pid_exists(old_pid):
-                logger.warning(f"监控进程已在运行 (PID: {old_pid})，新实例将退出", extra={
-                    'event_type': EventType.WARNING,
-                    'existing_pid': old_pid,
-                    'action': 'skip_duplicate_instance'
-                })
-                print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 监控进程已在运行 (PID: {old_pid})，新实例将退出")
-                return False
-            else:
-                # 旧进程已不存在，清理 PID 文件
-                logger.info(f"检测到旧的监控进程 (PID: {old_pid}) 已不存在，清理 PID 文件", extra={
-                    'event_type': EventType.INFO,
-                    'old_pid': old_pid,
-                    'action': 'cleanup_old_pid'
-                })
-                try:
+                content = f.read().strip()
+                if not content:
+                    logger.warning("monitor.pid文件内容为空，将被清理", extra={
+                        'event_type': EventType.WARNING,
+                        'action': 'cleanup_empty_pid_file'
+                    })
                     os.remove(monitor_pid_file)
-                except:
-                    pass
+                else:
+                    # 只读取第一行作为 PID（忽略可能的时间戳等其他信息）
+                    old_pid = int(content.split('\n')[0])
+                    
+                    # 检查旧进程是否仍在运行
+                    if psutil.pid_exists(old_pid):
+                        # 进一步验证进程名称，确保确实是 Python 监控进程
+                        try:
+                            proc = psutil.Process(old_pid)
+                            proc_name = proc.name().lower()
+                            if 'python' in proc_name or 'pythonw' in proc_name:
+                                logger.warning(f"监控进程已在运行 (PID: {old_pid})，新实例将退出", extra={
+                                    'event_type': EventType.WARNING,
+                                    'existing_pid': old_pid,
+                                    'process_name': proc_name,
+                                    'action': 'skip_duplicate_instance'
+                                })
+                                print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 监控进程已在运行 (PID: {old_pid})，新实例将退出")
+                                return False
+                            else:
+                                # PID 文件中的进程不是 Python 进程，可能是错误的 PID，清理文件
+                                logger.info(f"PID {old_pid} 不是 Python 进程 (名称: {proc_name})，清理 PID 文件", extra={
+                                    'event_type': EventType.INFO,
+                                    'old_pid': old_pid,
+                                    'process_name': proc_name,
+                                    'action': 'cleanup_invalid_pid'
+                                })
+                                try:
+                                    os.remove(monitor_pid_file)
+                                except:
+                                    pass
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            # 进程不存在或无法访问，清理 PID 文件
+                            pass
+                    else:
+                        # 旧进程已不存在，清理 PID 文件
+                        logger.info(f"检测到旧的监控进程 (PID: {old_pid}) 已不存在，清理 PID 文件", extra={
+                            'event_type': EventType.INFO,
+                            'old_pid': old_pid,
+                            'action': 'cleanup_old_pid'
+                        })
+                        try:
+                            os.remove(monitor_pid_file)
+                        except:
+                            pass
         
         # 写入当前进程的 PID
         with open(monitor_pid_file, 'w') as f:
