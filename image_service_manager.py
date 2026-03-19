@@ -152,14 +152,25 @@ class ImageServiceManager:
                         if psutil.pid_exists(pid):
                             return True
                         else:
-                            # PID文件中的进程不存在，清理僵尸PID文件
-                            image_logger.warning(f"检测到僵尸PID文件，进程 {pid} 不存在，标记为待清理", extra={
+                            # PID文件中的进程不存在，立即清理僵尸PID文件
+                            image_logger.warning(f"检测到僵尸PID文件，进程 {pid} 不存在，正在清理", extra={
                                 'event_type': EventType.WARNING,
                                 'feature': 'image_service',
                                 'stale_pid': pid
                             })
-                            # 标记为僵尸文件，但不立即删除，避免文件锁定问题
-                            # 在启动新服务时会清理
+                            try:
+                                os.remove(self.pid_file)
+                                image_logger.info(f"已清理僵尸PID文件", extra={
+                                    'event_type': EventType.INFO,
+                                    'feature': 'image_service',
+                                    'stale_pid': pid
+                                })
+                            except Exception as e:
+                                image_logger.warning(f"清理僵尸PID文件失败: {str(e)}", extra={
+                                    'event_type': EventType.WARNING,
+                                    'feature': 'image_service',
+                                    'error': str(e)
+                                })
                             return False
             except Exception as e:
                 image_logger.warning(f"读取 PID 文件失败: {str(e)}", extra={

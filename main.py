@@ -352,9 +352,83 @@ def run_monitor_loop(config):
             'error': str(e)
         })
 
+def check_single_instance():
+    """检查单实例，防止多个监控进程同时运行"""
+    monitor_pid_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pids', 'monitor.pid')
+    
+    try:
+        # 检查 PID 文件是否存在
+        if os.path.exists(monitor_pid_file):
+            with open(monitor_pid_file, 'r') as f:
+                old_pid = int(f.read().strip())
+            
+            # 检查旧进程是否仍在运行
+            if psutil.pid_exists(old_pid):
+                logger.warning(f"监控进程已在运行 (PID: {old_pid})，新实例将退出", extra={
+                    'event_type': EventType.WARNING,
+                    'existing_pid': old_pid,
+                    'action': 'skip_duplicate_instance'
+                })
+                print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 监控进程已在运行 (PID: {old_pid})，新实例将退出")
+                return False
+            else:
+                # 旧进程已不存在，清理 PID 文件
+                logger.info(f"检测到旧的监控进程 (PID: {old_pid}) 已不存在，清理 PID 文件", extra={
+                    'event_type': EventType.INFO,
+                    'old_pid': old_pid,
+                    'action': 'cleanup_old_pid'
+                })
+                try:
+                    os.remove(monitor_pid_file)
+                except:
+                    pass
+        
+        # 写入当前进程的 PID
+        with open(monitor_pid_file, 'w') as f:
+            f.write(str(os.getpid()))
+        
+        logger.info(f"写入监控进程 PID: {os.getpid()}", extra={
+            'event_type': EventType.INFO,
+            'current_pid': os.getpid(),
+            'pid_file': monitor_pid_file
+        })
+        return True
+        
+    except Exception as e:
+        logger.error(f"单实例检查失败: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'error': str(e)
+        })
+        # 如果检查失败，允许继续运行（避免因检查失败导致无法启动）
+        return True
+
+def cleanup_monitor_pid():
+    """清理监控进程的 PID 文件"""
+    monitor_pid_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pids', 'monitor.pid')
+    try:
+        if os.path.exists(monitor_pid_file):
+            os.remove(monitor_pid_file)
+            logger.info(f"已清理监控进程 PID 文件", extra={
+                'event_type': EventType.INFO,
+                'action': 'cleanup_monitor_pid'
+            })
+    except Exception as e:
+        logger.error(f"清理监控进程 PID 文件失败: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'error': str(e)
+        })
+
 def main():
     """主函数"""
     start_time = time.time()
+
+    # 单实例检查 - 防止多个监控进程同时运行
+    if not check_single_instance():
+        return
+
+    # 确保在退出时清理 PID 文件
+    import atexit
+    atexit.register(cleanup_monitor_pid)
 
     # 检查是否有旧进程正在关闭
     temp_pid_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pids', 'restarting_monitor.pid')
@@ -530,9 +604,11 @@ def main():
                     'reason': 'cannot_acquire'
                 })
                 print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 无法获取管理员权限，脚本退出")
+                cleanup_monitor_pid()
                 return
             # 如果当前进程不是管理员权限，则退出，让新启动的管理员进程继续
             if not is_admin():
+                cleanup_monitor_pid()
                 return
     
         print("=" * 60)
@@ -571,6 +647,7 @@ def main():
         try:
             # 运行监控循环
             run_monitor_loop(config)
+            cleanup_monitor_pid()
         except KeyboardInterrupt:
             logger.info("监控已停止 (用户中断)", extra={
                 'event_type': EventType.PROCESS_STOP, 
@@ -584,6 +661,7 @@ def main():
                 'total_runtime': f"{time.time() - start_time:.3f}s"
             })
             print(f"\n[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 监控已停止")
+            cleanup_monitor_pid()
         except Exception as e:
             logger.error(f"监控循环中发生错误: {str(e)}", extra={
                 'event_type': EventType.ERROR, 
@@ -600,6 +678,7 @@ def main():
                 'traceback': __import__('traceback').format_exc()
             })
             print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 监控循环中发生错误: {str(e)}")
+            cleanup_monitor_pid()
     except Exception as e:
         logger.error(f"主程序启动失败: {str(e)}", extra={
             'event_type': EventType.ERROR,
@@ -615,6 +694,7 @@ def main():
             'traceback': __import__('traceback').format_exc()
         })
         print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 主程序启动失败: {str(e)}")
+        cleanup_monitor_pid()
         raise
 
 def keep_alive_main():
