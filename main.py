@@ -355,8 +355,44 @@ def run_monitor_loop(config):
 def check_single_instance():
     """检查单实例，防止多个监控进程同时运行"""
     monitor_pid_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pids', 'monitor.pid')
+    admin_marker_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pids', 'elevating_to_admin.marker')
     
     try:
+        # 检查是否有管理员权限提升标记
+        if os.path.exists(admin_marker_file):
+            try:
+                with open(admin_marker_file, 'r') as f:
+                    old_pid = int(f.read().strip())
+                
+                # 等待旧进程退出（最多等待5秒）
+                for i in range(5):
+                    if not psutil.pid_exists(old_pid):
+                        logger.info(f"旧进程 (PID: {old_pid}) 已退出，清理标记文件", extra={
+                            'event_type': EventType.INFO,
+                            'old_pid': old_pid,
+                            'action': 'cleanup_admin_marker'
+                        })
+                        os.remove(admin_marker_file)
+                        break
+                    time.sleep(1)
+                else:
+                    # 超时后强制清理标记文件
+                    logger.warning(f"旧进程 (PID: {old_pid}) 未及时退出，强制清理标记文件", extra={
+                        'event_type': EventType.WARNING,
+                        'old_pid': old_pid,
+                        'action': 'force_cleanup_admin_marker'
+                    })
+                    os.remove(admin_marker_file)
+            except Exception as e:
+                logger.warning(f"处理管理员标记文件失败: {str(e)}", extra={
+                    'event_type': EventType.WARNING,
+                    'error': str(e)
+                })
+                try:
+                    os.remove(admin_marker_file)
+                except:
+                    pass
+        
         # 检查 PID 文件是否存在
         if os.path.exists(monitor_pid_file):
             with open(monitor_pid_file, 'r') as f:
@@ -369,23 +405,66 @@ def check_single_instance():
                     os.remove(monitor_pid_file)
                 else:
                     # 只读取第一行作为 PID（忽略可能的时间戳等其他信息）
-                    old_pid = int(content.split('\n')[0])
+                    first_line = content.split('\n')[0].strip()
+                    # 验证内容是否为有效的数字（防止二进制数据或其他无效内容）
+                    if not first_line.isdigit():
+                        logger.warning(f"monitor.pid文件内容无效: {repr(first_line)}，将被清理", extra={
+                            'event_type': EventType.WARNING,
+                            'action': 'cleanup_invalid_pid_content',
+                            'invalid_content': repr(first_line)
+                        })
+                        try:
+                            os.remove(monitor_pid_file)
+                        except:
+                            pass
+                    else:
+                        old_pid = int(first_line)
                     
                     # 检查旧进程是否仍在运行
                     if psutil.pid_exists(old_pid):
-                        # 进一步验证进程名称，确保确实是 Python 监控进程
+                        # 进一步验证进程名称和命令行，确保确实是 Python 监控进程
                         try:
                             proc = psutil.Process(old_pid)
                             proc_name = proc.name().lower()
+                            
+                            # 验证是否是 Python 进程
                             if 'python' in proc_name or 'pythonw' in proc_name:
-                                logger.warning(f"监控进程已在运行 (PID: {old_pid})，新实例将退出", extra={
-                                    'event_type': EventType.WARNING,
-                                    'existing_pid': old_pid,
-                                    'process_name': proc_name,
-                                    'action': 'skip_duplicate_instance'
-                                })
-                                print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 监控进程已在运行 (PID: {old_pid})，新实例将退出")
-                                return False
+                                # 验证命令行参数，确保是监控脚本
+                                cmdline = proc.cmdline()
+                                is_monitor_process = False
+                                
+                                if cmdline:
+                                    cmdline_str = ' '.join(cmdline).lower()
+                                    # 检查命令行中是否包含 main.py 或当前脚本路径
+                                    if 'main.py' in cmdline_str or 'main.py' in ' '.join(cmdline).lower():
+                                        is_monitor_process = True
+                                    # 检查是否包含项目路径（更严格的验证）
+                                    script_path = os.path.abspath(__file__).lower()
+                                    if script_path in cmdline_str:
+                                        is_monitor_process = True
+                                
+                                if is_monitor_process:
+                                    logger.warning(f"监控进程已在运行 (PID: {old_pid})，新实例将退出", extra={
+                                        'event_type': EventType.WARNING,
+                                        'existing_pid': old_pid,
+                                        'process_name': proc_name,
+                                        'action': 'skip_duplicate_instance'
+                                    })
+                                    print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 监控进程已在运行 (PID: {old_pid})，新实例将退出")
+                                    return False
+                                else:
+                                    # 是 Python 进程但不是监控脚本，可能是错误的 PID，清理文件
+                                    logger.info(f"PID {old_pid} 是 Python 进程但不是监控脚本，清理 PID 文件", extra={
+                                        'event_type': EventType.INFO,
+                                        'old_pid': old_pid,
+                                        'process_name': proc_name,
+                                        'cmdline': cmdline,
+                                        'action': 'cleanup_non_monitor_pid'
+                                    })
+                                    try:
+                                        os.remove(monitor_pid_file)
+                                    except:
+                                        pass
                             else:
                                 # PID 文件中的进程不是 Python 进程，可能是错误的 PID，清理文件
                                 logger.info(f"PID {old_pid} 不是 Python 进程 (名称: {proc_name})，清理 PID 文件", extra={
@@ -638,7 +717,19 @@ def main():
                 return
             # 如果当前进程不是管理员权限，则退出，让新启动的管理员进程继续
             if not is_admin():
-                cleanup_monitor_pid()
+                # 不要清理 monitor.pid，让新管理员进程接管
+                # atexit 会在进程退出时清理，但我们可以提前退出
+                # 管理员进程会通过标记文件知道旧进程正在退出
+                logger.info("非管理员进程退出，等待管理员进程启动", extra={
+                    'event_type': EventType.INFO,
+                    'action': 'non_admin_exit'
+                })
+                # 取消注册 atexit 处理器，避免清理 monitor.pid
+                import atexit
+                try:
+                    atexit.unregister(cleanup_monitor_pid)
+                except:
+                    pass
                 return
     
         print("=" * 60)
@@ -776,7 +867,31 @@ def keep_alive_main():
                 'error': str(e)
             })
             print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 主程序异常退出: {str(e)}")
-            print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {3}秒后尝试重启...")
+            
+            # 等待旧进程完全退出，确保PID文件被清理
+            print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 等待旧进程完全退出...")
+            monitor_pid_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pids', 'monitor.pid')
+            for i in range(5):  # 最多等待5秒
+                if not os.path.exists(monitor_pid_file):
+                    logger.info("monitor.pid文件已清理，准备重启", extra={
+                        'event_type': EventType.INFO,
+                        'action': 'pid_file_cleaned'
+                    })
+                    break
+                time.sleep(1)
+            else:
+                # 超时后强制清理PID文件
+                logger.warning("monitor.pid文件未及时清理，强制清理", extra={
+                    'event_type': EventType.WARNING,
+                    'action': 'force_cleanup_pid_file'
+                })
+                try:
+                    if os.path.exists(monitor_pid_file):
+                        os.remove(monitor_pid_file)
+                except:
+                    pass
+            
+            print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 3秒后尝试重启...")
             restart_count += 1
             last_restart_time = current_time
             time.sleep(3)  # 等待3秒后重启
