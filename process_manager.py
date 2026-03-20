@@ -238,7 +238,7 @@ def terminate_yunzai_git_bash_process():
                 'error': 'access_denied',
                 'pid': yunzai_pid
             })
-            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: 无权限终止yunzai的git-bash进程 (PID: {yunzai_git_bash_pid})")
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: 无权限终止yunzai的git-bash进程 (PID: {yunzai_pid})")
             return False
     except Exception as e:
         logger.error(f"终止yunzai的git-bash进程时出错: {str(e)}", extra={
