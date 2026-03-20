@@ -356,7 +356,87 @@ def check_single_instance():
     """检查单实例，防止多个监控进程同时运行"""
     monitor_pid_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pids', 'monitor.pid')
     admin_marker_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pids', 'elevating_to_admin.marker')
-    
+
+    def safe_terminate_process(proc, timeout=5, pid=None):
+        """安全地终止进程，避免阻塞
+
+        Args:
+            proc: psutil.Process 对象
+            timeout: 超时时间（秒）
+            pid: 进程 ID（用于日志）
+
+        Returns:
+            bool: 是否成功终止
+        """
+        pid = pid or proc.pid
+        try:
+            proc.terminate()
+            # 使用轮询而不是 wait()，避免阻塞
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                try:
+                    if not psutil.pid_exists(pid):
+                        logger.info(f"成功终止进程 (PID: {pid})", extra={
+                            'event_type': EventType.INFO,
+                            'pid': pid,
+                            'action': 'process_terminated'
+                        })
+                        return True
+                except:
+                    return True  # 进程已不存在
+                time.sleep(0.1)
+
+            # 超时后尝试强制终止
+            logger.warning(f"终止进程超时 (PID: {pid})，尝试强制终止", extra={
+                'event_type': EventType.WARNING,
+                'pid': pid,
+                'action': 'terminate_timeout'
+            })
+            try:
+                proc.kill()
+                # 使用轮询检查进程是否已终止
+                start_time = time.time()
+                kill_timeout = 3
+                while time.time() - start_time < kill_timeout:
+                    try:
+                        if not psutil.pid_exists(pid):
+                            logger.info(f"已强制终止进程 (PID: {pid})", extra={
+                                'event_type': EventType.INFO,
+                                'pid': pid,
+                                'action': 'process_killed'
+                            })
+                            return True
+                    except:
+                        return True  # 进程已不存在
+                    time.sleep(0.1)
+                logger.warning(f"强制终止进程超时 (PID: {pid})，放弃等待", extra={
+                    'event_type': EventType.WARNING,
+                    'pid': pid,
+                    'action': 'kill_timeout'
+                })
+                return False
+            except Exception as e:
+                logger.warning(f"强制终止进程失败 (PID: {pid}): {str(e)}", extra={
+                    'event_type': EventType.WARNING,
+                    'pid': pid,
+                    'error': str(e)
+                })
+                return False
+        except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+            logger.warning(f"访问进程失败 (PID: {pid}): {str(e)}", extra={
+                'event_type': EventType.WARNING,
+                'pid': pid,
+                'error': str(e)
+            })
+            return True  # 进程已不存在或无权限访问，视为成功
+        except Exception as e:
+            logger.warning(f"终止进程时发生意外错误 (PID: {pid}): {str(e)}", extra={
+                'event_type': EventType.WARNING,
+                'pid': pid,
+                'error': str(e)
+            })
+            return False
+
     try:
         # 检查是否有管理员权限提升标记
         if os.path.exists(admin_marker_file):
@@ -414,14 +494,132 @@ def check_single_instance():
                             'invalid_content': repr(first_line)
                         })
                         try:
+                            # 尝试查找并终止可能相关的 Python 监控进程
+                            # 由于 PID 无效，无法精确定位，但可以尝试查找所有运行 main.py 的 Python 进程
+                            current_pid = os.getpid()
+                            terminated = False
+                            candidates = []
+
+                            # 首先收集所有候选进程，避免在迭代过程中修改进程列表
+                            try:
+                                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                                    try:
+                                        proc_name = proc.info['name'].lower()
+                                        if 'python' in proc_name or 'pythonw' in proc_name:
+                                            cmdline = proc.info.get('cmdline', [])
+                                            if cmdline:
+                                                cmdline_str = ' '.join(cmdline).lower()
+                                                script_path = os.path.abspath(__file__).lower()
+                                                # 检查是否是运行监控脚本的进程
+                                                if 'main.py' in cmdline_str or script_path in cmdline_str:
+                                                    # 保护当前进程，防止误杀自己
+                                                    if proc.info['pid'] != current_pid:
+                                                        candidates.append(proc.info['pid'])
+                                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                        continue
+                                    except Exception as e:
+                                        logger.warning(f"处理进程信息时出错: {str(e)}", extra={
+                                            'event_type': EventType.WARNING,
+                                            'error': str(e)
+                                        })
+                            except Exception as e:
+                                logger.warning(f"遍历进程列表时出错: {str(e)}", extra={
+                                    'event_type': EventType.WARNING,
+                                    'error': str(e)
+                                })
+
+                            # 终止候选进程（只终止一个，避免误杀）
+                            for pid in candidates:
+                                if terminated:
+                                    break
+                                try:
+                                    proc = psutil.Process(pid)
+                                    logger.info(f"终止可能与无效 PID 相关的监控进程 (PID: {pid})", extra={
+                                        'event_type': EventType.INFO,
+                                        'pid': pid,
+                                        'action': 'terminate_related_process'
+                                    })
+                                    proc.terminate()
+                                    # 使用轮询而不是 wait()，避免阻塞
+                                    import signal
+                                    start_time = time.time()
+                                    timeout = 5
+                                    while time.time() - start_time < timeout:
+                                        try:
+                                            if not psutil.pid_exists(pid):
+                                                logger.info(f"成功终止进程 (PID: {pid})", extra={
+                                                    'event_type': EventType.INFO,
+                                                    'pid': pid,
+                                                    'action': 'process_terminated'
+                                                })
+                                                terminated = True
+                                                break
+                                        except:
+                                            break
+                                        time.sleep(0.1)
+
+                                    if not terminated and psutil.pid_exists(pid):
+                                        logger.warning(f"终止进程超时 (PID: {pid})，尝试强制终止", extra={
+                                            'event_type': EventType.WARNING,
+                                            'pid': pid,
+                                            'action': 'terminate_timeout'
+                                        })
+                                        try:
+                                            proc.kill()
+                                            # 使用轮询检查进程是否已终止
+                                            start_time = time.time()
+                                            timeout = 3
+                                            while time.time() - start_time < timeout:
+                                                try:
+                                                    if not psutil.pid_exists(pid):
+                                                        logger.info(f"已强制终止进程 (PID: {pid})", extra={
+                                                            'event_type': EventType.INFO,
+                                                            'pid': pid,
+                                                            'action': 'process_killed'
+                                                        })
+                                                        terminated = True
+                                                        break
+                                                except:
+                                                    break
+                                                time.sleep(0.1)
+                                            if not terminated:
+                                                logger.warning(f"强制终止进程超时 (PID: {pid})，放弃等待", extra={
+                                                    'event_type': EventType.WARNING,
+                                                    'pid': pid,
+                                                    'action': 'kill_timeout'
+                                                })
+                                        except Exception as e:
+                                            logger.warning(f"强制终止进程失败 (PID: {pid}): {str(e)}", extra={
+                                                'event_type': EventType.WARNING,
+                                                'pid': pid,
+                                                'error': str(e)
+                                            })
+                                except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                                    logger.warning(f"访问进程失败 (PID: {pid}): {str(e)}", extra={
+                                        'event_type': EventType.WARNING,
+                                        'pid': pid,
+                                        'error': str(e)
+                                    })
+                                except Exception as e:
+                                    logger.warning(f"终止进程时发生意外错误 (PID: {pid}): {str(e)}", extra={
+                                        'event_type': EventType.WARNING,
+                                        'pid': pid,
+                                        'error': str(e)
+                                    })
+                        except Exception as e:
+                            logger.warning(f"尝试终止相关进程时出错: {str(e)}", extra={
+                                'event_type': EventType.WARNING,
+                                'error': str(e)
+                            })
+                        try:
                             os.remove(monitor_pid_file)
                         except:
                             pass
                     else:
                         old_pid = int(first_line)
-                    
-                    # 检查旧进程是否仍在运行
-                    if psutil.pid_exists(old_pid):
+
+                    # 检查旧进程是否仍在运行（只有当 old_pid 被成功赋值时才检查）
+                    if 'old_pid' in locals() and psutil.pid_exists(old_pid):
                         # 进一步验证进程名称和命令行，确保确实是 Python 监控进程
                         try:
                             proc = psutil.Process(old_pid)
@@ -444,34 +642,60 @@ def check_single_instance():
                                         is_monitor_process = True
                                 
                                 if is_monitor_process:
-                                    logger.warning(f"监控进程已在运行 (PID: {old_pid})，新实例将退出", extra={
+                                    logger.warning(f"监控进程已在运行 (PID: {old_pid})，将终止旧进程并启动新实例", extra={
                                         'event_type': EventType.WARNING,
                                         'existing_pid': old_pid,
                                         'process_name': proc_name,
-                                        'action': 'skip_duplicate_instance'
+                                        'action': 'terminate_old_monitor_process'
                                     })
-                                    print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 监控进程已在运行 (PID: {old_pid})，新实例将退出")
-                                    return False
+                                    print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 监控进程已在运行 (PID: {old_pid})，将终止旧进程并启动新实例")
+                                    if safe_terminate_process(proc, timeout=10, pid=old_pid):
+                                        logger.info(f"已终止旧监控进程 PID: {old_pid}", extra={
+                                            'event_type': EventType.INFO,
+                                            'old_pid': old_pid,
+                                            'action': 'old_monitor_terminated'
+                                        })
+                                        print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 已终止旧监控进程")
+                                    else:
+                                        logger.warning(f"终止旧监控进程失败或超时 (PID: {old_pid})，但继续启动新实例", extra={
+                                            'event_type': EventType.WARNING,
+                                            'old_pid': old_pid,
+                                            'action': 'terminate_failed'
+                                        })
+                                        print(f"[{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 终止旧监控进程失败或超时，但继续启动新实例")
+                                    # 继续执行，不返回 False，允许新实例启动
                                 else:
-                                    # 是 Python 进程但不是监控脚本，可能是错误的 PID，清理文件
-                                    logger.info(f"PID {old_pid} 是 Python 进程但不是监控脚本，清理 PID 文件", extra={
+                                    # 是 Python 进程但不是监控脚本，可能是错误的 PID，终止进程并清理文件
+                                    logger.info(f"PID {old_pid} 是 Python 进程但不是监控脚本，终止进程并清理 PID 文件", extra={
                                         'event_type': EventType.INFO,
                                         'old_pid': old_pid,
                                         'process_name': proc_name,
                                         'cmdline': cmdline,
-                                        'action': 'cleanup_non_monitor_pid'
+                                        'action': 'terminate_and_cleanup_non_monitor_pid'
+                                    })
+                                    safe_terminate_process(proc, timeout=5, pid=old_pid)
+                                    logger.info(f"已终止进程 PID: {old_pid}", extra={
+                                        'event_type': EventType.INFO,
+                                        'old_pid': old_pid,
+                                        'action': 'process_terminated'
                                     })
                                     try:
                                         os.remove(monitor_pid_file)
                                     except:
                                         pass
                             else:
-                                # PID 文件中的进程不是 Python 进程，可能是错误的 PID，清理文件
-                                logger.info(f"PID {old_pid} 不是 Python 进程 (名称: {proc_name})，清理 PID 文件", extra={
+                                # PID 文件中的进程不是 Python 进程，可能是错误的 PID，终止进程并清理文件
+                                logger.info(f"PID {old_pid} 不是 Python 进程 (名称: {proc_name})，终止进程并清理 PID 文件", extra={
                                     'event_type': EventType.INFO,
                                     'old_pid': old_pid,
                                     'process_name': proc_name,
-                                    'action': 'cleanup_invalid_pid'
+                                    'action': 'terminate_and_cleanup_invalid_pid'
+                                })
+                                safe_terminate_process(proc, timeout=5, pid=old_pid)
+                                logger.info(f"已终止进程 PID: {old_pid}", extra={
+                                    'event_type': EventType.INFO,
+                                    'old_pid': old_pid,
+                                    'action': 'process_terminated'
                                 })
                                 try:
                                     os.remove(monitor_pid_file)
@@ -531,6 +755,81 @@ def main():
     """主函数"""
     start_time = time.time()
 
+    def safe_terminate_process_main(pid, timeout=5):
+        """安全地终止进程，避免阻塞
+
+        Args:
+            pid: 进程 ID
+            timeout: 超时时间（秒）
+
+        Returns:
+            bool: 是否成功终止
+        """
+        try:
+            proc = psutil.Process(pid)
+            proc.terminate()
+            # 使用轮询而不是 wait()，避免阻塞
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                try:
+                    if not psutil.pid_exists(pid):
+                        logger.info(f"进程已终止 (PID: {pid})", extra={
+                            'event_type': EventType.INFO,
+                            'pid': pid
+                        })
+                        return True
+                except:
+                    return True  # 进程已不存在
+                time.sleep(0.1)
+
+            # 超时后尝试强制终止
+            logger.warning(f"终止进程超时 (PID: {pid})，尝试强制终止", extra={
+                'event_type': EventType.WARNING,
+                'pid': pid
+            })
+            try:
+                proc.kill()
+                # 使用轮询检查进程是否已终止
+                start_time = time.time()
+                kill_timeout = 3
+                while time.time() - start_time < kill_timeout:
+                    try:
+                        if not psutil.pid_exists(pid):
+                            logger.info(f"进程已被强制终止 (PID: {pid})", extra={
+                                'event_type': EventType.INFO,
+                                'pid': pid
+                            })
+                            return True
+                    except:
+                        return True  # 进程已不存在
+                    time.sleep(0.1)
+                logger.warning(f"强制终止进程超时 (PID: {pid})，放弃等待", extra={
+                    'event_type': EventType.WARNING,
+                    'pid': pid
+                })
+                return False
+            except Exception as e:
+                logger.warning(f"强制终止进程失败 (PID: {pid}): {str(e)}", extra={
+                    'event_type': EventType.WARNING,
+                    'pid': pid,
+                    'error': str(e)
+                })
+                return False
+        except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+            logger.warning(f"访问进程失败 (PID: {pid}): {str(e)}", extra={
+                'event_type': EventType.WARNING,
+                'pid': pid,
+                'error': str(e)
+            })
+            return True  # 进程已不存在或无权限访问，视为成功
+        except Exception as e:
+            logger.warning(f"终止进程时发生意外错误 (PID: {pid}): {str(e)}", extra={
+                'event_type': EventType.WARNING,
+                'pid': pid,
+                'error': str(e)
+            })
+            return False
+
     # 单实例检查 - 防止多个监控进程同时运行
     if not check_single_instance():
         return
@@ -566,16 +865,11 @@ def main():
                 time.sleep(1)
             else:
                 # 超时后强制终止旧进程
-                try:
-                    old_proc = psutil.Process(old_pid)
-                    old_proc.terminate()
-                    old_proc.wait(timeout=5)
-                    logger.info(f"旧进程 (PID: {old_pid}) 已强制终止", extra={
-                        'event_type': EventType.INFO,
-                        'old_pid': old_pid
-                    })
-                except:
-                    pass
+                safe_terminate_process_main(old_pid, timeout=5)
+                logger.info(f"旧进程 (PID: {old_pid}) 已终止（或尝试终止）", extra={
+                    'event_type': EventType.INFO,
+                    'old_pid': old_pid
+                })
 
             # 清理临时文件
             try:

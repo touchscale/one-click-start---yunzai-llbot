@@ -8,6 +8,8 @@ import time
 import psutil
 import subprocess
 import threading
+import tempfile
+import shutil
 from typing import Optional, Dict, Any
 from logger import get_logger, get_image_service_logger
 from constants import EventType
@@ -18,8 +20,82 @@ image_logger = get_image_service_logger()
 
 class ImageServiceManager:
     """图片服务管理器"""
-    
+
     def __init__(self):
+        """初始化图片服务管理器"""
+        self.script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.image_generator_dir = os.path.join(self.script_dir, "image_generator")
+        self.node_script = os.path.join(self.image_generator_dir, "image-service.js")
+        self.pid_file = os.path.join(self.script_dir, "pids", "image_service.pid")
+        self.process: Optional[subprocess.Popen] = None
+        self.service_url = "http://localhost:3001"
+        self._running = False
+        self._lock = threading.RLock()
+
+    @staticmethod
+    def _force_delete_file(file_path: str, max_retries: int = 5, retry_delay: float = 0.3) -> bool:
+        """
+        强制删除文件，使用多种策略
+
+        Args:
+            file_path: 要删除的文件路径
+            max_retries: 最大重试次数
+            retry_delay: 重试间隔（秒）
+
+        Returns:
+            是否删除成功
+        """
+        if not os.path.exists(file_path):
+            return True
+
+        for attempt in range(max_retries):
+            try:
+                # 策略1: 先短暂等待
+                if attempt > 0:
+                    time.sleep(retry_delay)
+
+                # 策略2: 尝试标准删除
+                os.remove(file_path)
+                return True
+
+            except Exception as e:
+                # 如果失败，尝试其他策略
+                try:
+                    # 策略3: 重命名到临时文件（绕过文件锁定）
+                    temp_name = file_path + f'.delete_{int(time.time() * 1000)}_{os.getpid()}'
+                    if os.path.exists(file_path):
+                        os.rename(file_path, temp_name)
+                        # 重命名成功后，删除临时文件
+                        if os.path.exists(temp_name):
+                            os.remove(temp_name)
+                    return True
+
+                except Exception as e2:
+                    # 策略4: 使用shutil.rmtree（对文件无效，但值得尝试）
+                    try:
+                        shutil.rmtree(file_path, ignore_errors=True)
+                        return True
+                    except:
+                        pass
+
+                    # 策略5: 使用Windows命令行强制删除
+                    if os.name == 'nt':
+                        try:
+                            subprocess.run(
+                                ['cmd', '/c', 'del', '/f', '/q', file_path],
+                                capture_output=True,
+                                timeout=3
+                            )
+                            if not os.path.exists(file_path):
+                                return True
+                        except:
+                            pass
+
+                    # 最后一次尝试
+                    if attempt == max_retries - 1:
+                        raise
+
+        return False
         """初始化图片服务管理器"""
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
         self.image_generator_dir = os.path.join(self.script_dir, "image_generator")
@@ -158,18 +234,18 @@ class ImageServiceManager:
                                 'feature': 'image_service',
                                 'stale_pid': pid
                             })
-                            try:
-                                os.remove(self.pid_file)
+                            # 使用强制删除
+                            if self._force_delete_file(self.pid_file, max_retries=5, retry_delay=0.2):
                                 image_logger.info(f"已清理僵尸PID文件", extra={
                                     'event_type': EventType.INFO,
                                     'feature': 'image_service',
                                     'stale_pid': pid
                                 })
-                            except Exception as e:
-                                image_logger.warning(f"清理僵尸PID文件失败: {str(e)}", extra={
+                            else:
+                                image_logger.warning(f"清理僵尸PID文件失败，但将继续运行", extra={
                                     'event_type': EventType.WARNING,
                                     'feature': 'image_service',
-                                    'error': str(e)
+                                    'stale_pid': pid
                                 })
                             return False
             except Exception as e:
@@ -195,16 +271,19 @@ class ImageServiceManager:
                         return self.process.pid
                 except:
                     pass
-            
+
+            # 从PID文件读取（添加小延迟，避免文件锁竞争）
             if os.path.exists(self.pid_file):
                 try:
                     with open(self.pid_file, 'r', encoding='utf-8') as f:
                         pid_str = f.read().strip()
-                        if pid_str and pid_str.isdigit():
-                            return int(pid_str)
+                    # with语句会自动关闭文件，但添加小延迟确保文件锁释放
+                    time.sleep(0.05)
+                    if pid_str and pid_str.isdigit():
+                        return int(pid_str)
                 except:
                     pass
-            
+
             return None
     
     def start(self, wait_ready: bool = True, timeout: int = 60) -> bool:
@@ -287,12 +366,18 @@ class ImageServiceManager:
                         if old_pid_str and old_pid_str.isdigit():
                             old_pid = int(old_pid_str)
                             if not psutil.pid_exists(old_pid):
-                                # 旧进程不存在，可以安全删除文件
-                                os.remove(self.pid_file)
-                                image_logger.info(f"清理旧的 PID 文件 (进程 {old_pid} 不存在)", extra={
-                                    'event_type': EventType.INFO,
-                                    'feature': 'image_service'
-                                })
+                                # 旧进程不存在，使用强制删除
+                                if self._force_delete_file(self.pid_file, max_retries=5, retry_delay=0.2):
+                                    image_logger.info(f"清理旧的 PID 文件 (进程 {old_pid} 不存在)", extra={
+                                        'event_type': EventType.INFO,
+                                        'feature': 'image_service'
+                                    })
+                                else:
+                                    # 如果删除失败，记录警告但继续启动（可能需要管理员权限或文件被锁定）
+                                    image_logger.warning(f"无法删除旧的PID文件，但将尝试覆盖启动新进程", extra={
+                                        'event_type': EventType.WARNING,
+                                        'feature': 'image_service'
+                                    })
                             else:
                                 # 旧进程还存在，尝试优雅终止
                                 try:
@@ -307,7 +392,8 @@ class ImageServiceManager:
                                         'event_type': EventType.INFO,
                                         'feature': 'image_service'
                                     })
-                                    os.remove(self.pid_file)
+                                    # 终止后删除PID文件
+                                    self._force_delete_file(self.pid_file, max_retries=5, retry_delay=0.2)
                                 except:
                                     # 无法终止旧进程，记录警告但继续
                                     image_logger.warning(f"无法终止旧进程 {old_pid}，尝试继续", extra={
@@ -315,10 +401,11 @@ class ImageServiceManager:
                                         'feature': 'image_service'
                                     })
                 except Exception as e:
-                    # 如果清理失败，使用临时文件名避免冲突
-                    image_logger.warning(f"清理 PID 文件失败: {str(e)}，使用临时文件", extra={
+                    # 如果清理失败，记录警告但继续
+                    image_logger.warning(f"清理 PID 文件失败: {str(e)}，将尝试覆盖启动", extra={
                         'event_type': EventType.WARNING,
-                        'feature': 'image_service'
+                        'feature': 'image_service',
+                        'error': str(e)
                     })
 
             # 启动服务
@@ -563,17 +650,15 @@ class ImageServiceManager:
 
             # 删除 PID 文件
             if os.path.exists(self.pid_file):
-                try:
-                    os.remove(self.pid_file)
+                if self._force_delete_file(self.pid_file, max_retries=5, retry_delay=0.2):
                     image_logger.info("已删除 PID 文件", extra={
                         'event_type': EventType.INFO,
                         'feature': 'image_service'
                     })
-                except Exception as e:
-                    image_logger.warning(f"删除 PID 文件失败: {str(e)}", extra={
+                else:
+                    image_logger.warning("未能删除PID文件，可能被其他进程锁定", extra={
                         'event_type': EventType.WARNING,
-                        'feature': 'image_service',
-                        'error': str(e)
+                        'feature': 'image_service'
                     })
 
             # 总结
