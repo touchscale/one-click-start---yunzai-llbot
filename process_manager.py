@@ -615,43 +615,98 @@ def restart_llbot(config):
             'message': f'重启llbot时发生错误: {str(e)}'
         }
 
-def start_yunzai(config):
-    """启动Yunzai进程"""
+def start_yunzai(config, use_cmd_admin=False):
+    """启动Yunzai进程
+    
+    Args:
+        config: 配置字典
+        use_cmd_admin: 是否使用 cmd 以管理员权限启动
+    """
     try:
         process_name = os.path.basename(config['yunzai']['git_bash_path'])
-        logger.info(f"准备启动Yunzai进程: {process_name}", extra={
+        logger.info(f"准备启动Yunzai进程: {process_name} (使用管理员模式: {use_cmd_admin})", extra={
             'event_type': EventType.PROCESS_START,
             'process_name': process_name,
-            'full_path': config['yunzai']['git_bash_path']
+            'full_path': config['yunzai']['git_bash_path'],
+            'use_cmd_admin': use_cmd_admin
         })
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 启动 {process_name}...")
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 启动 {process_name}{' (管理员模式)' if use_cmd_admin else ''}...")
         
-        if os.path.exists(config['yunzai']['git_bash_path']):
-            if not config.get('yunzai', {}).get('bash_directory'):
-                logger.error("Yunzai目录未配置，无法启动", extra={
-                    'event_type': EventType.ERROR,
-                    'error': 'yunzai_directory_not_configured'
-                })
-                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: Yunzai目录未配置")
-                return {
-                    'success': False,
-                    'message': 'Yunzai目录未配置'
-                }
-                
-            logger.info(f"切换到工作目录: {config['yunzai']['bash_directory']}", extra={
-                'event_type': EventType.PROCESS_START,
-                'working_directory': config['yunzai']['bash_directory']
+        if not config.get('yunzai', {}).get('bash_directory'):
+            logger.error("Yunzai目录未配置，无法启动", extra={
+                'event_type': EventType.ERROR,
+                'error': 'yunzai_directory_not_configured'
             })
-            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 找到 {process_name}，正在目录中启动: {config['yunzai']['bash_directory']}")
-            
-            # 使用git-bash启动Yunzai，使用固定命令"node app"
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: Yunzai目录未配置")
+            return {
+                'success': False,
+                'message': 'Yunzai目录未配置'
+            }
+        
+        # 检查 git-bash 路径
+        git_bash_path = config['yunzai']['git_bash_path']
+        if not os.path.exists(git_bash_path):
+            logger.error(f"Git Bash路径不存在: {git_bash_path}", extra={
+                'event_type': EventType.ERROR,
+                'error': 'git_bash_not_found',
+                'path': git_bash_path
+            })
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: Git Bash路径不存在: {git_bash_path}")
+            return {
+                'success': False,
+                'message': f'Git Bash路径不存在: {git_bash_path}'
+            }
+                
+        bash_directory = config['yunzai']['bash_directory']
+        logger.info(f"切换到工作目录: {bash_directory}", extra={
+            'event_type': EventType.PROCESS_START,
+            'working_directory': bash_directory
+        })
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 找到 {process_name}，正在目录中启动: {bash_directory}")
+        
+        result = None
+        
+        if use_cmd_admin:
+            # 使用 cmd 以管理员权限启动 YUNZAI
+            # 将整个命令构建为一个字符串
+            cmd_full_command = f'cd /d "{bash_directory}" && node app && pause'
+
+            # 使用 PowerShell 启动 cmd 管理员窗口
+            # 修复: 使用单引号包裹参数，避免引号冲突
             start_command = [
-                config['yunzai']['git_bash_path'],
+                "powershell",
+                "-Command",
+                f"Start-Process cmd -ArgumentList '/c','{cmd_full_command}' -Verb RunAs"
+            ]
+
+            result = subprocess.Popen(start_command)
+            logger.info(f"Yunzai启动命令已执行 (管理员模式), PID: {result.pid}", extra={
+                'event_type': EventType.PROCESS_START,
+                'process_name': 'cmd.exe',
+                'pid': result.pid,
+                'start_time': datetime.now().isoformat(),
+                'command': start_command,
+                'use_admin': True
+            })
+
+            # 写入PID文件（cmd模式也需要记录，虽然实际进程是独立的，但用于标记启动状态）
+            try:
+                from pid_manager import write_pid
+                write_pid('yunzai', result.pid)
+            except Exception as e:
+                logger.warning(f"写入yunzai PID文件失败: {str(e)}", extra={
+                    'event_type': EventType.WARNING,
+                    'error': str(e)
+                })
+        else:
+            # 使用 git-bash 启动 YUNZAI
+            start_command = [
+                git_bash_path,
                 "-c",
-                f"cd '{config['yunzai']['bash_directory']}' && node app"
+                f"cd '{bash_directory}' && node app"
             ]
             result = subprocess.Popen(start_command)
-            logger.info(f"Yunzai启动命令已执行，PID: {result.pid}", extra={
+            logger.info(f"Yunzai启动命令已执行, PID: {result.pid}", extra={
                 'event_type': EventType.PROCESS_START,
                 'process_name': process_name,
                 'pid': result.pid,
@@ -659,7 +714,7 @@ def start_yunzai(config):
                 'command': start_command
             })
             
-            # 写入PID文件
+            # 写入PID文件（仅在使用 git-bash 启动时）
             try:
                 from pid_manager import write_pid
                 write_pid('yunzai', result.pid)
@@ -669,60 +724,43 @@ def start_yunzai(config):
                     'error': str(e)
                 })
 
-            # 记录启动时间,用于检测闪退
-            try:
-                from yunzai_restart_tracker import record_start
-                record_start()
-            except Exception as e:
-                logger.warning(f"记录Yunzai启动时间失败: {str(e)}", extra={
-                    'event_type': EventType.WARNING,
-                    'error': str(e)
-                })
+        # 记录启动时间,用于检测闪退
+        try:
+            from yunzai_restart_tracker import record_start
+            record_start()
+        except Exception as e:
+            logger.warning(f"记录Yunzai启动时间失败: {str(e)}", extra={
+                'event_type': EventType.WARNING,
+                'error': str(e)
+            })
 
-            # 清除手动停止状态
-            try:
-                update_global_manual_stop_status('yunzai', False)
-            except:
-                pass  # 如果全局变量不存在，跳过
+        # 清除手动停止状态
+        try:
+            update_global_manual_stop_status('yunzai', False)
+        except:
+            pass  # 如果全局变量不存在，跳过
             
-            logger.info("Yunzai进程已启动", extra={
-                'event_type': EventType.PROCESS_START, 
-                'process_name': process_name,
-                'status': 'success',
-                'pid': result.pid
-            })
-            event_manager.publish(EventType.PROCESS_START, {
-                'process_name': process_name,
-                'status': 'success',
-                'pid': result.pid,
-                'command_used': start_command
-            })
-            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Yunzai进程已启动")
-            return {
-                'success': True,
-                'message': f'Yunzai 启动成功 (PID: {result.pid})',
-                'pid': result.pid
-            }
-        else:
-            logger.error(f"Git Bash可执行文件未找到: {config['yunzai']['git_bash_path']}", extra={
-                'event_type': EventType.ERROR, 
-                'process_name': process_name, 
-                'error': 'file_not_found',
-                'config_git_bash': config['yunzai']['git_bash_path'],
-                'suggestion': '请检查Git Bash路径配置是否正确'
-            })
-            event_manager.publish(EventType.ERROR, {
-                'message': f'Git Bash可执行文件未找到: {config["yunzai"]["git_bash_path"]}',
-                'process_name': process_name,
-                'error': 'file_not_found',
-                'config_git_bash': config['yunzai']['git_bash_path'],
-                'suggestion': '请检查Git Bash路径配置是否正确'
-            })
-            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Git Bash可执行文件未找到: {config['yunzai']['git_bash_path']}")
-            return {
-                'success': False,
-                'message': f'Git Bash可执行文件未找到: {config["yunzai"]["git_bash_path"]}'
-            }
+        logger.info("Yunzai进程已启动", extra={
+            'event_type': EventType.PROCESS_START,
+            'process_name': process_name,
+            'status': 'success',
+            'pid': result.pid,
+            'use_cmd_admin': use_cmd_admin
+        })
+        event_manager.publish(EventType.PROCESS_START, {
+            'process_name': process_name,
+            'status': 'success',
+            'pid': result.pid,
+            'command_used': start_command,
+            'use_cmd_admin': use_cmd_admin
+        })
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Yunzai进程已启动{' (管理员模式)' if use_cmd_admin else ''}")
+        return {
+            'success': True,
+            'message': f'Yunzai 启动成功 (PID: {result.pid})',
+            'pid': result.pid,
+            'use_cmd_admin': use_cmd_admin
+        }
     except FileNotFoundError as e:
         logger.error(f"Git Bash可执行文件或Yunzai目录未找到: {str(e)}", extra={
             'event_type': EventType.ERROR, 
@@ -1162,8 +1200,67 @@ def stop_redis():
             'message': f'停止Redis时发生错误: {str(e)}'
         }
 
-def restart_yunzai(config):
-    """重启Yunzai"""
+def check_need_admin_for_yunzai(config=None):
+    """
+    检查是否需要使用 cmd 管理员模式启动 Yunzai
+    
+    通过读取 yunzai_restart_tracker 的跟踪数据，判断闪退次数是否达到阈值。
+    如果达到阈值，则返回 True，建议使用 cmd 管理员模式启动。
+    
+    Args:
+        config: 配置字典，包含 crash_detection 参数
+    
+    Returns:
+        bool: 是否需要使用 cmd 管理员模式启动
+    """
+    try:
+        from yunzai_restart_tracker import get_tracker_info
+        
+        # 获取跟踪信息
+        tracker_info = get_tracker_info()
+        crash_count = tracker_info.get('crash_count', 0)
+        
+        # 获取配置中的最大闪退次数
+        max_crash_count = 3  # 默认值
+        if config and config.get('yunzai', {}).get('crash_detection', {}).get('max_crash_count'):
+            max_crash_count = config['yunzai']['crash_detection']['max_crash_count']
+        
+        # 检查闪退次数是否达到阈值
+        need_admin = crash_count >= max_crash_count
+        
+        if need_admin:
+            logger.info(f"Yunzai 闪退次数 {crash_count}/{max_crash_count} 已达到阈值，建议使用 cmd 管理员模式启动", extra={
+                'event_type': EventType.INFO,
+                'action': 'check_need_admin',
+                'crash_count': crash_count,
+                'max_crash_count': max_crash_count,
+                'need_admin': True
+            })
+        else:
+            logger.debug(f"Yunzai 闪退次数 {crash_count}/{max_crash_count} 未达到阈值，使用正常模式启动", extra={
+                'event_type': EventType.DEBUG,
+                'action': 'check_need_admin',
+                'crash_count': crash_count,
+                'max_crash_count': max_crash_count,
+                'need_admin': False
+            })
+        
+        return need_admin
+    except Exception as e:
+        logger.warning(f"检查是否需要管理员模式时出错: {str(e)}，默认使用正常模式", extra={
+            'event_type': EventType.WARNING,
+            'error': str(e)
+        })
+        return False
+
+def restart_yunzai(config, use_cmd_admin=None):
+    """
+    重启Yunzai
+    
+    Args:
+        config: 配置字典
+        use_cmd_admin: 是否使用 cmd 以管理员权限启动。如果为 None，则自动检查闪退次数决定
+    """
     try:
         logger.info("开始重启Yunzai进程", extra={
             'event_type': EventType.PROCESS_START,
@@ -1178,8 +1275,19 @@ def restart_yunzai(config):
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 等待进程完全终止...")
         time.sleep(2)
         
-        # 再启动Yunzai
-        start_result = start_yunzai(config)
+        # 检查是否需要使用 cmd 管理员模式
+        if use_cmd_admin is None:
+            use_cmd_admin = check_need_admin_for_yunzai(config)
+        
+        if use_cmd_admin:
+            logger.info("闪退次数达到阈值，将使用 cmd 管理员模式启动 Yunzai", extra={
+                'event_type': EventType.INFO,
+                'action': 'use_cmd_admin_for_restart'
+            })
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 闪退次数达到阈值，将使用 cmd 管理员模式启动...")
+        
+        # 再启动Yunzai，传递 use_cmd_admin 参数
+        start_result = start_yunzai(config, use_cmd_admin=use_cmd_admin)
         
         if start_result and start_result.get('success'):
             logger.info("Yunzai进程已重启", extra={

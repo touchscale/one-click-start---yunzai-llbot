@@ -129,16 +129,26 @@ def verify_pid(pid, process_name=None):
         proc_name_lower = proc.name().lower()
         
         if process_name == 'yunzai':
-            # 验证 git-bash 进程是否在运行 yunzai（检查命令行参数）
-            if 'git-bash' not in proc_name_lower:
+            # 验证 git-bash 或 cmd 进程是否在运行 yunzai（检查命令行参数）
+            # 支持两种启动模式：git-bash 模式和 cmd 管理员模式
+            if 'git-bash' in proc_name_lower:
+                # git-bash 模式：检查命令行中是否包含 "node app"
+                cmdline = proc.cmdline()
+                if cmdline:
+                    cmdline_str = ' '.join(cmdline).lower()
+                    if 'node' in cmdline_str and 'app' in cmdline_str:
+                        return True
                 return False
-            cmdline = proc.cmdline()
-            if cmdline:
-                cmdline_str = ' '.join(cmdline).lower()
-                # 检查命令行中是否包含 "node app"
-                if 'node' in cmdline_str and 'app' in cmdline_str:
-                    return True
-            return False
+            elif 'cmd' in proc_name_lower:
+                # cmd 管理员模式：检查命令行中是否包含 "node app"
+                cmdline = proc.cmdline()
+                if cmdline:
+                    cmdline_str = ' '.join(cmdline).lower()
+                    if 'node' in cmdline_str and 'app' in cmdline_str:
+                        return True
+                return False
+            else:
+                return False
             
         elif process_name == 'redis':
             # 验证进程名称是否为 redis-server.exe

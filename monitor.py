@@ -25,6 +25,9 @@ event_manager = get_event_manager()
 # 全局标志,用于指示是否需要切换到管理员模式
 need_elevate_to_admin = False
 
+# 全局标志,用于指示是否需要使用 cmd 以管理员权限启动 YUNZAI
+need_use_cmd_for_yunzai = False
+
 def set_need_elevate_to_admin(value):
     """设置是否需要切换到管理员模式的标志"""
     global need_elevate_to_admin
@@ -34,6 +37,16 @@ def get_need_elevate_to_admin():
     """获取是否需要切换到管理员模式的标志"""
     global need_elevate_to_admin
     return need_elevate_to_admin
+
+def set_need_use_cmd_for_yunzai(value):
+    """设置是否需要使用 cmd 启动 YUNZAI 的标志"""
+    global need_use_cmd_for_yunzai
+    need_use_cmd_for_yunzai = value
+
+def get_need_use_cmd_for_yunzai():
+    """获取是否需要使用 cmd 启动 YUNZAI 的标志"""
+    global need_use_cmd_for_yunzai
+    return need_use_cmd_for_yunzai
 
 def async_http_check(url, timeout=5):
     """异步HTTP检查"""
@@ -908,8 +921,10 @@ def check_and_manage_yunzai_async(config):
                     procs = []
 
                 for proc in procs:
-                    if 'git-bash' in proc.info['name'].lower():
-                        # 验证 git-bash 进程是否在运行 yunzai（检查命令行参数）
+                    proc_name_lower = proc.info['name'].lower()
+                    # 支持 git-bash 模式和 cmd 管理员模式
+                    if 'git-bash' in proc_name_lower or 'cmd' in proc_name_lower:
+                        # 验证进程是否在运行 yunzai（检查命令行参数）
                         try:
                             cmdline = proc.cmdline()
                             if cmdline:
@@ -938,7 +953,7 @@ def check_and_manage_yunzai_async(config):
                                         })
                                     break
                                 else:
-                                    logger.debug(f"git-bash进程 (PID: {proc.info['pid']}) 不是Yunzai进程，跳过", extra={
+                                    logger.debug(f"{proc.info['name']}进程 (PID: {proc.info['pid']}) 不是Yunzai进程，跳过", extra={
                                         'event_type': EventType.DEBUG,
                                         'pid': proc.info['pid'],
                                         'cmdline': cmdline_str
@@ -975,18 +990,18 @@ def check_and_manage_yunzai_async(config):
                                 'need_admin_mode': crash_result['need_admin_mode']
                             })
                             
-                            # 如果达到阈值,切换到管理员模式
+                            # 如果达到阈值,切换到使用 cmd 以管理员权限启动 YUNZAI
                             if crash_result['need_admin_mode']:
-                                logger.error(f"Yunzai闪退次数达到阈值 {crash_result['max_crash_count']},自动切换到管理员模式启动!", extra={
+                                logger.error(f"Yunzai闪退次数达到阈值 {crash_result['max_crash_count']},自动切换到使用 cmd 以管理员权限启动!", extra={
                                     'event_type': EventType.ERROR,
-                                    'action': 'switch_to_admin_mode',
+                                    'action': 'switch_to_cmd_admin',
                                     'crash_count': crash_result['crash_count'],
                                     'max_crash_count': crash_result['max_crash_count']
                                 })
-                                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Yunzai闪退次数达到阈值 {crash_result['max_crash_count']},自动切换到管理员模式启动!")
+                                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Yunzai闪退次数达到阈值 {crash_result['max_crash_count']},自动切换到使用 cmd 以管理员权限启动!")
                                 
-                                # 设置全局标志,通知主线程切换到管理员模式
-                                set_need_elevate_to_admin(True)
+                                # 设置全局标志,通知后续使用 cmd 启动 YUNZAI
+                                set_need_use_cmd_for_yunzai(True)
                         else:
                             # 不是闪退,重置计数器
                             from yunzai_restart_tracker import reset_counter
@@ -1010,7 +1025,7 @@ def check_and_manage_yunzai_async(config):
                         'config_git_bash': config['yunzai']['git_bash_path'],
                         'config_bash_directory': config['yunzai']['bash_directory']
                     })
-                    start_yunzai(config)
+                    start_yunzai(config, use_cmd_admin=get_need_use_cmd_for_yunzai())
             else:
                 logger.info("Yunzai已在运行", extra={
                     'event_type': EventType.PROCESS_CHECK,
