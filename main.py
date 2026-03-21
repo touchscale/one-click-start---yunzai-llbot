@@ -8,7 +8,7 @@ import sys
 import time
 import threading
 import psutil
-import datetime
+from datetime import datetime
 
 # 导入自定义模块
 from constants import EventType
@@ -762,7 +762,13 @@ def check_single_instance():
 
 def cleanup_monitor_pid():
     """清理监控进程的 PID 文件"""
-    monitor_pid_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pids', 'monitor.pid')
+    try:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+    except NameError:
+        # 如果 __file__ 未定义（例如在交互式环境中），使用当前工作目录
+        script_dir = os.getcwd()
+    
+    monitor_pid_file = os.path.join(script_dir, 'pids', 'monitor.pid')
     try:
         if os.path.exists(monitor_pid_file):
             os.remove(monitor_pid_file)
