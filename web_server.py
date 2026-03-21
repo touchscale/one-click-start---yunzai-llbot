@@ -941,6 +941,24 @@ def register_routes(app):
                 if 'auto_restart' not in safe_config['git_update']:
                     safe_config['git_update']['auto_restart'] = False
 
+            # 确保 yunzai.crash_detection 配置项存在
+            if 'yunzai' not in safe_config:
+                safe_config['yunzai'] = {}
+            if 'crash_detection' not in safe_config['yunzai']:
+                safe_config['yunzai']['crash_detection'] = {
+                    'crash_threshold_seconds': 30,
+                    'max_crash_count': 3,
+                    'reset_timeout_hours': 24
+                }
+            else:
+                # 确保 crash_detection 的所有子字段都存在
+                if 'crash_threshold_seconds' not in safe_config['yunzai']['crash_detection']:
+                    safe_config['yunzai']['crash_detection']['crash_threshold_seconds'] = 30
+                if 'max_crash_count' not in safe_config['yunzai']['crash_detection']:
+                    safe_config['yunzai']['crash_detection']['max_crash_count'] = 3
+                if 'reset_timeout_hours' not in safe_config['yunzai']['crash_detection']:
+                    safe_config['yunzai']['crash_detection']['reset_timeout_hours'] = 24
+
             # 渲染配置页面
             return render_template("config.html", config=safe_config)
         except Exception as e:
@@ -971,6 +989,16 @@ def register_routes(app):
                 return jsonify({'error': 'llbot等待时间必须大于0'}), 400
             if not isinstance(data['yunzai'].get('wait_seconds'), (int, float)) or data['yunzai']['wait_seconds'] < 1:
                 return jsonify({'error': 'yunzai等待时间必须大于0'}), 400
+            
+            # 验证 crash_detection 配置
+            if 'crash_detection' in data['yunzai']:
+                crash_detection = data['yunzai']['crash_detection']
+                if not isinstance(crash_detection.get('crash_threshold_seconds'), (int, float)) or crash_detection['crash_threshold_seconds'] < 5:
+                    return jsonify({'error': '闪退阈值必须大于等于5秒'}), 400
+                if not isinstance(crash_detection.get('max_crash_count'), (int, float)) or crash_detection['max_crash_count'] < 1:
+                    return jsonify({'error': '最大闪退次数必须大于等于1'}), 400
+                if not isinstance(crash_detection.get('reset_timeout_hours'), (int, float)) or crash_detection['reset_timeout_hours'] < 1:
+                    return jsonify({'error': '重置超时必须大于等于1小时'}), 400
             if not isinstance(data['http_check'].get('timeout'), (int, float)) or data['http_check']['timeout'] < 1:
                 return jsonify({'error': 'HTTP超时时间必须大于0'}), 400
             if not isinstance(data['auto_restart'].get('enabled'), bool):

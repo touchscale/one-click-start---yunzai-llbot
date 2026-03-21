@@ -669,6 +669,16 @@ def start_yunzai(config):
                     'error': str(e)
                 })
 
+            # 记录启动时间,用于检测闪退
+            try:
+                from yunzai_restart_tracker import record_start
+                record_start()
+            except Exception as e:
+                logger.warning(f"记录Yunzai启动时间失败: {str(e)}", extra={
+                    'event_type': EventType.WARNING,
+                    'error': str(e)
+                })
+
             # 清除手动停止状态
             try:
                 update_global_manual_stop_status('yunzai', False)

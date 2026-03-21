@@ -84,7 +84,12 @@ async function saveConfig() {
         yunzai: {
             git_bash_path: document.getElementById('yunzai-git-bash-path').value,
             bash_directory: document.getElementById('yunzai-bash-directory').value,
-            wait_seconds: parseInt(document.getElementById('yunzai-wait-seconds').value)
+            wait_seconds: parseInt(document.getElementById('yunzai-wait-seconds').value),
+            crash_detection: {
+                crash_threshold_seconds: parseInt(document.getElementById('yunzai-crash-threshold-seconds').value),
+                max_crash_count: parseInt(document.getElementById('yunzai-max-crash-count').value),
+                reset_timeout_hours: parseInt(document.getElementById('yunzai-reset-timeout-hours').value)
+            }
         },
         redis: {
             path: document.getElementById('redis-path').value
@@ -153,6 +158,18 @@ async function saveConfig() {
     }
     if (configData.yunzai.wait_seconds < 1 || configData.yunzai.wait_seconds > 60) {
         showAlert('Yunzai等待时间必须在 1-60 秒之间', 'warning');
+        return;
+    }
+    if (configData.yunzai.crash_detection.crash_threshold_seconds < 5 || configData.yunzai.crash_detection.crash_threshold_seconds > 300) {
+        showAlert('闪退阈值必须在 5-300 秒之间', 'warning');
+        return;
+    }
+    if (configData.yunzai.crash_detection.max_crash_count < 1 || configData.yunzai.crash_detection.max_crash_count > 10) {
+        showAlert('最大闪退次数必须在 1-10 之间', 'warning');
+        return;
+    }
+    if (configData.yunzai.crash_detection.reset_timeout_hours < 1 || configData.yunzai.crash_detection.reset_timeout_hours > 168) {
+        showAlert('重置超时必须在 1-168 小时之间', 'warning');
         return;
     }
 

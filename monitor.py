@@ -22,6 +22,19 @@ from constants import EventType
 logger = get_logger()
 event_manager = get_event_manager()
 
+# 全局标志,用于指示是否需要切换到管理员模式
+need_elevate_to_admin = False
+
+def set_need_elevate_to_admin(value):
+    """设置是否需要切换到管理员模式的标志"""
+    global need_elevate_to_admin
+    need_elevate_to_admin = value
+
+def get_need_elevate_to_admin():
+    """获取是否需要切换到管理员模式的标志"""
+    global need_elevate_to_admin
+    return need_elevate_to_admin
+
 def async_http_check(url, timeout=5):
     """异步HTTP检查"""
     try:
@@ -944,6 +957,46 @@ def check_and_manage_yunzai_async(config):
                         'respect_manual_stop': respect_manual_stop
                     })
                 else:
+                    # 检查是否为闪退
+                    try:
+                        from yunzai_restart_tracker import check_crash, record_crash
+                        # 获取配置中的闪退检测参数
+                        crash_config = config.get('yunzai', {}).get('crash_detection', {})
+                        
+                        # 检查是否为闪退
+                        if check_crash(crash_config):
+                            # 记录闪退并检查是否需要切换到管理员模式
+                            crash_result = record_crash(crash_config)
+                            logger.warning(f"Yunzai闪退检测: 失败次数 {crash_result['crash_count']}/{crash_result['max_crash_count']}", extra={
+                                'event_type': EventType.WARNING,
+                                'action': 'crash_detected',
+                                'crash_count': crash_result['crash_count'],
+                                'max_crash_count': crash_result['max_crash_count'],
+                                'need_admin_mode': crash_result['need_admin_mode']
+                            })
+                            
+                            # 如果达到阈值,切换到管理员模式
+                            if crash_result['need_admin_mode']:
+                                logger.error(f"Yunzai闪退次数达到阈值 {crash_result['max_crash_count']},自动切换到管理员模式启动!", extra={
+                                    'event_type': EventType.ERROR,
+                                    'action': 'switch_to_admin_mode',
+                                    'crash_count': crash_result['crash_count'],
+                                    'max_crash_count': crash_result['max_crash_count']
+                                })
+                                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Yunzai闪退次数达到阈值 {crash_result['max_crash_count']},自动切换到管理员模式启动!")
+                                
+                                # 设置全局标志,通知主线程切换到管理员模式
+                                set_need_elevate_to_admin(True)
+                        else:
+                            # 不是闪退,重置计数器
+                            from yunzai_restart_tracker import reset_counter
+                            reset_counter()
+                    except Exception as e:
+                        logger.warning(f"检查Yunzai闪退时出错: {str(e)}", extra={
+                            'event_type': EventType.WARNING,
+                            'error': str(e)
+                        })
+                    
                     logger.warning("Yunzai进程未运行，正在启动", extra={
                         'event_type': EventType.WARNING,
                         'process_name': process_name,

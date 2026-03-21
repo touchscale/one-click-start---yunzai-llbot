@@ -9,7 +9,12 @@ DEFAULT_CONFIG = {
         "wait_seconds": 10
     },
     "yunzai": {
-        "wait_seconds": 5
+        "wait_seconds": 5,
+        "crash_detection": {
+            "crash_threshold_seconds": 30,
+            "max_crash_count": 3,
+            "reset_timeout_hours": 24
+        }
     },
     "http_check": {
         "timeout": 10

@@ -8,6 +8,7 @@ import sys
 import time
 import threading
 import psutil
+import datetime
 
 # 导入自定义模块
 from constants import EventType
@@ -287,6 +288,30 @@ def run_monitor_loop(config):
     # 保持主线程运行
     try:
         while getattr(run_monitor_loop, 'running', True):
+            # 检查是否需要切换到管理员模式
+            try:
+                from monitor import get_need_elevate_to_admin
+                if get_need_elevate_to_admin():
+                    logger.info("检测到需要切换到管理员模式", extra={
+                        'event_type': EventType.INFO,
+                        'action': 'check_admin_flag',
+                        'need_admin': True
+                    })
+                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 检测到需要切换到管理员模式,正在切换...")
+                    
+                    # 停止监控循环
+                    run_monitor_loop.running = False
+                    
+                    # 调用 run_as_admin 并退出
+                    run_as_admin()
+                    
+                    # 延迟退出,给 run_as_admin 时间执行
+                    time.sleep(3)
+                    sys.exit(0)
+            except ImportError:
+                # 如果导入失败,跳过检查
+                pass
+            
             time.sleep(1)
     except KeyboardInterrupt:
         logger.info("收到中断信号，停止监控", extra={'event_type': EventType.PROCESS_STOP, 'reason': 'user_interrupt'})

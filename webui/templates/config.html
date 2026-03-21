@@ -156,6 +156,32 @@
                                     <label for="yunzai-wait-seconds" class="form-label">检查间隔（秒）</label>
                                     <input type="number" class="form-control" id="yunzai-wait-seconds" value="{{ config.yunzai.wait_seconds }}" min="1" max="60">
                                 </div>
+                                <hr>
+                                <h6 class="mb-3"><i class="fas fa-exclamation-triangle me-2 text-warning"></i>闪退检测配置</h6>
+                                <div class="mb-3">
+                                    <label for="yunzai-crash-threshold-seconds" class="form-label">闪退阈值（秒）</label>
+                                    <input type="number" class="form-control" id="yunzai-crash-threshold-seconds" value="{{ config.yunzai.crash_detection.crash_threshold_seconds }}" min="5" max="300">
+                                    <small class="text-muted">进程启动后在此时间内退出视为闪退,默认 30 秒</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="yunzai-max-crash-count" class="form-label">最大闪退次数</label>
+                                    <input type="number" class="form-control" id="yunzai-max-crash-count" value="{{ config.yunzai.crash_detection.max_crash_count }}" min="1" max="10">
+                                    <small class="text-muted">达到此次数后自动切换到管理员模式,默认 3 次</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="yunzai-reset-timeout-hours" class="form-label">重置超时（小时）</label>
+                                    <input type="number" class="form-control" id="yunzai-reset-timeout-hours" value="{{ config.yunzai.crash_detection.reset_timeout_hours }}" min="1" max="168">
+                                    <small class="text-muted">超过此时间后重置闪退计数器,默认 24 小时</small>
+                                </div>
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>闪退检测功能：</strong>
+                                    <ul class="mb-0 mt-2">
+                                        <li>当 YUNZAI 启动后在短时间内退出时,会被判定为闪退</li>
+                                        <li>闪退次数达到阈值后,系统会自动切换到管理员模式启动</li>
+                                        <li>此功能可以有效解决因权限不足导致的启动失败问题</li>
+                                    </ul>
+                                </div>
                             </div>
                         </div>
                     </div>
