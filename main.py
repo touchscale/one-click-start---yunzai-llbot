@@ -499,6 +499,7 @@ def check_single_instance():
                     pass
         
         # 检查 PID 文件是否存在
+        old_pid = None  # 初始化 old_pid 变量，避免未定义错误
         if os.path.exists(monitor_pid_file):
             with open(monitor_pid_file, 'r') as f:
                 content = f.read().strip()
@@ -644,7 +645,7 @@ def check_single_instance():
                         old_pid = int(first_line)
 
                     # 检查旧进程是否仍在运行（只有当 old_pid 被成功赋值时才检查）
-                    if 'old_pid' in locals() and psutil.pid_exists(old_pid):
+                    if old_pid is not None and psutil.pid_exists(old_pid):
                         # 进一步验证进程名称和命令行，确保确实是 Python 监控进程
                         try:
                             proc = psutil.Process(old_pid)
@@ -731,11 +732,17 @@ def check_single_instance():
                             pass
                     else:
                         # 旧进程已不存在，清理 PID 文件
-                        logger.info(f"检测到旧的监控进程 (PID: {old_pid}) 已不存在，清理 PID 文件", extra={
-                            'event_type': EventType.INFO,
-                            'old_pid': old_pid,
-                            'action': 'cleanup_old_pid'
-                        })
+                        if old_pid is not None:
+                            logger.info(f"检测到旧的监控进程 (PID: {old_pid}) 已不存在，清理 PID 文件", extra={
+                                'event_type': EventType.INFO,
+                                'old_pid': old_pid,
+                                'action': 'cleanup_old_pid'
+                            })
+                        else:
+                            logger.info("检测到旧的监控进程已不存在，清理 PID 文件", extra={
+                                'event_type': EventType.INFO,
+                                'action': 'cleanup_old_pid'
+                            })
                         try:
                             os.remove(monitor_pid_file)
                         except:
