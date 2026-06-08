@@ -44,7 +44,9 @@ function SetupAutoLogin {
     Write-Host "Reading auto-login configuration from config.yaml..." -ForegroundColor Cyan
 
     try {
+        Push-Location $ScriptDir
         $output = & $PythonPath -c "from config import load_config; from auto_login import apply_config_from_dict, print_status; config = load_config(); result = apply_config_from_dict(config); print_status(); print(f'Result: {result}')"
+        Pop-Location
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "[OK] Auto-login configuration applied successfully" -ForegroundColor Green
