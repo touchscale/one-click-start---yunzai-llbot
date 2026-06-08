@@ -5,6 +5,18 @@ $PythonPath = "python"
 $MainScript = Join-Path $ScriptDir "main.py"
 $TaskName = "YunzaiLLBotMonitor"
 
+# 自动检测 Python 完整路径（计划任务在系统 session 中可能找不到 PATH 中的 python）
+$PythonResolved = (Get-Command python -ErrorAction SilentlyContinue).Source
+if (-not $PythonResolved) {
+    $PythonResolved = (Get-Command python3 -ErrorAction SilentlyContinue).Source
+}
+if ($PythonResolved) {
+    $PythonPath = $PythonResolved
+    Write-Host "[OK] 检测到 Python 路径: $PythonPath" -ForegroundColor Green
+} else {
+    Write-Host "[!] 未找到 Python，将使用 'python' 命令（如果任务运行失败，请手动指定完整路径）" -ForegroundColor Yellow
+}
+
 Write-Host "================================================" -ForegroundColor Cyan
 Write-Host " YunzaiLLBot Monitor - Task Scheduler Setup" -ForegroundColor Cyan
 Write-Host "================================================" -ForegroundColor Cyan
