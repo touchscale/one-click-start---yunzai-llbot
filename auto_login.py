@@ -240,31 +240,37 @@ def get_auto_login_status():
         }
 
 
-def apply_config_from_dict(config):
+def apply_config_from_dict(config, config_path="config.yaml"):
     """
     从配置字典应用自动登录设置
-    如果配置中用户名为空，自动获取当前登录用户
+    如果配置中用户名为空，自动获取当前登录用户并写回配置文件
     
     Args:
         config (dict): 包含 auto_login 配置的字典
+        config_path (str): 配置文件路径，用于写回自动获取的用户名
     
     Returns:
-        dict: 操作结果 {'success': bool, 'message': str, 'enabled': bool}
+        dict: 操作结果 {'success': bool, 'message': str, 'enabled': bool, 'username': str}
     """
     auto_login_config = config.get('auto_login', {})
     enabled = auto_login_config.get('enabled', False)
     username = auto_login_config.get('username', '')
     password = auto_login_config.get('password', '')
     
+    username_auto_detected = False
+    original_username = username
+    
     if not enabled:
         # 禁用自动登录
         result = disable_auto_login()
         result['enabled'] = False
+        result['username'] = ''
         return result
     
     # 用户名为空时自动获取当前登录用户
     if not username:
         username = get_current_username()
+        username_auto_detected = True
         logger.info(f"自动获取当前登录用户: {username}", extra={
             'event_type': 'auto_login_auto_detect',
             'username': username
@@ -278,12 +284,60 @@ def apply_config_from_dict(config):
         return {
             'success': False,
             'message': '自动登录已启用但无法获取用户名',
-            'enabled': False
+            'enabled': False,
+            'username': ''
         }
+    
+    # 如果自动获取了用户名，写回配置文件
+    if username_auto_detected and username and username != original_username:
+        try:
+            # 直接在本地编辑 YAML，避免循环导入
+            import yaml as _yaml
+            import tempfile as _tempfile
+            import shutil as _shutil
+            import os as _os
+
+            # 读取现有配置
+            existing_config = {}
+            if _os.path.exists(config_path):
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    existing_config = _yaml.safe_load(f) or {}
+
+            # 更新用户名
+            if 'auto_login' not in existing_config or not isinstance(existing_config['auto_login'], dict):
+                existing_config['auto_login'] = {}
+            existing_config['auto_login']['username'] = username
+
+            # 原子性写入配置文件
+            temp_fd, temp_path = _tempfile.mkstemp(prefix='.config_', suffix='.tmp', dir=_os.path.dirname(_os.path.abspath(config_path)))
+            try:
+                with _os.fdopen(temp_fd, 'w', encoding='utf-8') as temp_file:
+                    _yaml.dump(existing_config, temp_file, default_flow_style=False, allow_unicode=True)
+            except Exception:
+                try:
+                    _os.unlink(temp_path)
+                except:
+                    pass
+                raise
+
+            _shutil.move(temp_path, config_path)
+
+            logger.info(f"已将自动获取的用户名 '{username}' 写回配置文件 {config_path}", extra={
+                'event_type': 'auto_login_username_written',
+                'username': username,
+                'config_path': config_path
+            })
+        except Exception as e:
+            logger.warning(f"写回自动获取的用户名到配置文件失败: {str(e)}", extra={
+                'event_type': 'warning',
+                'operation': 'write_auto_username',
+                'error': str(e)
+            })
     
     # 启用自动登录（密码可以为空）
     result = enable_auto_login(username, password)
     result['enabled'] = result['success']
+    result['username'] = username
     return result
 
 
