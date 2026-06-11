@@ -82,15 +82,39 @@ def interactive_config():
 
     print("\n【自动登录配置】")
     config['auto_login'] = {}
+
+    # 预检测当前登录用户名（无论是否启用都先检测，便于提示用户）
+    auto_detected_username = ""
+    try:
+        from auto_login import get_current_username
+        auto_detected_username = get_current_username()
+        if auto_detected_username:
+            logger.info(f"交互式配置: 自动检测到当前用户 '{auto_detected_username}'",
+                        extra={'event_type': 'config_username_detected', 'username': auto_detected_username})
+            print(f"自动检测到当前登录用户: {auto_detected_username}")
+        else:
+            print("提示: 未能自动检测到当前登录用户，稍后可手动输入")
+    except Exception as e:
+        logger.warning(f"自动检测当前用户失败: {str(e)}", extra={'event_type': 'config_warning'})
+        print("提示: 未能自动检测到当前登录用户，稍后可手动输入")
+
     auto_login_input = input("启用系统自动登录? (Y/N，默认: N): ").strip()
     config['auto_login']['enabled'] = auto_login_input.lower() in ['y', 'yes']
     if config['auto_login']['enabled']:
-        auto_login_username = input("自动登录用户名 (留空使用当前用户): ").strip()
-        config['auto_login']['username'] = auto_login_username if auto_login_username else ""
-        auto_login_password = input("自动登录密码: ").strip()
-        config['auto_login']['password'] = auto_login_password if auto_login_password else ""
+        if auto_detected_username:
+            auto_login_username = input(f"自动登录用户名 (默认: {auto_detected_username}，回车使用检测值): ").strip()
+            config['auto_login']['username'] = auto_login_username if auto_login_username else auto_detected_username
+            if not auto_login_username:
+                logger.info(f"使用自动检测到的用户名 '{auto_detected_username}'",
+                            extra={'event_type': 'config_username_used', 'username': auto_detected_username})
+        else:
+            auto_login_username = input("自动登录用户名 (留空将在启动时自动检测): ").strip()
+            config['auto_login']['username'] = auto_login_username if auto_login_username else ""
+        auto_login_password = input("自动登录密码 (留空表示无密码): ").strip()
+        config['auto_login']['password'] = auto_login_password
     else:
-        config['auto_login']['username'] = ""
+        # 禁用时也保存检测到的用户名作为参考（注释值通过空字符串表示未设置）
+        config['auto_login']['username'] = auto_detected_username
         config['auto_login']['password'] = ""
 
     print("\n【Git仓库更新检测配置】")
@@ -485,6 +509,30 @@ def validate_config(config, config_path="config.yaml"):
     # 额外的业务逻辑验证
     validation_warnings = []
     
+    # 自动登录用户名自动检测与填充：启用自动登录但用户名为空时，自动获取当前用户名
+    auto_login_enabled = config.get('auto_login', {}).get('enabled', False) if isinstance(config, dict) else False
+    auto_login_username = config.get('auto_login', {}).get('username', '') if isinstance(config, dict) else ''
+    if auto_login_enabled and (not auto_login_username or str(auto_login_username).strip() == ""):
+        try:
+            from auto_login import get_current_username
+            detected_username = get_current_username()
+            if detected_username and detected_username.strip():
+                if not isinstance(config.get('auto_login'), dict):
+                    config['auto_login'] = {}
+                config['auto_login']['username'] = detected_username.strip()
+                logger.info(f"自动检测到用户名并填充到配置文件: {detected_username.strip()}", extra={
+                    'event_type': 'config_auto_fill',
+                    'field': 'auto_login.username',
+                    'value': detected_username.strip()
+                })
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 已自动填充用户名: {detected_username.strip()}")
+            else:
+                validation_warnings.append(
+                    "启用了自动登录但用户名为空，且系统无法自动检测到当前用户，请手动在 config.yaml 中配置 auto_login.username"
+                )
+        except Exception as e:
+            validation_warnings.append(f"启用了自动登录但用户名为空，自动检测失败: {str(e)}")
+    
     # 检查HTTP URL格式
     http_url = config.get('http_check', {}).get('url', '')
     # 确保http_url是字符串
@@ -528,7 +576,14 @@ def validate_config(config, config_path="config.yaml"):
 
 
 def load_config():
-    """加载配置文件，如果不存在则创建默认配置"""
+    """加载配置文件，如果不存在则创建默认配置
+
+    当配置中启用了自动登录但用户名为空时，会自动检测当前用户名
+    并将其写入 config.yaml 持久化保存。
+
+    Returns:
+        dict: 完整的配置字典
+    """
     config_path = "config.yaml"
     if not os.path.exists(config_path):
         logger.info("配置文件不存在，启动交互式配置", extra={'event_type': 'config_missing', 'config_path': config_path})
@@ -542,8 +597,45 @@ def load_config():
         with open(config_path, 'r', encoding='utf-8') as file:
             config = yaml.safe_load(file)
 
+        # 先记录原始的 auto_login 状态，以判断是否需要写回
+        original_username = ""
+        original_auto_login = config.get('auto_login', {}) if isinstance(config, dict) else {}
+        if isinstance(original_auto_login, dict):
+            original_username = original_auto_login.get('username', '') or ""
+        auto_login_enabled_before = bool(
+            isinstance(original_auto_login, dict) and original_auto_login.get('enabled', False)
+        )
+
         # 验证并完善配置
         config = validate_config(config, config_path)
+
+        # 检查是否需要将自动检测到的用户名写回配置文件
+        # 条件：auto_login.enabled 为 True 且原始用户名为空，validate_config 可能已填充
+        needs_rewrite = False
+        detected_for_write = ""
+        if auto_login_enabled_before and not original_username:
+            try:
+                from auto_login import get_current_username
+                detected_for_write = get_current_username()
+                if detected_for_write:
+                    # 确保配置结构中有 auto_login.username 字段
+                    if not isinstance(config.get('auto_login'), dict):
+                        config['auto_login'] = {}
+                    current_value = config['auto_login'].get('username', '') or ""
+                    if not current_value or current_value != detected_for_write:
+                        config['auto_login']['username'] = detected_for_write
+                        needs_rewrite = True
+                        logger.info(
+                            f"已自动检测用户名 '{detected_for_write}'，准备写回配置文件",
+                            extra={'event_type': 'config_username_persist',
+                                   'username': detected_for_write,
+                                   'config_path': config_path}
+                        )
+                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] "
+                              f"已自动检测到用户名 '{detected_for_write}' 并写入配置文件")
+            except Exception as e:
+                logger.warning(f"持久化自动检测的用户名失败: {str(e)}",
+                               extra={'event_type': 'warning', 'error': str(e)})
 
         # 解密 web_auth 中的密码（如果已加密）
         if 'web_auth' in config and 'password' in config['web_auth']:
@@ -575,11 +667,36 @@ def load_config():
                         'error': str(e)
                     })
 
+        # 若检测到需要写回用户名，则调用 save_config 原子性地写回
+        if needs_rewrite and detected_for_write:
+            try:
+                save_config(config, config_path)
+                logger.info(f"配置文件已更新，用户名 '{detected_for_write}' 已持久化",
+                            extra={'event_type': 'config_save_auto_username',
+                                   'username': detected_for_write})
+            except Exception as e:
+                logger.error(f"写回自动检测的用户名到配置文件失败: {str(e)}",
+                             extra={'event_type': 'error', 'error': str(e)})
+
         logger.info(f"配置文件已加载: {config_path}", extra={'event_type': 'config_load', 'config_path': config_path})
         return config
 
 def save_default_config(config_path):
-    """保存默认配置到文件"""
+    """保存默认配置到文件
+
+    会自动检测当前登录用户名并填充到 auto_login.username（仅作为参考值）。
+
+    Args:
+        config_path (str): 配置文件保存路径
+    """
+    # 尝试自动检测当前用户名（可能在 Windows 环境下可用）
+    auto_detected_user = ""
+    try:
+        from auto_login import get_current_username
+        auto_detected_user = get_current_username()
+    except Exception:
+        pass
+
     # 创建默认配置，只保留wait_seconds和timeout的默认值，其他留空
     full_default_config = {
         "llbot": {
@@ -605,7 +722,7 @@ def save_default_config(config_path):
         },
         "auto_login": {
             "enabled": False,
-            "username": "",
+            "username": auto_detected_user if auto_detected_user else "",
             "password": ""
         },
         "web_auth": {
@@ -628,3 +745,9 @@ def save_default_config(config_path):
     }
     with open(config_path, 'w', encoding='utf-8') as file:
         yaml.dump(full_default_config, file, default_flow_style=False, allow_unicode=True)
+
+    if auto_detected_user:
+        logger.info(f"默认配置已保存，自动检测用户名已填入: {auto_detected_user}",
+                    extra={'event_type': 'config_default_saved',
+                           'detected_username': auto_detected_user,
+                           'config_path': config_path})
