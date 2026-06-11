@@ -164,8 +164,8 @@ python main.py
 | `onebot.access_token` | String | - | 访问令牌，用于验证OneBot连接 |
 | `onebot.reconnect_interval` | Integer | 5 | 连接断开后重连间隔(秒) |
 | `onebot.authorized_users` | Array | [] | 授权的QQ号列表(只有列表中的QQ号可发送指令) |
-
 ```
+
 
 ### 配置文件修改方法
 
