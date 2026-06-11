@@ -21,6 +21,9 @@
 | OneBot支持 | 支持QQ机器人远程管理 |
 | 自动登录 | Windows自动登录配置 |
 | Git更新 | Git仓库自动更新检测 |
+| 图片服务 | 内置图片生成服务(基于Node.js) |
+| 密码加密 | 配置文件密码自动加密存储 |
+| 单实例保护 | 防止多个监控进程同时运行 |
 
 ---
 
@@ -35,6 +38,20 @@
 | Redis | 5.0+ | 可选服务 |
 | Git | 2.0+ | 用于Yunzai管理 |
 | Windows | 10+ | 支持Windows系统 |
+
+### Python依赖包
+
+项目依赖以下Python包（详见requirements.txt）：
+
+| 包名 | 用途 |
+|------|------|
+| Flask | Web管理界面框架 |
+| psutil | 进程管理和系统监控 |
+| PyYAML | 配置文件解析 |
+| cryptography | 密码加密(Fernet算法) |
+| requests | HTTP请求 |
+| websocket-client | OneBot WebSocket连接 |
+| schedule | 定时任务调度 |
 
 ### 安装步骤
 
@@ -52,6 +69,12 @@ cd one-click-start---yunzai-llbot
 
 ```bash
 pip install -r requirements.txt
+```
+
+如果国内下载较慢，可使用清华镜像源：
+
+```bash
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
 #### 3. 安装图片服务依赖
@@ -74,33 +97,18 @@ cd ..
 python main.py
 ```
 
-首次运行会自动创建 `config.yaml` 并引导配置。
+首次运行会自动创建 `config.yaml` 并引导交互式配置。
+程序会提示您输入各服务的路径、用户名、密码等信息。
 
-#### 4. 访问Web界面
+> **注意**：首次运行需要以管理员权限启动，否则可能无法正常监控进程。
+
+#### 5. 访问Web界面
 
 默认地址: [http://127.0.0.1:5000](http://127.0.0.1:5000)
 
-### 配置文件说明
-
-| 配置项 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `llbot.path` | String | - | llbot.exe完整路径 |
-| `llbot.directory` | String | - | llbot工作目录 |
-| `llbot.wait_seconds` | Integer | 5 | 检查间隔(秒) |
-| `yunzai.git_bash_path` | String | - | Git Bash路径 |
-| `yunzai.bash_directory` | String | - | Yunzai目录 |
-| `yunzai.wait_seconds` | Integer | 5 | 检查间隔(秒) |
-| `redis.path` | String | - | Redis服务路径 |
-| `http_check.url` | String | - | HTTP检查地址 |
-| `http_check.timeout` | Integer | 5 | 超时时间(秒) |
-| `auto_restart.enabled` | Boolean | true | 是否启用自动重启 |
-| `auto_restart.respect_manual_stop` | Boolean | true | 是否尊重手动停止 |
-| `web_auth.username` | String | admin | Web登录用户名 |
-| `web_auth.password` | String | admin123 | Web登录密码 |
-| `onebot.enabled` | Boolean | false | 是否启用OneBot |
-| `onebot.ws_url` | String | - | OneBot WebSocket地址 |
-| `onebot.access_token` | String | - | 访问令牌 |
-| `onebot.authorized_users` | Array | [] | 授权QQ号列表 |
+默认登录账号：
+- 用户名：`admin`
+- 密码：`Admin123`
 
 ### 开机自启动
 
@@ -110,31 +118,142 @@ python main.py
 .\setup_task_scheduler.ps1
 ```
 
+该脚本会创建一个计划任务，在系统启动时自动运行监控脚本。
+
 ---
+
+
+## 配置文件说明
+
+配置文件位于项目根目录的 `config.yaml`，采用YAML格式。
+
+### 完整配置项列表
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| **llbot 配置** | | | |
+| `llbot.path` | String | - | llbot.exe完整路径 |
+| `llbot.directory` | String | - | llbot工作目录 |
+| `llbot.wait_seconds` | Integer | 5/10 | 检查间隔(秒) |
+| **Yunzai 配置** | | | |
+| `yunzai.git_bash_path` | String | - | Git Bash路径 |
+| `yunzai.bash_directory` | String | - | Yunzai目录 |
+| `yunzai.wait_seconds` | Integer | 5 | 检查间隔(秒) |
+| **Redis 配置** | | | |
+| `redis.path` | String | - | Redis服务可执行文件路径 |
+| **HTTP 检查配置** | | | |
+| `http_check.url` | String | - | HTTP检查地址(如 http://localhost:3080) |
+| `http_check.timeout` | Integer | 5/10 | 请求超时时间(秒) |
+| **自动重启配置** | | | |
+| `auto_restart.enabled` | Boolean | true | 是否启用自动重启功能 |
+| `auto_restart.respect_manual_stop` | Boolean | true | 是否尊重手动停止(手动停止后不自动重启) |
+| **自动登录配置** | | | |
+| `auto_login.enabled` | Boolean | false | 是否启用Windows自动登录 |
+| `auto_login.username` | String | - | 自动登录的Windows用户名 |
+| `auto_login.password` | String | - | 自动登录的Windows密码(加密存储) |
+| **Web 认证配置** | | | |
+| `web_auth.username` | String | admin | Web管理界面登录用户名 |
+| `web_auth.password` | String | Admin123 | Web管理界面登录密码(加密存储) |
+| **Git 更新检测配置** | | | |
+| `git_update.enabled` | Boolean | false | 是否启用Git仓库自动更新检测 |
+| `git_update.check_interval` | Integer | 900 | 检测间隔(秒)，默认15分钟 |
+| `git_update.auto_pull` | Boolean | false | 检测到更新后是否自动执行git pull |
+| `git_update.auto_restart` | Boolean | false | 拉取成功后是否自动重启监控脚本 |
+| **OneBot 配置** | | | |
+| `onebot.enabled` | Boolean | false | 是否启用OneBot机器人远程管理 |
+| `onebot.ws_url` | String | ws://localhost:8080 | OneBot反向WebSocket地址 |
+| `onebot.access_token` | String | - | 访问令牌，用于验证OneBot连接 |
+| `onebot.reconnect_interval` | Integer | 5 | 连接断开后重连间隔(秒) |
+| `onebot.authorized_users` | Array | [] | 授权的QQ号列表(只有列表中的QQ号可发送指令) |
+
+
+
+### 配置文件修改方法
+
+#### 方法一：通过Web界面修改（推荐）
+
+1. 登录Web管理界面 [http://127.0.0.1:5000](http://127.0.0.1:5000)
+2. 进入"配置"页面
+3. 修改对应配置项
+4. 点击"保存配置"
+5. 重启监控脚本使配置生效
+
+#### 方法二：直接编辑config.yaml
+
+1. 使用文本编辑器打开 `config.yaml`
+2. 修改对应配置项（注意密码字段为加密格式，建议通过Web界面修改密码）
+3. 保存文件
+4. 重启监控脚本
+
+> **路径格式提示**：Windows路径请使用双反斜杠 `\\` 或正斜杠 `/`，例如：
+> - 正确：`D:\\llbot\\llbot.exe` 或 `D:/llbot/llbot.exe`
+> - 错误：`D:\llbot\llbot.exe`（反斜杠需转义）
+
+
 
 ## 使用指南
 
 ### Web管理界面
 
-| 功能 | 说明 |
-|------|------|
-| 状态查看 | 实时查看各服务运行状态 |
-| 启动服务 | 手动启动指定服务 |
-| 停止服务 | 手动停止指定服务 |
-| 日志查看 | 查看各服务运行日志 |
-| 手动检查 | 立即执行服务健康检查 |
+#### 登录
+
+1. 打开浏览器访问 [http://127.0.0.1:5000](http://127.0.0.1:5000)
+2. 输入用户名和密码登录
+
+#### 功能概览
+
+| 功能模块 | 说明 |
+|---------|------|
+| 仪表盘/状态查看 | 实时查看各服务运行状态、PID、CPU/内存占用 |
+| 启动服务 | 手动启动指定服务（llbot/Yunzai/Redis） |
+| 停止服务 | 手动停止指定服务（设置手动停止标记，不会被自动重启） |
+| 重启服务 | 停止并重新启动指定服务 |
+| 日志查看 | 查看各服务运行日志，支持按关键字过滤 |
+| 配置管理 | 修改配置文件并保存 |
+| 手动检查 | 立即执行一次服务健康检查（跳过等待间隔） |
+
 
 ### OneBot远程管理
 
-启用后可通过QQ机器人管理：
+启用OneBot后，可通过QQ机器人远程管理服务。
+
+#### 启用步骤
+
+1. 配置OneBot客户端（如 go-cqhttp、NapCat 等）的反向WebSocket
+2. 在 `config.yaml` 中设置 `onebot.enabled: true`
+3. 配置 `onebot.ws_url` 指向OneBot客户端的WebSocket地址
+4. 配置 `onebot.authorized_users` 添加授权的QQ号
+5. 重启监控脚本
+
+#### 指令列表
 
 | 指令 | 说明 |
 |------|------|
-| `/status` | 查看所有服务状态 |
-| `/start <服务>` | 启动指定服务 |
-| `/stop <服务>` | 停止指定服务 |
-| `/restart <服务>` | 重启指定服务 |
-| `/help` | 查看帮助信息 |
+| `/help` | 查看帮助信息和所有可用指令 |
+| `/status` | 查看所有服务当前状态 |
+| `/start llbot` | 启动llbot服务 |
+| `/start yunzai` | 启动Yunzai服务 |
+| `/start redis` | 启动Redis服务 |
+| `/stop llbot` | 停止llbot服务 |
+| `/stop yunzai` | 停止Yunzai服务 |
+| `/stop redis` | 停止Redis服务 |
+| `/restart llbot` | 重启llbot服务 |
+| `/restart yunzai` | 重启Yunzai服务 |
+| `/restart redis` | 重启Redis服务 |
+| `/check` | 立即执行一次健康检查 |
+| `/log` | 查看最近的日志记录 |
+
+
+### 图片服务
+
+图片服务用于OneBot指令返回的图片渲染，由Node.js驱动。
+
+- 默认端口：`3001`
+- 默认地址：`http://localhost:3001`
+- 启动方式：监控脚本启动时自动拉起
+- 日志文件：`logs/image_service.log`
+
+如果图片服务启动失败，OneBot指令将降级为纯文本格式返回（不影响核心功能）。
 
 ---
 
@@ -146,76 +265,197 @@ python main.py
 
 | 症状 | 可能原因 | 解决方案 |
 |------|----------|----------|
-| llbot启动失败 | 路径错误 | 检查config.yaml中llbot.path是否正确 |
-| Yunzai启动失败 | Git Bash路径错误 | 检查yunzai.git_bash_path配置 |
-| Redis启动失败 | 端口被占用 | 检查Redis端口是否被其他程序占用 |
-| 服务反复重启 | 配置错误或程序崩溃 | 查看logs/monitor.log日志文件 |
+| llbot启动失败 | 路径配置错误 | 检查config.yaml中llbot.path是否正确，路径应指向llbot.exe |
+| llbot启动失败 | 缺少管理员权限 | 以管理员身份运行监控脚本 |
+| llbot启动失败 | llbot本身异常 | 手动双击运行llbot.exe，查看是否能正常启动 |
+| Yunzai启动失败 | Git Bash路径错误 | 检查yunzai.git_bash_path是否指向正确的bash.exe |
+| Yunzai启动失败 | Yunzai目录错误 | 检查yunzai.bash_directory是否为Yunzai项目根目录 |
+| Yunzai启动失败 | npm依赖未安装 | 在Yunzai目录下运行 `npm install` 安装依赖 |
+| Redis启动失败 | 端口被占用 | 默认端口6379被占用，检查并关闭占用程序 |
+| Redis启动失败 | 配置文件错误 | 检查redis.windows.conf或redis.conf配置 |
+| 服务反复重启 | 配置错误或程序崩溃 | 查看logs/monitor.log日志文件定位具体错误 |
+| 服务反复重启 | 端口冲突 | 检查各服务使用的端口是否冲突 |
 
 #### 2. Web界面无法访问
 
 | 症状 | 可能原因 | 解决方案 |
 |------|----------|----------|
-| 无法连接5000端口 | 端口被占用 | 检查5000端口是否被占用并关闭 |
+| 浏览器显示"无法连接" | 监控脚本未运行 | 检查python main.py是否正常启动 |
+| 浏览器显示"无法连接" | 5000端口被占用 | 运行 `netstat -ano | findstr :5000` 查看占用进程 |
 | 登录失败 | 密码错误 | 检查web_auth.username和password配置 |
-| 界面显示异常 | 浏览器缓存 | 清除浏览器缓存或使用无痕模式 |
+| 登录失败 | 密码未加密 | 通过Web界面或交互式配置重新设置密码 |
+| 界面显示异常 | 浏览器缓存 | 清除浏览器缓存或使用无痕模式访问 |
+| 界面显示异常 | 静态资源加载失败 | 检查webui/static目录是否完整 |
+| 局域网其他设备无法访问 | 防火墙拦截 | 在Windows防火墙中放行Python程序或开放5000端口 |
 
 #### 3. OneBot无法连接
 
 | 症状 | 可能原因 | 解决方案 |
 |------|----------|----------|
-| 连接超时 | WebSocket地址错误 | 检查onebot.ws_url配置 |
-| 认证失败 | Token错误 | 检查onebot.access_token配置 |
-| 无权限 | 未授权用户 | 将QQ号添加到authorized_users列表 |
+| 日志显示"连接超时" | WebSocket地址错误 | 检查onebot.ws_url是否与OneBot客户端配置一致 |
+| 日志显示"认证失败" | Token错误 | 检查onebot.access_token是否与OneBot客户端配置一致 |
+| 发送指令无响应 | 未授权用户 | 将您的QQ号添加到authorized_users列表 |
+| 连接频繁断开 | 网络不稳定 | 检查reconnect_interval设置，或检查本地网络 |
+| 图片消息发送失败 | 图片服务异常 | 检查image_generator服务是否正常运行，查看image_service.log |
 
 #### 4. 图片服务问题
 
 | 症状 | 可能原因 | 解决方案 |
 |------|----------|----------|
-| 图片生成失败 | Node.js未安装 | 安装Node.js 14+版本 |
-| 端口占用 | 3000端口被占用 | 修改image_generator配置端口 |
-| 模板错误 | 模板文件缺失 | 检查templates目录完整性 |
+| 图片生成失败 | Node.js未安装 | 安装Node.js 14+版本，执行 `node -v` 验证 |
+| 图片生成失败 | npm依赖未安装 | 在image_generator目录下执行 `npm install` |
+| 端口占用 | 3001端口被占用 | 修改image_generator配置端口或关闭占用程序 |
+| 模板错误 | 模板文件缺失 | 检查image_generator/templates目录完整性 |
+| 图片服务反复重启 | Node.js版本过低 | 升级到Node.js 16+版本 |
 
-### 日志位置
+#### 5. 密码加密问题
 
-| 日志类型 | 位置 | 说明 |
+| 症状 | 可能原因 | 解决方案 |
+|------|----------|----------|
+| 配置文件密码字段为乱码 | 正常现象 | 密码使用Fernet算法加密存储，属于正常情况 |
+| Web登录提示密码错误 | 密码加密密钥不匹配 | 删除config.yaml重新配置，或通过交互式配置重置 |
+| 修改明文密码后无法登录 | 密码未加密 | 不要直接修改config.yaml中的password字段，通过Web界面修改 |
+
+#### 6. Git更新检测问题
+
+| 症状 | 可能原因 | 解决方案 |
+|------|----------|----------|
+| 检测失败 | Git未安装或未配置环境变量 | 安装Git并确保可在命令行执行 `git --version` |
+| 检测失败 | 项目未使用Git管理 | 确保项目目录是一个Git仓库（存在.git目录） |
+| auto_pull失败 | 存在未提交的更改 | 手动处理本地修改或提交后再自动拉取 |
+| auto_pull失败 | 网络问题 | 检查是否能正常访问Git远程仓库 |
+
+#### 7. 权限问题
+
+| 症状 | 可能原因 | 解决方案 |
+|------|----------|----------|
+| 启动时提示"需要管理员权限" | 未以管理员身份运行 | 右键点击"以管理员身份运行"启动脚本 |
+| 无法结束其他进程 | 权限不足 | 以管理员身份运行监控脚本 |
+| 无法写入PID文件 | 目录权限不足 | 确保pids目录可写，或手动创建pids目录 |
+
+#### 8. 日志文件问题
+
+| 症状 | 可能原因 | 解决方案 |
+|------|----------|----------|
+| 日志文件过大 | 未启用日志轮转 | 默认按天轮转，保留最近2天日志，可手动清理logs目录 |
+| 日志乱码 | 编码问题 | 使用支持UTF-8编码的编辑器打开（如VS Code） |
+| 无法生成日志 | logs目录不存在或无权限 | 手动创建logs目录，确保有写入权限 |
+
+### 日志位置与说明
+
+| 日志文件 | 位置 | 说明 |
 |----------|------|------|
 | 监控日志 | `logs/monitor.log` | 监控脚本运行日志（包含服务启动停止、错误信息等） |
 | 图片服务日志 | `logs/image_service.log` | 图片生成服务专用日志（启动、停止、健康检查等） |
-| 日志轮转 | `logs/*.log.YYYY-MM-DD` | 自动按天轮转，保留最近2天日志 |
+| 日志轮转 | `logs/*.log.YYYY-MM-DD` | 自动按天轮转，历史日志文件 |
 
 ### 诊断命令
 
 ```bash
-# 检查Python环境
+# 检查Python环境和版本
 python --version
 
-# 检查Node.js环境
+# 检查Node.js环境和版本
 node --version
 
-# 检查端口占用
+# 检查Git是否安装
+git --version
+
+# 检查5000端口占用（Web界面端口）
 netstat -ano | findstr :5000
 
-# 查看日志文件
-type logs\monitor.log
+# 检查6379端口占用（Redis默认端口）
+netstat -ano | findstr :6379
+
+# 检查3001端口占用（图片服务端口）
+netstat -ano | findstr :3001
+
+# 查看监控日志（Windows PowerShell）
+Get-Content logs\monitor.log -Tail 50
+
+# 查看监控日志（Git Bash / Linux）
+tail -f logs/monitor.log
+
+# 查看所有Python进程
+tasklist | findstr python
+
+# 结束指定PID的进程
+taskkill /PID <进程PID> /F
 ```
 
-### 性能优化
+### 健康检查清单
 
-| 优化项 | 建议 |
-|--------|------|
-| 检查间隔 | 根据需求调整wait_seconds，默认5秒 |
-| 日志清理 | 定期清理logs目录，避免磁盘占满 |
-| 内存监控 | 定期重启监控脚本，避免内存泄漏 |
+当遇到问题时，请按以下顺序检查：
+
+- [ ] Python 3.8+ 已正确安装：`python --version`
+- [ ] Node.js 14+ 已正确安装：`node --version`
+- [ ] 所有Python依赖已安装：`pip list`
+- [ ] 图片服务依赖已安装：检查 image_generator/node_modules 目录
+- [ ] 以管理员身份运行脚本
+- [ ] config.yaml 格式正确（可使用在线YAML校验工具验证）
+- [ ] 各服务路径配置正确，路径使用双反斜杠或正斜杠
+- [ ] 5000、6379、3001等端口未被占用
+- [ ] logs 和 pids 目录存在且可写
+- [ ] 检查 monitor.log 中的 ERROR 和 WARNING 级别日志
 
 ---
 
 ## 注意事项
 
-- ⚠️ 路径使用双反斜杠 `\\` 或正斜杠 `/`
-- 📁 日志保存在 `logs/` 目录
-- 📄 PID文件保存在 `pids/` 目录
-- 🔐 建议为OneBot设置访问令牌
-- 🖼️ 图片服务启动失败时OneBot指令降级为文本格式
-- 🔄 监控脚本停止时Web界面会显示提示
-- 📋 修改配置后需要重启监控脚本生效
-- 自动登录仅支持本地账户，微软账户无法使用
+### 安全提示
+
+- 🔐 **密码安全**：配置文件中的密码使用Fernet算法加密存储，但仍建议妥善保管config.yaml文件，不要上传到公开代码仓库
+- 🔐 **OneBot安全**：为OneBot设置access_token，并严格配置authorized_users列表，防止未授权用户控制服务
+- 🔐 **Web界面密码**：首次登录后及时修改默认密码admin/Admin123
+- 🔐 **局域网访问**：如果开放Web界面到局域网，建议设置防火墙规则仅允许可信IP访问
+
+### 使用提示
+
+- ⚠️ **路径格式**：路径使用双反斜杠 `\\` 或正斜杠 `/`，不要使用单反斜杠
+- ⚠️ **管理员权限**：建议始终以管理员身份运行监控脚本，避免权限不足导致监控失效
+- ⚠️ **配置修改生效**：修改配置后需要重启监控脚本才能生效
+- 📁 **日志目录**：日志保存在 `logs/` 目录，定期检查日志可发现潜在问题
+- 📄 **PID文件**：PID文件保存在 `pids/` 目录，用于单实例检测，不要手动删除
+- 🖼️ **图片服务降级**：图片服务启动失败时，OneBot指令会自动降级为纯文本格式返回
+- 🔄 **脚本重启**：监控脚本停止时，Web界面会显示提示信息，需手动重新启动
+- 🪟 **自动登录限制**：自动登录仅支持Windows本地账户，微软账户（Microsoft Account）无法使用
+
+### 维护建议
+
+- 📅 **定期检查日志**：每周检查一次 monitor.log，关注错误和警告信息
+- 🧹 **定期清理日志**：日志文件会自动轮转，可手动清理超过3天的历史日志
+- 🔄 **定期更新依赖**：每月检查一次Python和npm依赖更新，修复安全漏洞
+- 💾 **备份配置文件**：定期备份config.yaml，避免配置丢失
+- 📊 **监控资源占用**：关注监控脚本本身的CPU和内存占用，如异常可重启脚本
+
+### 已知限制
+
+1. **系统平台**：目前主要针对Windows系统优化，Linux/Mac系统部分功能（如自动登录）不可用
+2. **进程检测**：进程检测依赖进程名匹配，如果有同名其他进程可能造成误判
+3. **Yunzai版本**：Yunzai启动方式基于Miao-Yunzai/TRSS-Yunzai等主流版本，自定义版本可能需要调整
+4. **Web界面并发**：Web界面面向单机管理场景，不建议同时多个用户操作
+
+---
+
+---
+
+## 技术栈
+
+| 层级 | 技术 |
+|------|------|
+| 后端核心 | Python 3.8+ |
+| Web框架 | Flask |
+| 配置管理 | PyYAML |
+| 进程管理 | psutil |
+| 密码加密 | cryptography (Fernet) |
+| WebSocket | websocket-client |
+| 定时任务 | schedule |
+| 图片服务 | Node.js + Express |
+| 前端框架 | Bootstrap 5 + 原生JavaScript |
+| 事件系统 | 发布订阅模式 (EventManager) |
+
+---
+
+## License
+
+本项目遵循相应的开源许可协议，请在使用时遵守相关条款。
