@@ -165,43 +165,6 @@ python main.py
 | `onebot.reconnect_interval` | Integer | 5 | 连接断开后重连间隔(秒) |
 | `onebot.authorized_users` | Array | [] | 授权的QQ号列表(只有列表中的QQ号可发送指令) |
 
-### 配置文件示例
-
-```yaml
-llbot:
-  path: "D:\\llbot\\llbot.exe"
-  directory: "D:\\llbot"
-  wait_seconds: 10
-yunzai:
-  git_bash_path: "D:\\Program Files\\Git\\bin\\bash.exe"
-  bash_directory: "D:\\yunzai"
-  wait_seconds: 5
-redis:
-  path: "D:\\redis\\redis-server.exe"
-http_check:
-  url: "http://localhost:3080"
-  timeout: 10
-auto_restart:
-  enabled: true
-  respect_manual_stop: true
-auto_login:
-  enabled: false
-  username: ""
-  password: ""
-web_auth:
-  username: admin
-  password: "gAAAAABh...(加密后的密码)"
-git_update:
-  enabled: false
-  check_interval: 900
-  auto_pull: false
-  auto_restart: false
-onebot:
-  enabled: false
-  ws_url: "ws://localhost:8080"
-  access_token: ""
-  reconnect_interval: 5
-  authorized_users: []
 ```
 
 ### 配置文件修改方法
@@ -508,50 +471,6 @@ taskkill /PID <进程PID> /F
 4. **Web界面并发**：Web界面面向单机管理场景，不建议同时多个用户操作
 
 ---
-
-## 项目目录结构
-
-```
-project-root/
-├── main.py                  # 主入口文件，启动监控
-├── config.py                # 配置管理模块（加载、保存、验证、加密）
-├── constants.py             # 常量定义（默认配置、事件类型枚举）
-├── monitor.py               # 进程监控核心逻辑（检测、启动、停止）
-├── monitor_status.py        # 监控状态管理
-├── process_manager.py       # 进程管理和权限管理
-├── onebot_client.py         # OneBot客户端连接管理
-├── onebot_handlers.py       # OneBot指令处理器
-├── web_server.py            # Flask Web服务器
-├── auto_login.py            # Windows自动登录配置模块
-├── password_crypt.py        # 密码加密解密模块（Fernet）
-├── password_validator.py    # 密码强度验证
-├── git_update_checker.py    # Git仓库更新检测模块
-├── update_checker.py        # 前端资源更新检查
-├── image_service_manager.py # 图片服务管理
-├── puppeteer_generator.py   # 图片生成（Puppeteer）
-├── event_manager.py         # 事件发布订阅管理器
-├── pid_manager.py           # PID文件管理
-├── logger.py                # 日志模块封装
-├── yunzai_restart_tracker.py # Yunzai重启追踪
-├── config.yaml              # 配置文件（首次运行后生成）
-├── requirements.txt         # Python依赖列表
-├── setup_task_scheduler.ps1 # Windows计划任务脚本
-├── image_generator/         # 图片生成服务（Node.js）
-│   ├── index.js             # 服务入口
-│   ├── package.json         # Node.js依赖
-│   └── templates/           # 图片模板（HTML）
-├── webui/                   # Web管理界面
-│   ├── templates/           # HTML模板
-│   │   ├── dashboard.html   # 仪表盘/状态页
-│   │   ├── config.html      # 配置页
-│   │   ├── login.html       # 登录页
-│   │   └── monitor_stopped.html # 监控停止提示页
-│   └── static/              # 静态资源
-│       ├── css/             # 样式文件
-│       └── js/              # 前端脚本
-├── logs/                    # 日志目录（运行时自动创建）
-└── pids/                    # PID文件目录（运行时自动创建）
-```
 
 ---
 
