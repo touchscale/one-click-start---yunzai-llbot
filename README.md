@@ -122,6 +122,7 @@ python main.py
 
 ---
 
+
 ## 配置文件说明
 
 配置文件位于项目根目录的 `config.yaml`，采用YAML格式。
@@ -164,7 +165,7 @@ python main.py
 | `onebot.access_token` | String | - | 访问令牌，用于验证OneBot连接 |
 | `onebot.reconnect_interval` | Integer | 5 | 连接断开后重连间隔(秒) |
 | `onebot.authorized_users` | Array | [] | 授权的QQ号列表(只有列表中的QQ号可发送指令) |
-```
+
 
 
 ### 配置文件修改方法
@@ -189,21 +190,8 @@ python main.py
 > - 错误：`D:\llbot\llbot.exe`（反斜杠需转义）
 
 
+
 ## 使用指南
-
-### 启动与停止
-
-#### 启动监控
-
-```bash
-python main.py
-```
-
-#### 停止监控
-
-- **方法一**：在运行窗口按 `Ctrl + C`
-- **方法二**：通过Web管理界面点击"停止监控"
-- **方法三**：通过OneBot发送 `/stop` 指令
 
 ### Web管理界面
 
@@ -254,6 +242,7 @@ python main.py
 | `/restart redis` | 重启Redis服务 |
 | `/check` | 立即执行一次健康检查 |
 | `/log` | 查看最近的日志记录 |
+
 
 ### 图片服务
 
