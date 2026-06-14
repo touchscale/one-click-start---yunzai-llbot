@@ -674,20 +674,22 @@ async function checkGitUpdates() {
             // 检查 modal 是否存在
             var modal = document.getElementById(modalId);
 
-            // 如果 modal 不存在，defer 到下一个 event loop 再试
-            // 这样可以处理 config.html 刚通过 innerHTML 插入、DOM 还未更新完成的情况
+            // 如果 modal 不存在，用 MutationObserver 监听它何时被插入 DOM
             if (!modal) {
-                console.warn('[config.js] showModal: modal not found immediately, deferring...');
+                console.warn('[config.js] showModal: modal not found, setting up MutationObserver');
                 var cachedId = modalId;
-                setTimeout(function() {
+                var observer = new MutationObserver(function(mutations, obs) {
                     var retryModal = document.getElementById(cachedId);
                     if (retryModal) {
-                        console.log('[config.js] showModal: found after defer:', cachedId);
-                        openModalDirect(retryModal);
-                    } else {
-                        console.error('[config.js] showModal: still not found after defer:', cachedId);
+                        console.log('[config.js] showModal: found via MutationObserver:', cachedId);
+                        obs.disconnect();
+                        // 再 defer 一点，确保 DOM 完全稳定
+                        setTimeout(function() {
+                            openModalDirect(retryModal);
+                        }, 10);
                     }
-                }, 0);
+                });
+                observer.observe(document.body, { childList: true, subtree: true });
                 return;
             }
 
