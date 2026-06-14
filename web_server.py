@@ -268,6 +268,16 @@ def register_routes(app):
                     return jsonify({'error': '未认证'}), 401
                 else:
                     return redirect('/login')
+
+        # 检查监控脚本运行状态，如果未运行则重定向到监控停止页面
+        # 但如果是登录页面或已经是监控停止页面，则不重定向
+        if request.endpoint != 'login' and request.endpoint != 'monitor_stopped':
+            try:
+                from monitor_status import is_monitor_running
+                if not is_monitor_running():
+                    return redirect('/monitor-stopped')
+            except Exception as e:
+                logger.warning(f"检查监控状态失败: {str(e)}")
             
         # 验证输入数据的安全性
         if request.method == 'POST':
