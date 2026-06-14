@@ -144,7 +144,7 @@ def terminate_process_by_name(process_name):
         return False
 
 def terminate_yunzai_git_bash_process():
-    """终止yunzai的git-bash进程及其子进程，确保git窗口被完全关闭（仅使用PID文件）"""
+    """终止yunzai的进程及其子进程（支持git-bash和cmd两种模式），确保窗口被完全关闭（仅使用PID文件）"""
     try:
         # 从PID文件读取yunzai进程PID
         from pid_manager import read_pid, verify_pid, remove_pid_file
@@ -153,7 +153,7 @@ def terminate_yunzai_git_bash_process():
         if yunzai_pid is None or not verify_pid(yunzai_pid, 'yunzai'):
             logger.warning("未找到有效的yunzai进程PID，跳过终止", extra={
                 'event_type': 'warning',
-                'action': 'skip_terminate_git_bash',
+                'action': 'skip_terminate_yunzai',
                 'reason': 'pid_file_invalid_or_not_found',
                 'pid': yunzai_pid
             })
@@ -162,32 +162,33 @@ def terminate_yunzai_git_bash_process():
         
         try:
             proc = psutil.Process(yunzai_pid)
-            # 验证进程是否确实是git-bash.exe
-            if 'git-bash' not in proc.name().lower():
-                logger.warning(f"PID {yunzai_pid} 不是git-bash进程，跳过终止", extra={
+            proc_name_lower = proc.name().lower()
+            
+            # 验证进程是否是git-bash.exe或cmd.exe
+            if 'git-bash' not in proc_name_lower and 'cmd' not in proc_name_lower:
+                logger.warning(f"PID {yunzai_pid} 不是git-bash或cmd进程，跳过终止", extra={
                     'event_type': 'warning',
-                    'action': 'skip_terminate_git_bash',
-                    'reason': 'not_git_bash_process',
+                    'action': 'skip_terminate_yunzai',
+                    'reason': 'not_supported_process',
                     'pid': yunzai_pid,
                     'process_name': proc.name()
                 })
-                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 警告: PID {yunzai_pid} 不是git-bash进程，跳过终止")
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 警告: PID {yunzai_pid} 不是git-bash或cmd进程，跳过终止")
                 return False
 
             # 使用taskkill /t参数终止进程树，确保所有子进程都被终止
-            # 这样可以确保git窗口及其所有子进程（如node.exe）都被关闭
             try:
                 subprocess.run([
                     "taskkill", "/f", "/t", "/pid", str(yunzai_pid)
                 ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
-                logger.info(f"已使用taskkill终止yunzai的git-bash进程树 (PID: {yunzai_pid})", extra={
+                logger.info(f"已使用taskkill终止yunzai进程树 (PID: {yunzai_pid}, 进程名: {proc.name()})", extra={
                     'event_type': EventType.PROCESS_STOP,
-                    'process_name': 'git-bash.exe',
+                    'process_name': proc.name(),
                     'pid': yunzai_pid,
                     'source': 'yunzai',
                     'method': 'taskkill_tree'
                 })
-                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 已终止yunzai的git-bash进程及其子进程 (PID: {yunzai_pid})")
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 已终止yunzai进程及其子进程 (PID: {yunzai_pid})")
             except subprocess.TimeoutExpired:
                 # 如果taskkill超时，使用psutil的kill方法
                 logger.warning(f"taskkill超时，使用psutil终止进程", extra={
@@ -209,39 +210,39 @@ def terminate_yunzai_git_bash_process():
                         pass
                 # 再终止父进程
                 proc.kill()
-                logger.info(f"已使用psutil终止yunzai的git-bash进程 (PID: {yunzai_pid})", extra={
+                logger.info(f"已使用psutil终止yunzai进程 (PID: {yunzai_pid}, 进程名: {proc.name()})", extra={
                     'event_type': EventType.PROCESS_STOP,
-                    'process_name': 'git-bash.exe',
+                    'process_name': proc.name(),
                     'pid': yunzai_pid,
                     'source': 'yunzai',
                     'method': 'psutil_kill'
                 })
-                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 已终止yunzai的git-bash进程 (PID: {yunzai_pid})")
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 已终止yunzai进程 (PID: {yunzai_pid})")
 
             # 清理PID文件
             remove_pid_file('yunzai')
             return True
         except psutil.NoSuchProcess:
-            logger.warning(f"yunzai的git-bash进程 (PID: {yunzai_pid}) 已不存在", extra={
+            logger.warning(f"yunzai进程 (PID: {yunzai_pid}) 已不存在", extra={
                 'event_type': 'warning',
-                'action': 'skip_terminate_git_bash',
+                'action': 'skip_terminate_yunzai',
                 'reason': 'process_not_exists',
                 'pid': yunzai_pid
             })
-            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 警告: yunzai的git-bash进程 (PID: {yunzai_pid}) 已不存在")
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 警告: yunzai进程 (PID: {yunzai_pid}) 已不存在")
             # 清理PID文件
             remove_pid_file('yunzai')
             return False
         except psutil.AccessDenied:
-            logger.error(f"无权限终止yunzai的git-bash进程 (PID: {yunzai_pid})", extra={
+            logger.error(f"无权限终止yunzai进程 (PID: {yunzai_pid})", extra={
                 'event_type': EventType.ERROR,
                 'error': 'access_denied',
                 'pid': yunzai_pid
             })
-            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: 无权限终止yunzai的git-bash进程 (PID: {yunzai_pid})")
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 错误: 无权限终止yunzai进程 (PID: {yunzai_pid})")
             return False
     except Exception as e:
-        logger.error(f"终止yunzai的git-bash进程时出错: {str(e)}", extra={
+        logger.error(f"终止yunzai进程时出错: {str(e)}", extra={
             'event_type': EventType.ERROR,
             'error': str(e)
         })

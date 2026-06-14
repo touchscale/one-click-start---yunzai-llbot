@@ -106,14 +106,30 @@ def run_monitor_loop(config):
                     
                     current_status['llbot'] = {'running': llbot_running, 'pid': llbot_pid}
                 
-                # 检查yunzai进程状态 (git-bash.exe)
+                # 检查yunzai进程状态 (支持 git-bash.exe 和 cmd.exe 两种模式)
                 yunzai_running = False
                 yunzai_pid = None
                 for proc in all_procs:
-                    if proc.info['name'].lower() == 'git-bash.exe':
-                        yunzai_running = True
-                        yunzai_pid = proc.info['pid']
-                        break
+                    proc_name_lower = proc.info['name'].lower()
+                    # 支持 git-bash 模式和 cmd 管理员模式
+                    if proc_name_lower == 'git-bash.exe' or proc_name_lower == 'cmd.exe':
+                        # 对于 cmd 模式，需要验证命令行参数中是否包含 node app
+                        if proc_name_lower == 'git-bash.exe':
+                            yunzai_running = True
+                            yunzai_pid = proc.info['pid']
+                            break
+                        else:
+                            # 验证 cmd 进程是否在运行 node app
+                            try:
+                                cmdline = proc.cmdline()
+                                if cmdline:
+                                    cmdline_str = ' '.join(cmdline).lower()
+                                    if 'node' in cmdline_str and 'app' in cmdline_str:
+                                        yunzai_running = True
+                                        yunzai_pid = proc.info['pid']
+                                        break
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                continue
                 
                 # 检查是否手动停止了yunzai，如果是，则状态显示为停止
                 try:
