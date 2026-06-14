@@ -398,31 +398,56 @@ function changePassword() {
 function showUpdateProgress() {
     var updateProgress = document.getElementById('updateProgress');
     var updateResult = document.getElementById('updateResult');
-    if (updateProgress) updateProgress.style.display = 'block';
+    console.log('[config.js] showUpdateProgress: updateProgress=', !!updateProgress, 'updateResult=', !!updateResult);
+    if (updateProgress) {
+        updateProgress.style.display = 'block';
+    } else {
+        console.error('[config.js] #updateProgress not found!');
+    }
     if (updateResult) {
         updateResult.style.display = 'none';
-        updateResult.innerHTML = '';  // 清空之前的结果
+        updateResult.innerHTML = '';
     }
 }
 
 // 辅助函数：隐藏更新进度
 function hideUpdateProgress() {
     var updateProgress = document.getElementById('updateProgress');
-    if (updateProgress) updateProgress.style.display = 'none';
+    if (updateProgress) {
+        updateProgress.style.display = 'none';
+    }
 }
 
 // 辅助函数：显示更新结果 alert
 function showUpdateResultAlert(alertHTML, alertClass) {
-    hideUpdateProgress();  // 确保进度条被隐藏
     var updateResult = document.getElementById('updateResult');
     var updateResultAlert = document.getElementById('updateResultAlert');
-    if (updateResult) {
+
+    console.log('[config.js] showUpdateResultAlert: updateResult=', !!updateResult, 'updateResultAlert=', !!updateResultAlert);
+    console.log('[config.js] alertHTML preview=', String(alertHTML).substring(0, 150));
+
+    // 如果 updateResult 不存在，整个函数失败
+    if (!updateResult) {
+        console.error('[config.js] FATAL: #updateResult element not found in DOM!');
+        return;
+    }
+
+    // 先隐藏进度条
+    hideUpdateProgress();
+
+    // 如果 updateResultAlert 不存在，使用 fallback 方式直接显示
+    if (!updateResultAlert) {
+        console.warn('[config.js] #updateResultAlert not found, using fallback display');
         updateResult.style.display = 'block';
+        updateResult.innerHTML = '<div class="alert ' + (alertClass || 'alert-info') + '">' + alertHTML + '</div>';
+        return;
     }
-    if (updateResultAlert) {
-        updateResultAlert.className = 'alert ' + (alertClass || 'alert-info');
-        updateResultAlert.innerHTML = alertHTML;
-    }
+
+    // 正常路径
+    updateResult.style.display = 'block';
+    updateResultAlert.className = 'alert ' + (alertClass || 'alert-info');
+    updateResultAlert.innerHTML = alertHTML;
+    console.log('[config.js] showUpdateResultAlert: done');
 }
 
 // 通用 fetch 包装函数 - 简化版：2xx 一律返回，非 2xx 且非 JSON 才抛错
