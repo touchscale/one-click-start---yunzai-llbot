@@ -670,11 +670,37 @@ async function checkGitUpdates() {
     function showModal(modalId) {
         try {
             console.log('[config.js] showModal: opening', modalId);
+
+            // 检查 modal 是否存在
             var modal = document.getElementById(modalId);
+
+            // 如果 modal 不存在，defer 到下一个 event loop 再试
+            // 这样可以处理 config.html 刚通过 innerHTML 插入、DOM 还未更新完成的情况
             if (!modal) {
-                console.error('[config.js] showModal: modal not found:', modalId);
+                console.warn('[config.js] showModal: modal not found immediately, deferring...');
+                var cachedId = modalId;
+                setTimeout(function() {
+                    var retryModal = document.getElementById(cachedId);
+                    if (retryModal) {
+                        console.log('[config.js] showModal: found after defer:', cachedId);
+                        openModalDirect(retryModal);
+                    } else {
+                        console.error('[config.js] showModal: still not found after defer:', cachedId);
+                    }
+                }, 0);
                 return;
             }
+
+            console.log('[config.js] showModal: found immediately:', modalId);
+            openModalDirect(modal);
+        } catch (err) {
+            console.error('[config.js] showModal error:', err);
+        }
+    }
+
+    // 直接打开 modal（内部函数，不检查存在性）
+    function openModalDirect(modal) {
+        try {
 
             var oldBackdrop = document.querySelector('.modal-backdrop.config-modal-backdrop');
             if (oldBackdrop && oldBackdrop.parentNode) oldBackdrop.parentNode.removeChild(oldBackdrop);
@@ -698,9 +724,9 @@ async function checkGitUpdates() {
 
             document.body.classList.add('modal-open');
             document.body.style.overflow = 'hidden';
-            console.log('[config.js] showModal: done');
+            console.log('[config.js] openModalDirect: done');
         } catch (err) {
-            console.error('[config.js] showModal error:', err);
+            console.error('[config.js] openModalDirect error:', err);
         }
     }
 
