@@ -285,22 +285,28 @@ async function saveConfig() {
         }
 
         // 发送保存请求
-        const response = await fetch('/api/config/update', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(configData)
-        });
+        var response;
+        try {
+            response = await safeFetch('/api/config/update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(configData)
+            });
+        } catch (fetchError) {
+            showAlert('请求失败: ' + fetchError.message, 'danger');
+            return;
+        }
 
-        const result = await response.json();
+        var result = await response.json();
 
         if (response.ok) {
             showAlert('配置保存成功！配置已热重载生效。', 'success');
             // 更新密码字段显示
-            const authPasswordField = document.getElementById('auth-password');
+            var authPasswordField = document.getElementById('auth-password');
             if (authPasswordField) authPasswordField.value = '***';
-            const autoLoginPasswordField = document.getElementById('auto-login-password');
+            var autoLoginPasswordField = document.getElementById('auto-login-password');
             if (autoLoginPasswordField) autoLoginPasswordField.value = '***';
         } else if (response.status === 429) {
             showAlert(result.error || '配置正在更新中，请稍后再试', 'warning');
@@ -309,11 +315,13 @@ async function saveConfig() {
         }
     } catch (error) {
         console.error('saveConfig error:', error);
-        showAlert('操作失败: ' + error, 'danger');
+        showAlert('操作失败: ' + (error.message || String(error)), 'danger');
     } finally {
         // 恢复按钮状态
-        saveButton.disabled = false;
-        saveButton.innerHTML = originalHTML;
+        if (saveButton) {
+            saveButton.disabled = false;
+            saveButton.innerHTML = originalHTML;
+        }
     }
 }
 
@@ -388,32 +396,64 @@ function changePassword() {
 
 // 辅助函数：显示更新进度
 function showUpdateProgress() {
-    const updateProgress = document.getElementById('updateProgress');
-    const updateResult = document.getElementById('updateResult');
+    var updateProgress = document.getElementById('updateProgress');
+    var updateResult = document.getElementById('updateResult');
     if (updateProgress) updateProgress.style.display = 'block';
-    if (updateResult) updateResult.style.display = 'none';
-}
-
-// 辅助函数：显示更新结果
-function showUpdateResultContent(contentHTML) {
-    const updateProgress = document.getElementById('updateProgress');
-    const updateResult = document.getElementById('updateResult');
-    if (updateProgress) updateProgress.style.display = 'none';
     if (updateResult) {
-        updateResult.style.display = 'block';
-        updateResult.innerHTML = contentHTML;
+        updateResult.style.display = 'none';
+        updateResult.innerHTML = '';  // 清空之前的结果
     }
 }
 
-// 辅助函数：显示更新结果的 alert
+// 辅助函数：隐藏更新进度
+function hideUpdateProgress() {
+    var updateProgress = document.getElementById('updateProgress');
+    if (updateProgress) updateProgress.style.display = 'none';
+}
+
+// 辅助函数：显示更新结果 alert
 function showUpdateResultAlert(alertHTML, alertClass) {
-    const updateResult = document.getElementById('updateResult');
-    const updateResultAlert = document.getElementById('updateResultAlert');
-    if (updateResult) updateResult.style.display = 'block';
+    hideUpdateProgress();  // 确保进度条被隐藏
+    var updateResult = document.getElementById('updateResult');
+    var updateResultAlert = document.getElementById('updateResultAlert');
+    if (updateResult) {
+        updateResult.style.display = 'block';
+    }
     if (updateResultAlert) {
         updateResultAlert.className = 'alert ' + (alertClass || 'alert-info');
         updateResultAlert.innerHTML = alertHTML;
     }
+}
+
+// 通用 fetch 包装函数 - 确保返回有效的 JSON 响应或抛出有意义的错误
+// 注意：这个函数不会在 HTTP 错误状态时抛出，而是返回响应让调用者处理
+async function safeFetch(url, options) {
+    var response = await fetch(url, options);
+
+    // 检查是否是重定向到登录页（返回 HTML 而不是 JSON）
+    var contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+        // 非 JSON 响应，尝试读取文本作为错误信息
+        var responseText = '';
+        try {
+            responseText = await response.text();
+        } catch (e) {
+            responseText = '（无法读取响应内容）';
+        }
+
+        if (response.status === 401) {
+            throw new Error('登录已过期，请刷新页面重新登录');
+        } else if (response.status === 403) {
+            throw new Error('没有权限执行此操作');
+        } else if (response.status >= 500) {
+            throw new Error('服务器内部错误: ' + (responseText.substring(0, 80) || 'HTTP ' + response.status));
+        } else {
+            throw new Error('请求失败: ' + (responseText.substring(0, 80) || 'HTTP ' + response.status));
+        }
+    }
+
+    // JSON 响应，无论 HTTP 状态码是什么都返回给调用者处理
+    return response;
 }
 
 // 检查更新 - 添加防御性代码和 429 处理
@@ -421,18 +461,18 @@ async function checkUpdates() {
     try {
         showUpdateProgress();
 
-        const response = await fetch('/api/check-updates', {
+        var response = await safeFetch('/api/check-updates', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/json'
             }
         });
 
-        const data = await response.json();
+        var data = await response.json();
 
         if (response.ok) {
-            const result = data.result;
-            let message = '<strong>' + data.message + '</strong><br><br>';
+            var result = data.result;
+            var message = '<strong>' + data.message + '</strong><br><br>';
             message += '<ul>';
             if (result.updated > 0) {
                 message += '<li class="text-success">✓ 已更新 ' + result.updated + ' 个文件</li>';
@@ -453,7 +493,8 @@ async function checkUpdates() {
             showUpdateResultAlert('<strong>更新检查失败</strong><br>' + (data.error || '未知错误'), 'alert-danger');
         }
     } catch (error) {
-        showUpdateResultAlert('<strong>更新检查失败</strong><br>' + error, 'alert-danger');
+        console.error('checkUpdates error:', error);
+        showUpdateResultAlert('<strong>更新检查失败</strong><br>' + (error.message || String(error)), 'alert-danger');
     }
 }
 
@@ -462,18 +503,18 @@ async function forceUpdates() {
     try {
         showUpdateProgress();
 
-        const response = await fetch('/api/force-updates', {
+        var response = await safeFetch('/api/force-updates', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/json'
             }
         });
 
-        const data = await response.json();
+        var data = await response.json();
 
         if (response.ok) {
-            const result = data.result;
-            let message = '<strong>' + data.message + '</strong><br><br>';
+            var result = data.result;
+            var message = '<strong>' + data.message + '</strong><br><br>';
             message += '<ul>';
             if (result.updated > 0) {
                 message += '<li class="text-success">✓ 成功更新 ' + result.updated + ' 个文件</li>';
@@ -491,7 +532,8 @@ async function forceUpdates() {
             showUpdateResultAlert('<strong>强制更新失败</strong><br>' + (data.error || '未知错误'), 'alert-danger');
         }
     } catch (error) {
-        showUpdateResultAlert('<strong>强制更新失败</strong><br>' + error, 'alert-danger');
+        console.error('forceUpdates error:', error);
+        showUpdateResultAlert('<strong>强制更新失败</strong><br>' + (error.message || String(error)), 'alert-danger');
     }
 }
 
@@ -500,17 +542,17 @@ async function checkGitUpdates() {
     try {
         showUpdateProgress();
 
-        const response = await fetch('/api/check-git-updates', {
+        var response = await safeFetch('/api/check-git-updates', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/json'
             }
         });
 
-        const data = await response.json();
+        var data = await response.json();
 
         if (response.ok) {
-            let message = '<strong>' + data.message + '</strong><br><br>';
+            var message = '<strong>' + data.message + '</strong><br><br>';
             message += '<div style="font-size: 14px; margin: 10px 0;">';
             message += '<div><strong>当前分支:</strong> <code>' + (data.branch || '未知') + '</code></div>';
             if (data.local_commit) {
@@ -541,7 +583,8 @@ async function checkGitUpdates() {
             showUpdateResultAlert('<strong>检查Git仓库更新失败</strong><br>' + (data.error || '未知错误'), 'alert-danger');
         }
     } catch (error) {
-        showUpdateResultAlert('<strong>检查Git仓库更新失败</strong><br>' + error, 'alert-danger');
+        console.error('checkGitUpdates error:', error);
+        showUpdateResultAlert('<strong>检查Git仓库更新失败</strong><br>' + (error.message || String(error)), 'alert-danger');
     }
 }
 
