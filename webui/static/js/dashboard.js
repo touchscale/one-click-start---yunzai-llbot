@@ -473,21 +473,32 @@ function toggleAutoScroll() {
 // 控制进程（已移除确认框，点击立即执行）
 function controlProcess(process, action) {
     const actionText = action === 'start' ? '启动' : '停止';
-    // 不再弹出确认框，直接执行操作以提高体验。
 
-    // 禁用按钮并显示加载状态
+    // 获取该进程的所有相关按钮
     const buttons = document.querySelectorAll(`button[onclick*="controlProcess('${process}'"]`);
-    buttons.forEach(btn => {
-        btn.disabled = true;
-        const originalHTML = btn.innerHTML;
-        btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${actionText}中...`;
 
-        // 恢复原始内容的函数
-        setTimeout(() => {
-            btn.innerHTML = originalHTML;
-            btn.disabled = false;
-        }, 5000); // 5秒后恢复，即使没有收到响应
+    // 保存原始内容并禁用按钮
+    buttons.forEach(btn => {
+        // 保存原始内容到 data 属性
+        btn.setAttribute('data-original-content', btn.innerHTML);
+        btn.disabled = true;
+        // 显示加载状态
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${actionText}中...`;
     });
+
+    // 设置超时，5秒后自动恢复按钮状态
+    const timeoutId = setTimeout(() => {
+        buttons.forEach(btn => {
+            btn.disabled = false;
+            // 恢复原始内容
+            const originalContent = btn.getAttribute('data-original-content');
+            if (originalContent) {
+                btn.innerHTML = originalContent;
+            } else {
+                btn.innerHTML = btn.innerHTML.replace('<i class="fas fa-spinner fa-spin"></i> ', '');
+            }
+        });
+    }, 5000);
 
     fetch('/api/control', {
         method: 'POST',
@@ -501,30 +512,53 @@ function controlProcess(process, action) {
     })
     .then(response => {
         if (response.status === 401) {
+            clearTimeout(timeoutId);
             handleAuthError();
             return;
+        }
+        if (response.status === 429) {
+            clearTimeout(timeoutId);
+            // 操作正在进行中，恢复按钮并显示提示
+            buttons.forEach(btn => {
+                btn.disabled = false;
+                const originalContent = btn.getAttribute('data-original-content');
+                if (originalContent) {
+                    btn.innerHTML = originalContent;
+                }
+            });
+            return response.json().then(data => {
+                showAlert(data.message || '操作正在进行中，请稍后再试', 'warning');
+            });
         }
         return response.json();
     })
     .then(data => {
+        clearTimeout(timeoutId);
         if (data) {
-            // 重置按钮状态
-            buttons.forEach(btn => {
-                btn.disabled = false;
-                btn.innerHTML = btn.getAttribute('data-original-content') || btn.innerHTML.replace('<i class="fas fa-spinner fa-spin"></i> ', '');
-            });
-
             // 使用Bootstrap的alert显示消息
             showAlert(data.message, 'success');
+            // 立即恢复按钮状态
+            buttons.forEach(btn => {
+                btn.disabled = false;
+                const originalContent = btn.getAttribute('data-original-content');
+                if (originalContent) {
+                    btn.innerHTML = originalContent;
+                }
+            });
+            // 触发状态更新
             updateStatus();
         }
     })
     .catch(error => {
+        clearTimeout(timeoutId);
         console.error('控制进程失败:', error);
-        // 重置按钮状态
+        // 恢复按钮状态
         buttons.forEach(btn => {
             btn.disabled = false;
-            btn.innerHTML = btn.getAttribute('data-original-content') || btn.innerHTML.replace('<i class="fas fa-spinner fa-spin"></i> ', '');
+            const originalContent = btn.getAttribute('data-original-content');
+            if (originalContent) {
+                btn.innerHTML = originalContent;
+            }
         });
 
         // 检查是否是认证错误
@@ -540,16 +574,27 @@ function controlProcess(process, action) {
 
 // 手动HTTP检查
 function manualHttpCheck() {
-    // 禁用按钮并显示加载状态
+    // 获取按钮
     const button = document.querySelector('button[onclick="manualHttpCheck()"]');
+    if (!button) return;
+
+    // 保存原始内容并禁用按钮
     const originalHTML = button.innerHTML;
+    button.setAttribute('data-original-content', originalHTML);
     button.disabled = true;
     button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 检查中...';
+
+    // 设置超时，5秒后自动恢复
+    const timeoutId = setTimeout(() => {
+        button.disabled = false;
+        button.innerHTML = originalHTML;
+    }, 5000);
 
     fetch('/api/manual-check', {
         method: 'POST',
     })
     .then(response => {
+        clearTimeout(timeoutId);
         if (response.status === 401) {
             handleAuthError();
             return;
@@ -558,7 +603,7 @@ function manualHttpCheck() {
     })
     .then(data => {
         if (data) {
-            // 重置按钮状态
+            // 恢复按钮状态
             button.disabled = false;
             button.innerHTML = originalHTML;
 
@@ -567,8 +612,9 @@ function manualHttpCheck() {
         }
     })
     .catch(error => {
+        clearTimeout(timeoutId);
         console.error('手动检查失败:', error);
-        // 重置按钮状态
+        // 恢复按钮状态
         button.disabled = false;
         button.innerHTML = originalHTML;
 

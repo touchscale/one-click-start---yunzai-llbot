@@ -7,6 +7,7 @@ import threading
 import os
 from datetime import datetime
 from functools import wraps
+from concurrent.futures import ThreadPoolExecutor
 
 # Web界面相关 - 只使用Flask
 try:
@@ -38,6 +39,16 @@ manual_stop_status = {
 # 存储最近的日志 - 使用线程安全的列表
 recent_logs = []
 recent_logs_lock = threading.Lock()
+
+# 线程池用于异步执行耗时操作
+_executor = ThreadPoolExecutor(max_workers=4)
+
+# 操作锁，防止并发操作同一进程
+_process_locks = {
+    'llbot': threading.Lock(),
+    'yunzai': threading.Lock(),
+    'redis': threading.Lock()
+}
 
 def add_log_entry(log_entry):
     """向日志列表添加日志条目"""
@@ -317,7 +328,7 @@ def register_routes(app):
     @app.route('/api/control', methods=['POST'])
     @requires_auth
     def api_control():
-        """控制进程API"""
+        """控制进程API - 使用异步处理避免阻塞"""
         try:
             data = request.get_json()
             if not data:
@@ -329,119 +340,125 @@ def register_routes(app):
             if not process or not action:
                 return jsonify({'message': '缺少process或action参数'}), 400
             
+            # 检查该进程是否已有操作在进行
+            if process in _process_locks:
+                if not _process_locks[process].acquire(blocking=False):
+                    return jsonify({'message': f'{process} 正在执行操作，请稍后再试'}), 429
+            else:
+                return jsonify({'message': f'未知进程: {process}'}), 400
+            
             try:
-                if process == 'llbot':
-                    if action == 'start':
-                        # 启动llbot
-                        restart_llbot_with_cleanup(current_config)
-                        # 清除手动停止状态
-                        manual_stop_status['llbot'] = False
-                        try:
-                            update_global_manual_stop_status('llbot', False)
-                        except:
-                            pass  # 如果全局变量不存在，跳过
-                        logger.info(f"通过Web界面启动llbot", extra={
-                            'event_type': EventType.PROCESS_START,
-                            'target_process': 'llbot',
-                            'source': 'web_interface',
-                            'action': 'start'
-                        })
-                        return jsonify({'message': 'llbot启动命令已发送'})
-                    elif action == 'stop':
-                        # 停止llbot - 精确终止llbot进程及其子进程
-                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止llbot进程及其子进程...")
-                        from process_manager import terminate_llbot_process_tree
-                        terminate_llbot_process_tree(current_config.get('llbot', {}).get('path'))
-                        
-                        # 设置手动停止状态
-                        manual_stop_status['llbot'] = True
-                        try:
-                            update_global_manual_stop_status('llbot', True)
-                        except:
-                            pass  # 如果全局变量不存在，跳过
-                        logger.info(f"通过Web界面停止llbot", extra={
-                            'event_type': EventType.PROCESS_STOP,
-                            'target_process': 'llbot',
-                            'source': 'web_interface',
-                            'action': 'stop'
-                        })
-                        return jsonify({'message': 'llbot停止命令已发送'})
-                elif process == 'yunzai':
-                    if action == 'start':
-                        # 启动yunzai
-                        check_and_manage_yunzai_async(current_config)
-                        # 清除手动停止状态
-                        manual_stop_status['yunzai'] = False
-                        try:
-                            update_global_manual_stop_status('yunzai', False)
-                        except:
-                            pass  # 如果全局变量不存在，跳过
-                        logger.info(f"通过Web界面启动yunzai", extra={
-                            'event_type': EventType.PROCESS_START,
-                            'target_process': 'yunzai',
-                            'source': 'web_interface',
-                            'action': 'start'
-                        })
-                        return jsonify({'message': 'Yunzai启动命令已发送'})
-                    elif action == 'stop':
-                        # 停止yunzai - 终止特定的git-bash.exe进程
-                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 尝试终止yunzai的git-bash.exe进程...")
-                        from process_manager import terminate_yunzai_git_bash_process
-                        terminate_yunzai_git_bash_process()
-                        # 设置手动停止状态
-                        manual_stop_status['yunzai'] = True
-                        try:
-                            update_global_manual_stop_status('yunzai', True)
-                        except:
-                            pass  # 如果全局变量不存在，跳过
-                        logger.info(f"通过Web界面停止yunzai", extra={
-                            'event_type': EventType.PROCESS_STOP,
-                            'target_process': 'yunzai',
-                            'source': 'web_interface',
-                            'action': 'stop'
-                        })
-                        return jsonify({'message': 'Yunzai停止命令已发送'})
-                elif process == 'redis':
-                    if action == 'start':
-                        # 启动redis
-                        check_and_manage_yunzai_async(current_config)  # 这会启动Redis
-                        # 清除手动停止状态
-                        manual_stop_status['redis'] = False
-                        try:
-                            update_global_manual_stop_status('redis', False)
-                        except:
-                            pass  # 如果全局变量不存在，跳过
-                        logger.info(f"通过Web界面启动redis", extra={
-                            'event_type': EventType.PROCESS_START,
-                            'target_process': 'redis',
-                            'source': 'web_interface',
-                            'action': 'start'
-                        })
-                        return jsonify({'message': 'Redis启动命令已发送'})
-                    elif action == 'stop':
-                        # 停止redis
-                        terminate_process_by_name(os.path.basename(current_config['redis']['path']) if current_config.get('redis', {}).get('path') else 'redis-server.exe')
-                        # 设置手动停止状态
-                        manual_stop_status['redis'] = True
-                        try:
-                            update_global_manual_stop_status('redis', True)
-                        except:
-                            pass  # 如果全局变量不存在，跳过
-                        logger.info(f"通过Web界面停止redis", extra={
-                            'event_type': EventType.PROCESS_STOP,
-                            'target_process': 'redis',
-                            'source': 'web_interface',
-                            'action': 'stop'
-                        })
-                        return jsonify({'message': 'Redis停止命令已发送'})
-            except Exception as inner_e:
-                logger.error(f"执行{process} {action}操作时失败: {str(inner_e)}", extra={
-                    'event_type': EventType.ERROR,
-                    'target_process': process,
+                # 记录操作开始时间
+                logger.info(f"Web界面请求: {process} {action}", extra={
+                    'event_type': EventType.INFO,
+                    'action': 'api_control_received',
+                    'process': process,
                     'action': action,
-                    'error': str(inner_e)
+                    'source': 'web_interface'
                 })
-                return jsonify({'message': f'执行操作失败: {str(inner_e)}'}), 500
+                
+                # 立即返回成功，让客户端知道请求已被接受
+                return jsonify({'message': f'{process} {action} 请求已接收，正在处理...'}), 202
+            finally:
+                # 在新线程中执行实际操作
+                def execute_operation():
+                    try:
+                        if process == 'llbot':
+                            if action == 'start':
+                                restart_llbot_with_cleanup(current_config)
+                                manual_stop_status['llbot'] = False
+                                try:
+                                    update_global_manual_stop_status('llbot', False)
+                                except:
+                                    pass
+                                logger.info(f"通过Web界面启动llbot", extra={
+                                    'event_type': EventType.PROCESS_START,
+                                    'target_process': 'llbot',
+                                    'source': 'web_interface',
+                                    'action': 'start'
+                                })
+                            elif action == 'stop':
+                                from process_manager import terminate_llbot_process_tree
+                                terminate_llbot_process_tree(current_config.get('llbot', {}).get('path'))
+                                manual_stop_status['llbot'] = True
+                                try:
+                                    update_global_manual_stop_status('llbot', True)
+                                except:
+                                    pass
+                                logger.info(f"通过Web界面停止llbot", extra={
+                                    'event_type': EventType.PROCESS_STOP,
+                                    'target_process': 'llbot',
+                                    'source': 'web_interface',
+                                    'action': 'stop'
+                                })
+                        elif process == 'yunzai':
+                            if action == 'start':
+                                check_and_manage_yunzai_async(current_config)
+                                manual_stop_status['yunzai'] = False
+                                try:
+                                    update_global_manual_stop_status('yunzai', False)
+                                except:
+                                    pass
+                                logger.info(f"通过Web界面启动yunzai", extra={
+                                    'event_type': EventType.PROCESS_START,
+                                    'target_process': 'yunzai',
+                                    'source': 'web_interface',
+                                    'action': 'start'
+                                })
+                            elif action == 'stop':
+                                from process_manager import terminate_yunzai_git_bash_process
+                                terminate_yunzai_git_bash_process()
+                                manual_stop_status['yunzai'] = True
+                                try:
+                                    update_global_manual_stop_status('yunzai', True)
+                                except:
+                                    pass
+                                logger.info(f"通过Web界面停止yunzai", extra={
+                                    'event_type': EventType.PROCESS_STOP,
+                                    'target_process': 'yunzai',
+                                    'source': 'web_interface',
+                                    'action': 'stop'
+                                })
+                        elif process == 'redis':
+                            if action == 'start':
+                                check_and_manage_yunzai_async(current_config)
+                                manual_stop_status['redis'] = False
+                                try:
+                                    update_global_manual_stop_status('redis', False)
+                                except:
+                                    pass
+                                logger.info(f"通过Web界面启动redis", extra={
+                                    'event_type': EventType.PROCESS_START,
+                                    'target_process': 'redis',
+                                    'source': 'web_interface',
+                                    'action': 'start'
+                                })
+                            elif action == 'stop':
+                                terminate_process_by_name(os.path.basename(current_config['redis']['path']) if current_config.get('redis', {}).get('path') else 'redis-server.exe')
+                                manual_stop_status['redis'] = True
+                                try:
+                                    update_global_manual_stop_status('redis', True)
+                                except:
+                                    pass
+                                logger.info(f"通过Web界面停止redis", extra={
+                                    'event_type': EventType.PROCESS_STOP,
+                                    'target_process': 'redis',
+                                    'source': 'web_interface',
+                                    'action': 'stop'
+                                })
+                    except Exception as inner_e:
+                        logger.error(f"执行{process} {action}操作时失败: {str(inner_e)}", extra={
+                            'event_type': EventType.ERROR,
+                            'target_process': process,
+                            'action': action,
+                            'error': str(inner_e)
+                        })
+                    finally:
+                        # 释放锁
+                        if process in _process_locks:
+                            _process_locks[process].release()
+                
+                _executor.submit(execute_operation)
         except Exception as e:
             logger.error(f"Web界面控制进程失败: {str(e)}", extra={
                 'event_type': EventType.ERROR,
