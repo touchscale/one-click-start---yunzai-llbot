@@ -471,6 +471,7 @@ async function parseJsonResponse(response) {
 // 检查更新
 async function checkUpdates() {
     try {
+        console.log('[config.js] checkUpdates started');
         showUpdateProgress();
 
         var response = await safeFetch('/api/check-updates', {
@@ -479,6 +480,7 @@ async function checkUpdates() {
         });
 
         var data = await parseJsonResponse(response);
+        console.log('[config.js] checkUpdates response:', data);
 
         if (response.ok) {
             if (data.result) {
@@ -503,7 +505,6 @@ async function checkUpdates() {
                 }
                 showUpdateResultAlert(message, 'alert-info');
             } else {
-                // 没有 result 字段，直接显示 message
                 showUpdateResultAlert('<strong>' + (data.message || '更新检查完成') + '</strong>', 'alert-info');
             }
         } else if (response.status === 429) {
@@ -512,13 +513,18 @@ async function checkUpdates() {
             showUpdateResultAlert('<strong>更新检查失败</strong><br>' + (data.error || 'HTTP ' + response.status), 'alert-danger');
         }
     } catch (error) {
-        showUpdateResultAlert('<strong>更新检查失败</strong><br>' + (error.message || String(error)), 'alert-danger');
+        console.error('[config.js] checkUpdates error:', error);
+        showUpdateResultAlert(
+            '<strong>更新检查失败</strong><br>' + (error.message || String(error)),
+            'alert-danger'
+        );
     }
 }
 
 // 强制更新
 async function forceUpdates() {
     try {
+        console.log('[config.js] forceUpdates started');
         showUpdateProgress();
 
         var response = await safeFetch('/api/force-updates', {
@@ -527,6 +533,7 @@ async function forceUpdates() {
         });
 
         var data = await parseJsonResponse(response);
+        console.log('[config.js] forceUpdates response:', data);
 
         if (response.ok) {
             if (data.result) {
@@ -556,13 +563,18 @@ async function forceUpdates() {
             showUpdateResultAlert('<strong>强制更新失败</strong><br>' + (data.error || 'HTTP ' + response.status), 'alert-danger');
         }
     } catch (error) {
-        showUpdateResultAlert('<strong>强制更新失败</strong><br>' + (error.message || String(error)), 'alert-danger');
+        console.error('[config.js] forceUpdates error:', error);
+        showUpdateResultAlert(
+            '<strong>强制更新失败</strong><br>' + (error.message || String(error)),
+            'alert-danger'
+        );
     }
 }
 
 // 检查Git仓库更新
 async function checkGitUpdates() {
     try {
+        console.log('[config.js] checkGitUpdates started');
         showUpdateProgress();
 
         var response = await safeFetch('/api/check-git-updates', {
@@ -571,6 +583,7 @@ async function checkGitUpdates() {
         });
 
         var data = await parseJsonResponse(response);
+        console.log('[config.js] checkGitUpdates response:', data);
 
         if (response.ok) {
             var message = '<strong>' + (data.message || 'Git仓库检查完成') + '</strong><br><br>';
@@ -606,242 +619,230 @@ async function checkGitUpdates() {
             showUpdateResultAlert('<strong>检查Git仓库更新失败</strong><br>' + (data.error || 'HTTP ' + response.status), 'alert-danger');
         }
     } catch (error) {
-        showUpdateResultAlert('<strong>检查Git仓库更新失败</strong><br>' + (error.message || String(error)), 'alert-danger');
+        console.error('[config.js] checkGitUpdates error:', error);
+        showUpdateResultAlert(
+            '<strong>检查Git仓库更新失败</strong><br>' + (error.message || String(error)),
+            'alert-danger'
+        );
     }
 }
 
-// ==============================================
-// 纯 CSS/DOM Modal 控制 - 完全绕过 Bootstrap JS API
-// ==============================================
-// 使用事件委托（绑定到 document），即使 DOM 被动态替换也始终能工作
+// ============================================================
+// MODAL 控制系统（完全独立，不依赖 initConfigPage）
+// ============================================================
+// 三层防御，对抗动态 DOM + Bootstrap data-api 冲突：
+//   1. IIFE 立即清理当前 DOM 的属性
+//   2. MutationObserver 自动清理新插入元素的属性
+//   3. 捕获阶段(capture=true)事件委托 - 在 Bootstrap 之前拦截点击
+// ============================================================
 
-// 全局标志：防止事件委托被重复绑定
-if (typeof window.__configModalSetupDone === 'undefined') {
-    window.__configModalSetupDone = false;
-}
-
-// 立即执行的属性清理：阻止 Bootstrap 的 data-api 拦截点击
-// 这是修复 "Cannot read properties of undefined (reading 'backdrop')" 的关键
-(function removeBootstrapModalAttributes() {
-    // 立即移除所有 data-bs-toggle="modal" 属性
-    var toggleEls = document.querySelectorAll('[data-bs-toggle="modal"]');
-    toggleEls.forEach(function(el) {
-        el.removeAttribute('data-bs-toggle');
-    });
-
-    // 立即移除所有 data-bs-dismiss="modal" 属性
-    var dismissEls = document.querySelectorAll('[data-bs-dismiss="modal"]');
-    dismissEls.forEach(function(el) {
-        el.removeAttribute('data-bs-dismiss');
-    });
-})();
-
-// ==============================================
-// MutationObserver: 监控 DOM 变化，对新插入的元素自动清理 Bootstrap 属性
-// ==============================================
-(function setupMutationObserver() {
-    if (window.__configMutationObserverDone) {
+(function setupConfigModalSystem() {
+    // --- 防止重复绑定 ---
+    if (window.__configModalSystemReady === true) {
         return;
     }
-    window.__configMutationObserverDone = true;
+    window.__configModalSystemReady = true;
 
-    if (typeof MutationObserver === 'undefined') {
-        return;
-    }
-
-    function cleanNewNodes(nodes) {
-        nodes.forEach(function(node) {
-            if (node.nodeType !== 1) return; // 只处理元素节点
-            // 移除该节点的属性
-            if (node.hasAttribute('data-bs-toggle') && node.getAttribute('data-bs-toggle') === 'modal') {
-                node.removeAttribute('data-bs-toggle');
-            }
-            if (node.hasAttribute('data-bs-dismiss') && node.getAttribute('data-bs-dismiss') === 'modal') {
-                node.removeAttribute('data-bs-dismiss');
-            }
-            // 递归检查子节点
-            var childToggleEls = node.querySelectorAll('[data-bs-toggle="modal"]');
-            childToggleEls.forEach(function(el) { el.removeAttribute('data-bs-toggle'); });
-            var childDismissEls = node.querySelectorAll('[data-bs-dismiss="modal"]');
-            childDismissEls.forEach(function(el) { el.removeAttribute('data-bs-dismiss'); });
-        });
-    }
-
-    var observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-            if (mutation.addedNodes && mutation.addedNodes.length > 0) {
-                cleanNewNodes(Array.prototype.slice.call(mutation.addedNodes));
-            }
-        });
-    });
-
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-})();
-
-// 显示模态框：直接操作 CSS class 和 DOM
-function showConfigModal(modalId) {
-    var modal = document.getElementById(modalId);
-    if (!modal) {
-        return;
-    }
-
-    // 清理可能存在的旧 backdrop
-    var oldBackdrop = document.querySelector('.modal-backdrop.config-modal-backdrop');
-    if (oldBackdrop) {
-        oldBackdrop.parentNode && oldBackdrop.parentNode.removeChild(oldBackdrop);
-    }
-
-    // 创建新 backdrop（背景遮罩）
-    var backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop fade config-modal-backdrop';
-    document.body.appendChild(backdrop);
-
-    // 强制 reflow 后添加 show（触发动画）
-    // eslint-disable-next-line no-unused-expressions
-    backdrop.offsetWidth;
-    backdrop.classList.add('show');
-
-    // 显示 modal
-    modal.style.display = 'block';
-    modal.style.position = 'fixed';
-    modal.style.top = '0';
-    modal.style.left = '0';
-    modal.style.width = '100%';
-    modal.style.height = '100%';
-    modal.style.zIndex = '1055';
-    modal.setAttribute('aria-hidden', 'false');
-
-    // 强制 reflow 后添加 show
-    // eslint-disable-next-line no-unused-expressions
-    modal.offsetWidth;
-    modal.classList.add('show');
-
-    // 防止 body 滚动
-    document.body.classList.add('modal-open');
-    document.body.style.overflow = 'hidden';
-}
-
-// 隐藏模态框
-function hideConfigModal(modal) {
-    if (!modal) {
-        return;
-    }
-
-    // 移除 modal 的 show 状态
-    modal.classList.remove('show');
-    modal.style.display = 'none';
-    modal.setAttribute('aria-hidden', 'true');
-
-    // 移除 backdrop（有延迟以配合动画）
-    var backdrop = document.querySelector('.modal-backdrop.config-modal-backdrop');
-    if (backdrop) {
-        backdrop.classList.remove('show');
-        setTimeout(function() {
-            if (backdrop && backdrop.parentNode) {
-                backdrop.parentNode.removeChild(backdrop);
-            }
-        }, 150);
-    }
-
-    // 恢复 body 滚动
-    document.body.classList.remove('modal-open');
-    document.body.style.overflow = '';
-}
-
-// 设置事件委托绑定（在 document 级别，DOM 被替换也始终有效）
-function setupModalButtons() {
-    if (window.__configModalSetupDone) {
-        return;
-    }
-    window.__configModalSetupDone = true;
-
-    // 关键修复：立即从页面所有元素移除 data-bs-toggle 和 data-bs-dismiss
-    // 这样 Bootstrap 的 data-api 就不会拦截这些点击并崩溃
-    var allToggleElements = document.querySelectorAll('[data-bs-toggle="modal"]');
-    allToggleElements.forEach(function(el) {
-        el.removeAttribute('data-bs-toggle');
-    });
-
-    var allDismissElements = document.querySelectorAll('[data-bs-dismiss="modal"]');
-    allDismissElements.forEach(function(el) {
-        el.removeAttribute('data-bs-dismiss');
-    });
-
-    // 1. 委托：点击带有 data-bs-target 的 modal 触发按钮时，打开对应 modal
-    document.addEventListener('click', function(e) {
-        // 查找目标元素：优先找带有 data-bs-target 的元素（按钮）
-        var trigger = null;
-        var el = e.target;
-        while (el && el !== document.documentElement) {
-            if (el.hasAttribute && el.hasAttribute('data-bs-target')) {
-                trigger = el;
-                break;
-            }
-            el = el.parentNode;
-        }
-
-        if (trigger) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            var targetId = trigger.getAttribute('data-bs-target');
-            if (targetId && targetId.charAt(0) === '#') {
-                showConfigModal(targetId.substring(1));
-            }
-        }
-    });
-
-    // 2. 委托：点击"关闭"或"取消"按钮（在 modal 内）时关闭 modal
-    document.addEventListener('click', function(e) {
-        var el = e.target;
-        // 向上查找是否点击了 modal 内的关闭按钮
-        var clickedBtn = null;
-        var parentModal = null;
-        while (el && el !== document.documentElement) {
-            if (el.classList && el.classList.contains('modal')) {
-                parentModal = el;
-                break;
-            }
-            // 识别按钮：检查按钮的 text 或 class
-            if (el.tagName === 'BUTTON' || el.tagName === 'A') {
-                var btnText = (el.textContent || '').trim();
-                // 识别关闭类按钮
-                if (btnText === '关闭' || btnText === '取消' || el.classList.contains('btn-close')) {
-                    clickedBtn = el;
-                    // 继续向上找 modal
+    // ---------- 工具函数 ----------
+    function stripBootstrapAttrs(root) {
+        if (!root) return;
+        try {
+            var toggles = root.querySelectorAll && root.querySelectorAll('[data-bs-toggle="modal"]');
+            if (toggles) {
+                for (var ti = 0; ti < toggles.length; ti++) {
+                    toggles[ti].removeAttribute('data-bs-toggle');
                 }
             }
-            el = el.parentNode;
+            var dismisses = root.querySelectorAll && root.querySelectorAll('[data-bs-dismiss="modal"]');
+            if (dismisses) {
+                for (var di = 0; di < dismisses.length; di++) {
+                    dismisses[di].removeAttribute('data-bs-dismiss');
+                }
+            }
+        } catch (e) {
+            // 忽略
         }
+    }
 
-        // 如果点击了关闭类按钮且找到了所在的 modal，关闭它
-        if (clickedBtn && parentModal) {
-            e.preventDefault();
-            e.stopPropagation();
-            hideConfigModal(parentModal);
+    // ---------- 第一层：立即清理当前 DOM ----------
+    stripBootstrapAttrs(document.body);
+
+    // ---------- 第二层：MutationObserver 监视 DOM 变化 ----------
+    if (typeof MutationObserver !== 'undefined') {
+        try {
+            var mo = new MutationObserver(function(mutations) {
+                for (var i = 0; i < mutations.length; i++) {
+                    var added = mutations[i].addedNodes;
+                    if (added) {
+                        for (var j = 0; j < added.length; j++) {
+                            stripBootstrapAttrs(added[j]);
+                        }
+                    }
+                }
+            });
+            mo.observe(document.body, { childList: true, subtree: true });
+        } catch (e) { /* observer 失败静默降级 */ }
+    }
+
+    // ---------- Modal show/hide ----------
+    function showModal(modalId) {
+        try {
+            var modal = document.getElementById(modalId);
+            if (!modal) return;
+
+            var oldBackdrop = document.querySelector('.modal-backdrop.config-modal-backdrop');
+            if (oldBackdrop && oldBackdrop.parentNode) oldBackdrop.parentNode.removeChild(oldBackdrop);
+
+            var backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop fade config-modal-backdrop';
+            document.body.appendChild(backdrop);
+            // eslint-disable-next-line no-unused-expressions
+            backdrop.offsetWidth;
+            backdrop.classList.add('show');
+
+            modal.style.display = 'block';
+            modal.style.position = 'fixed';
+            modal.style.top = '0';
+            modal.style.left = '0';
+            modal.style.width = '100%';
+            modal.style.height = '100%';
+            modal.style.zIndex = '1055';
+            modal.setAttribute('aria-hidden', 'false');
+            // eslint-disable-next-line no-unused-expressions
+            modal.offsetWidth;
+            modal.classList.add('show');
+
+            document.body.classList.add('modal-open');
+            document.body.style.overflow = 'hidden';
+        } catch (err) {
+            console.error('[config.js] showModal error:', err);
         }
-    });
+    }
 
-    // 3. 委托：点击 modal 背景（非内容区）时关闭 modal
+    function hideModal(modalOrId) {
+        try {
+            var modal = typeof modalOrId === 'string'
+                ? document.getElementById(modalOrId)
+                : modalOrId;
+            if (!modal) return;
+
+            modal.classList.remove('show');
+            modal.style.display = 'none';
+            modal.style.position = '';
+            modal.style.top = '';
+            modal.style.left = '';
+            modal.style.width = '';
+            modal.style.height = '';
+            modal.style.zIndex = '';
+            modal.setAttribute('aria-hidden', 'true');
+
+            var bd = document.querySelector('.modal-backdrop.config-modal-backdrop');
+            if (bd) {
+                bd.classList.remove('show');
+                var bdRef = bd;
+                setTimeout(function() {
+                    if (bdRef && bdRef.parentNode) bdRef.parentNode.removeChild(bdRef);
+                }, 150);
+            }
+
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+        } catch (err) {
+            console.error('[config.js] hideModal error:', err);
+        }
+    }
+
+    // ---------- 第三层：捕获阶段事件委托（在 Bootstrap 之前拦截）----------
+    // 关键：第三个参数 true = 捕获阶段，确保比 Bootstrap 的冒泡阶段更早执行
     document.addEventListener('click', function(e) {
-        if (e.target.classList && e.target.classList.contains('modal')) {
-            hideConfigModal(e.target);
-        }
-    });
+        try {
+            // --- 路径 1：打开 modal（点击带 data-bs-target="#xxxModal" 的元素）---
+            var el = e.target;
+            var depth = 0;
+            var foundTarget = null;
 
-    // 4. ESC 键关闭 modal
+            while (el && depth < 6 && el.nodeType === 1) {
+                if (el.hasAttribute && el.hasAttribute('data-bs-target')) {
+                    var t = el.getAttribute('data-bs-target');
+                    if (t && t.charAt(0) === '#' && (
+                        t.indexOf('Modal') !== -1 ||
+                        document.getElementById(t.substring(1)) &&
+                        document.getElementById(t.substring(1)).classList &&
+                        document.getElementById(t.substring(1)).classList.contains('modal')
+                    )) {
+                        foundTarget = t.substring(1);
+                        break;
+                    }
+                }
+                el = el.parentNode;
+                depth++;
+            }
+
+            if (foundTarget) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+                showModal(foundTarget);
+                return;
+            }
+
+            // --- 路径 2：关闭 modal（点击"关闭"、"取消"按钮、或背景）---
+            var clicked = e.target;
+            var depth2 = 0;
+            var isCloseBtn = false;
+            var parentModal = null;
+
+            while (clicked && depth2 < 6 && clicked.nodeType === 1) {
+                // 先看是否到达了 modal 容器
+                if (clicked.classList && clicked.classList.contains('modal')) {
+                    parentModal = clicked;
+                    break;
+                }
+                // 检查是否是关闭类按钮
+                if (clicked.tagName === 'BUTTON' || clicked.tagName === 'A') {
+                    var text = (clicked.textContent || '').trim();
+                    if (text === '关闭' || text === '取消' ||
+                        (clicked.classList && clicked.classList.contains('btn-close'))) {
+                        isCloseBtn = true;
+                    }
+                }
+                clicked = clicked.parentNode;
+                depth2++;
+            }
+
+            if (isCloseBtn && parentModal) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+                hideModal(parentModal);
+                return;
+            }
+
+            // --- 路径 3：点击 modal 背景（但不在内容区）关闭 ---
+            if (e.target.classList && e.target.classList.contains('modal')) {
+                hideModal(e.target);
+            }
+        } catch (err) {
+            console.error('[config.js] modal click handler error:', err);
+        }
+    }, true); // <-- 捕获阶段！
+
+    // ---------- ESC 键关闭 modal ----------
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
-            var visibleModals = document.querySelectorAll('.modal.show');
-            visibleModals.forEach(function(m) {
-                hideConfigModal(m);
-            });
+            var modals = document.querySelectorAll('.modal.show');
+            for (var k = 0; k < modals.length; k++) {
+                hideModal(modals[k]);
+            }
         }
     });
-}
+
+    // ---------- 暴露到 window ----------
+    window.showConfigModal = showModal;
+    window.hideConfigModal = hideModal;
+})();
+
+// （旧的 Modal 代码已删除 - 见上方 setupConfigModalSystem IIFE）
 
 // 初始化配置页面的函数
 function initConfigPage() {
@@ -938,8 +939,7 @@ function initConfigPage() {
         window.hasHashChangeListener = true;
     }
 
-    // 关键修复：手动绑定模态框按钮
-    setupModalButtons();
+    // Modal 系统在文件顶部的 setupConfigModalSystem IIFE 中独立初始化
 }
 
 // 显示指定的配置页面 - 添加防御性检查
@@ -975,3 +975,12 @@ if (document.readyState === 'loading') {
     // DOM 已经加载完成，直接初始化
     initConfigPage();
 }
+
+// 显式将关键函数暴露到 window （确保 HTML onclick 属性可以调用）
+window.checkUpdates = typeof window.checkUpdates !== 'undefined' ? window.checkUpdates : checkUpdates;
+window.forceUpdates = typeof window.forceUpdates !== 'undefined' ? window.forceUpdates : forceUpdates;
+window.checkGitUpdates = typeof window.checkGitUpdates !== 'undefined' ? window.checkGitUpdates : checkGitUpdates;
+window.saveConfig = typeof window.saveConfig !== 'undefined' ? window.saveConfig : saveConfig;
+window.changePassword = typeof window.changePassword !== 'undefined' ? window.changePassword : changePassword;
+window.showConfigPage = typeof window.showConfigPage !== 'undefined' ? window.showConfigPage : showConfigPage;
+window.initConfigPage = typeof window.initConfigPage !== 'undefined' ? window.initConfigPage : initConfigPage;
