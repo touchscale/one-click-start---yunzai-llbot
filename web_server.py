@@ -41,7 +41,7 @@ recent_logs = []
 recent_logs_lock = threading.Lock()
 
 # 线程池用于异步执行耗时操作
-_executor = ThreadPoolExecutor(max_workers=4)
+_executor = ThreadPoolExecutor(max_workers=8)
 
 # 操作锁，防止并发操作同一进程
 _process_locks = {
@@ -49,6 +49,12 @@ _process_locks = {
     'yunzai': threading.Lock(),
     'redis': threading.Lock()
 }
+
+# 配置操作锁，防止并发读写配置
+_config_lock = threading.Lock()
+
+# 更新操作锁，防止并发执行更新
+_update_lock = threading.Lock()
 
 def add_log_entry(log_entry):
     """向日志列表添加日志条目"""
@@ -989,7 +995,11 @@ def register_routes(app):
     @app.route('/api/config/update', methods=['POST'])
     @requires_auth
     def api_config_update():
-        """更新配置信息"""
+        """更新配置信息 - 使用配置锁防止并发写入"""
+        # 尝试获取配置锁，如果正在更新则立即返回
+        if not _config_lock.acquire(blocking=False):
+            return jsonify({'error': '配置正在更新中，请稍后再试'}), 429
+
         try:
             data = request.get_json()
             if not data:
@@ -1006,7 +1016,7 @@ def register_routes(app):
                 return jsonify({'error': 'llbot等待时间必须大于0'}), 400
             if not isinstance(data['yunzai'].get('wait_seconds'), (int, float)) or data['yunzai']['wait_seconds'] < 1:
                 return jsonify({'error': 'yunzai等待时间必须大于0'}), 400
-            
+
             # 验证 crash_detection 配置
             if 'crash_detection' in data['yunzai']:
                 crash_detection = data['yunzai']['crash_detection']
@@ -1049,7 +1059,7 @@ def register_routes(app):
             # If username is not provided, we'll keep the existing username
             if 'username' in data['web_auth'] and not data['web_auth'].get('username'):
                 return jsonify({'error': '用户名不能为空'}), 400
-            
+
             # 验证 git_update 配置
             if not isinstance(data['git_update'].get('enabled'), bool):
                 return jsonify({'error': 'Git更新检测启用状态必须是布尔值'}), 400
@@ -1059,10 +1069,10 @@ def register_routes(app):
                 return jsonify({'error': 'Git自动拉取启用状态必须是布尔值'}), 400
             if not isinstance(data['git_update'].get('auto_restart'), bool):
                 return jsonify({'error': 'Git自动重启启用状态必须是布尔值'}), 400
-            
+
             # First, save the original password in case we need to restore it
             original_password = current_config.get('web_auth', {}).get('password', 'admin123')
-            
+
             # Process username field
             if 'username' in data['web_auth'] and not data['web_auth'].get('username'):
                 return jsonify({'error': '用户名不能为空'}), 400
@@ -1092,17 +1102,17 @@ def register_routes(app):
 
             # 更新当前配置
             current_config.update(data)
-            
+
             # 保存配置到文件
             try:
                 config_path = "config.yaml"
                 save_config(current_config, config_path)
-                
+
                 # 验证文件是否成功写入
                 import os
                 if not os.path.exists(config_path):
                     raise IOError(f"配置文件保存失败: {config_path} 不存在")
-                
+
                 # 验证文件内容是否与当前配置一致
                 import yaml
                 with open(config_path, 'r', encoding='utf-8') as file:
@@ -1127,7 +1137,7 @@ def register_routes(app):
                                         if not PasswordCrypt.is_encrypted(saved_config[section][key]):
                                             verification_errors.append(f"配置项 {section}.{key} 保存的密码格式错误，应为加密格式")
                                     elif saved_config[section][key] != value:
-                                        verification_errors.append(f"配置项 {section}.{key} 值不一致: 期望 {value}, 实际 {saved_config[section][key]}")                    
+                                        verification_errors.append(f"配置项 {section}.{key} 值不一致: 期望 {value}, 实际 {saved_config[section][key]}")
                     if verification_errors:
                         error_msg = "配置验证失败: " + "; ".join(verification_errors)
                         logger.error(error_msg, extra={
@@ -1136,12 +1146,12 @@ def register_routes(app):
                             'action': 'config_verification_failure'
                         })
                         return jsonify({'error': error_msg}), 500
-                
+
                 logger.info("配置已更新并验证成功", extra={
                     'event_type': 'config_update',
                     'action': 'full_config_update'
                 })
-                
+
                 # 立即重新加载配置以应用新设置
                 try:
                     # 重新加载配置以确保所有更改生效
@@ -1149,12 +1159,12 @@ def register_routes(app):
                     new_config = load_config()
                     current_config.clear()
                     current_config.update(new_config)
-                    
+
                     logger.info("配置热重载完成", extra={
                         'event_type': 'config_reload',
                         'action': 'hot_reload_after_update'
                     })
-                    
+
                     return jsonify({'message': '配置更新成功并已热重载'})
                 except Exception as reload_error:
                     logger.error(f"配置热重载失败: {str(reload_error)}", extra={
@@ -1170,7 +1180,7 @@ def register_routes(app):
                     'action': 'config_save_failure'
                 })
                 return jsonify({'error': f'保存配置失败: {str(e)}'}), 500
-                
+
         except Exception as e:
             logger.error(f"更新配置失败: {str(e)}", extra={
                 'event_type': EventType.ERROR,
@@ -1178,11 +1188,16 @@ def register_routes(app):
                 'action': 'config_update_failure'
             })
             return jsonify({'error': f'更新配置失败: {str(e)}'}), 500
+        finally:
+            _config_lock.release()
 
     @app.route('/api/check-updates', methods=['POST'])
     @requires_auth
     def api_check_updates():
-        """手动检查并更新前端资源"""
+        """手动检查并更新前端资源 - 使用更新锁防止并发调用"""
+        if not _update_lock.acquire(blocking=False):
+            return jsonify({'error': '更新操作正在进行中，请稍后再试'}), 429
+
         try:
             from update_checker import check_and_update_resources
             result = check_and_update_resources()
@@ -1197,11 +1212,16 @@ def register_routes(app):
                 'action': 'manual_update_check_failure'
             })
             return jsonify({'error': f'检查更新失败: {str(e)}'}), 500
+        finally:
+            _update_lock.release()
 
     @app.route('/api/force-updates', methods=['POST'])
     @requires_auth
     def api_force_updates():
-        """强制更新所有前端资源"""
+        """强制更新所有前端资源 - 使用更新锁防止并发调用"""
+        if not _update_lock.acquire(blocking=False):
+            return jsonify({'error': '更新操作正在进行中，请稍后再试'}), 429
+
         try:
             from update_checker import force_update_resources
             result = force_update_resources()
@@ -1216,18 +1236,23 @@ def register_routes(app):
                 'action': 'force_update_failure'
             })
             return jsonify({'error': f'强制更新失败: {str(e)}'}), 500
+        finally:
+            _update_lock.release()
 
     @app.route('/api/check-git-updates', methods=['POST'])
     @requires_auth
     def api_check_git_updates():
-        """手动检查Git仓库更新"""
+        """手动检查Git仓库更新 - 使用更新锁防止并发调用"""
+        if not _update_lock.acquire(blocking=False):
+            return jsonify({'error': '更新操作正在进行中，请稍后再试'}), 429
+
         try:
             from git_update_checker import check_repo_update, get_current_branch, get_local_commit, get_remote_commit
             import os
-            
+
             # 获取当前脚本所在目录
             current_dir = os.path.dirname(os.path.abspath(__file__))
-            
+
             # 检查当前目录是否是Git仓库
             from git_update_checker import is_git_repo
             if not is_git_repo(current_dir):
@@ -1238,24 +1263,24 @@ def register_routes(app):
                     'local_commit': None,
                     'remote_commit': None
                 }), 400
-            
+
             # 获取当前分支
             branch = get_current_branch(current_dir)
-            
+
             # 获取本地和远程提交哈希
             local_commit = get_local_commit(current_dir)
             remote_commit = get_remote_commit(current_dir)
-            
+
             # 检查是否有更新
             has_update, status_output = check_repo_update(current_dir)
-            
+
             logger.info(f"手动检查Git仓库更新: {current_dir}, 分支: {branch}, 有更新: {has_update}", extra={
                 'event_type': EventType.INFO,
                 'repo_path': current_dir,
                 'branch': branch,
                 'has_update': has_update
             })
-            
+
             if has_update:
                 return jsonify({
                     'message': f'Git仓库检测到更新！当前分支: {branch}',
@@ -1281,6 +1306,8 @@ def register_routes(app):
                 'action': 'manual_git_update_check_failure'
             })
             return jsonify({'error': f'检查Git仓库更新失败: {str(e)}'}), 500
+        finally:
+            _update_lock.release()
 
 def start_web_server(host='127.0.0.1', port=5000):
     """启动Web服务器"""
@@ -1293,5 +1320,5 @@ def start_web_server(host='127.0.0.1', port=5000):
         'address': f'http://{host}:{port}'
     })
     
-    # 使用Flask内置服务器
-    app.run(host=host, port=port, debug=False, use_reloader=False)
+    # 使用Flask内置服务器，启用多线程支持并发请求
+    app.run(host=host, port=port, debug=False, use_reloader=False, threaded=True)
