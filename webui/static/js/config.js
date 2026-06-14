@@ -620,6 +620,67 @@ if (typeof window.__configModalSetupDone === 'undefined') {
     window.__configModalSetupDone = false;
 }
 
+// 立即执行的属性清理：阻止 Bootstrap 的 data-api 拦截点击
+// 这是修复 "Cannot read properties of undefined (reading 'backdrop')" 的关键
+(function removeBootstrapModalAttributes() {
+    // 立即移除所有 data-bs-toggle="modal" 属性
+    var toggleEls = document.querySelectorAll('[data-bs-toggle="modal"]');
+    toggleEls.forEach(function(el) {
+        el.removeAttribute('data-bs-toggle');
+    });
+
+    // 立即移除所有 data-bs-dismiss="modal" 属性
+    var dismissEls = document.querySelectorAll('[data-bs-dismiss="modal"]');
+    dismissEls.forEach(function(el) {
+        el.removeAttribute('data-bs-dismiss');
+    });
+})();
+
+// ==============================================
+// MutationObserver: 监控 DOM 变化，对新插入的元素自动清理 Bootstrap 属性
+// ==============================================
+(function setupMutationObserver() {
+    if (window.__configMutationObserverDone) {
+        return;
+    }
+    window.__configMutationObserverDone = true;
+
+    if (typeof MutationObserver === 'undefined') {
+        return;
+    }
+
+    function cleanNewNodes(nodes) {
+        nodes.forEach(function(node) {
+            if (node.nodeType !== 1) return; // 只处理元素节点
+            // 移除该节点的属性
+            if (node.hasAttribute('data-bs-toggle') && node.getAttribute('data-bs-toggle') === 'modal') {
+                node.removeAttribute('data-bs-toggle');
+            }
+            if (node.hasAttribute('data-bs-dismiss') && node.getAttribute('data-bs-dismiss') === 'modal') {
+                node.removeAttribute('data-bs-dismiss');
+            }
+            // 递归检查子节点
+            var childToggleEls = node.querySelectorAll('[data-bs-toggle="modal"]');
+            childToggleEls.forEach(function(el) { el.removeAttribute('data-bs-toggle'); });
+            var childDismissEls = node.querySelectorAll('[data-bs-dismiss="modal"]');
+            childDismissEls.forEach(function(el) { el.removeAttribute('data-bs-dismiss'); });
+        });
+    }
+
+    var observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.addedNodes && mutation.addedNodes.length > 0) {
+                cleanNewNodes(Array.prototype.slice.call(mutation.addedNodes));
+            }
+        });
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+})();
+
 // 显示模态框：直接操作 CSS class 和 DOM
 function showConfigModal(modalId) {
     var modal = document.getElementById(modalId);
@@ -697,42 +758,75 @@ function setupModalButtons() {
     }
     window.__configModalSetupDone = true;
 
-    // 1. 委托：点击带有 data-bs-toggle="modal" 的元素时，打开对应 modal
+    // 关键修复：立即从页面所有元素移除 data-bs-toggle 和 data-bs-dismiss
+    // 这样 Bootstrap 的 data-api 就不会拦截这些点击并崩溃
+    var allToggleElements = document.querySelectorAll('[data-bs-toggle="modal"]');
+    allToggleElements.forEach(function(el) {
+        el.removeAttribute('data-bs-toggle');
+    });
+
+    var allDismissElements = document.querySelectorAll('[data-bs-dismiss="modal"]');
+    allDismissElements.forEach(function(el) {
+        el.removeAttribute('data-bs-dismiss');
+    });
+
+    // 1. 委托：点击带有 data-bs-target 的 modal 触发按钮时，打开对应 modal
     document.addEventListener('click', function(e) {
-        var trigger = e.target.closest('[data-bs-toggle="modal"]');
+        // 查找目标元素：优先找带有 data-bs-target 的元素（按钮）
+        var trigger = null;
+        var el = e.target;
+        while (el && el !== document.documentElement) {
+            if (el.hasAttribute && el.hasAttribute('data-bs-target')) {
+                trigger = el;
+                break;
+            }
+            el = el.parentNode;
+        }
+
         if (trigger) {
             e.preventDefault();
             e.stopPropagation();
 
-            // 获取目标 modal 的 ID
             var targetId = trigger.getAttribute('data-bs-target');
-            if (!targetId) {
-                targetId = trigger.getAttribute('href');
-                if (targetId && targetId.indexOf('#') === 0) {
-                    showConfigModal(targetId.substring(1));
-                }
-            } else if (targetId.charAt(0) === '#') {
+            if (targetId && targetId.charAt(0) === '#') {
                 showConfigModal(targetId.substring(1));
             }
         }
     });
 
-    // 2. 委托：点击带有 data-bs-dismiss="modal" 的元素时，关闭 modal
+    // 2. 委托：点击"关闭"或"取消"按钮（在 modal 内）时关闭 modal
     document.addEventListener('click', function(e) {
-        var closeBtn = e.target.closest('[data-bs-dismiss="modal"]');
-        if (closeBtn) {
+        var el = e.target;
+        // 向上查找是否点击了 modal 内的关闭按钮
+        var clickedBtn = null;
+        var parentModal = null;
+        while (el && el !== document.documentElement) {
+            if (el.classList && el.classList.contains('modal')) {
+                parentModal = el;
+                break;
+            }
+            // 识别按钮：检查按钮的 text 或 class
+            if (el.tagName === 'BUTTON' || el.tagName === 'A') {
+                var btnText = (el.textContent || '').trim();
+                // 识别关闭类按钮
+                if (btnText === '关闭' || btnText === '取消' || el.classList.contains('btn-close')) {
+                    clickedBtn = el;
+                    // 继续向上找 modal
+                }
+            }
+            el = el.parentNode;
+        }
+
+        // 如果点击了关闭类按钮且找到了所在的 modal，关闭它
+        if (clickedBtn && parentModal) {
             e.preventDefault();
             e.stopPropagation();
-            var parentModal = closeBtn.closest('.modal');
-            if (parentModal) {
-                hideConfigModal(parentModal);
-            }
+            hideConfigModal(parentModal);
         }
     });
 
     // 3. 委托：点击 modal 背景（非内容区）时关闭 modal
     document.addEventListener('click', function(e) {
-        // 只有点击 .modal 本身（不是 .modal-dialog 或其子元素）才关闭
         if (e.target.classList && e.target.classList.contains('modal')) {
             hideConfigModal(e.target);
         }
