@@ -716,6 +716,13 @@ async function checkGitUpdates() {
                 return;
             }
 
+            // 在设置 aria-hidden 之前，先把焦点移到 body，避免浏览器警告
+            var focused = document.activeElement;
+            if (focused && modal.contains(focused)) {
+                focused.blur();
+            }
+            document.body.focus();
+
             modal.classList.remove('show');
             modal.style.display = 'none';
             modal.style.position = '';
