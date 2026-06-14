@@ -468,90 +468,90 @@
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- 密码修改模态框 -->
-    <div class="modal fade" id="passwordModal" tabindex="-1" aria-labelledby="passwordModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="passwordModalLabel"><i class="fas fa-key me-2 text-primary"></i>修改账户密码</h5>
-                    <button type="button" class="btn-close" data-modal-close aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="passwordForm">
-                        <div class="mb-3">
-                            <label for="currentPassword" class="form-label">当前密码</label>
-                            <div class="input-group">
-                                <input type="password" class="form-control" id="currentPassword" required placeholder="请输入当前密码">
-                                <button type="button" class="btn btn-outline-secondary password-toggle" onclick="togglePassword('currentPassword', this)">
-                                    <i class="fas fa-eye"></i>
-                                </button>
+        <!-- 密码修改模态框 -->
+        <div class="modal fade" id="passwordModal" tabindex="-1" aria-labelledby="passwordModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="passwordModalLabel"><i class="fas fa-key me-2 text-primary"></i>修改账户密码</h5>
+                        <button type="button" class="btn-close" data-modal-close aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="passwordForm">
+                            <div class="mb-3">
+                                <label for="currentPassword" class="form-label">当前密码</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="currentPassword" required placeholder="请输入当前密码">
+                                    <button type="button" class="btn btn-outline-secondary password-toggle" onclick="togglePassword('currentPassword', this)">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="newUsername" class="form-label">新用户名 (可选)</label>
-                            <input type="text" class="form-control" id="newUsername" placeholder="保持当前用户名请留空">
-                        </div>
-                        <div class="mb-3">
-                            <label for="newPassword" class="form-label">新密码</label>
-                            <div class="input-group">
-                                <input type="password" class="form-control" id="newPassword" required placeholder="请输入新密码">
-                                <button type="button" class="btn btn-outline-secondary password-toggle" onclick="togglePassword('newPassword', this)">
-                                    <i class="fas fa-eye"></i>
-                                </button>
+                            <div class="mb-3">
+                                <label for="newUsername" class="form-label">新用户名 (可选)</label>
+                                <input type="text" class="form-control" id="newUsername" placeholder="保持当前用户名请留空">
                             </div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="confirmPassword" class="form-label">确认新密码</label>
-                            <div class="input-group">
-                                <input type="password" class="form-control" id="confirmPassword" required placeholder="请再次输入新密码">
-                                <button type="button" class="btn btn-outline-secondary password-toggle" onclick="togglePassword('confirmPassword', this)">
-                                    <i class="fas fa-eye"></i>
-                                </button>
+                            <div class="mb-3">
+                                <label for="newPassword" class="form-label">新密码</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="newPassword" required placeholder="请输入新密码">
+                                    <button type="button" class="btn btn-outline-secondary password-toggle" onclick="togglePassword('newPassword', this)">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-modal-close>取消</button>
-                    <button type="button" class="btn btn-primary" onclick="changePassword()">保存更改</button>
+                            <div class="mb-3">
+                                <label for="confirmPassword" class="form-label">确认新密码</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="confirmPassword" required placeholder="请再次输入新密码">
+                                    <button type="button" class="btn btn-outline-secondary password-toggle" onclick="togglePassword('confirmPassword', this)">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-modal-close>取消</button>
+                        <button type="button" class="btn btn-primary" onclick="changePassword()">保存更改</button>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- 更新检查模态框 -->
-    <div class="modal fade" id="updateModal" tabindex="-1" aria-labelledby="updateModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="updateModalLabel"><i class="fas fa-sync-alt me-2 text-primary"></i>系统更新检查</h5>
-                    <button type="button" class="btn-close" data-modal-close aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="updateAlert"></div>
-                    <div id="updateProgress" style="display: none;">
-                        <div class="progress mb-3">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+        <!-- 更新检查模态框 -->
+        <div class="modal fade" id="updateModal" tabindex="-1" aria-labelledby="updateModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="updateModalLabel"><i class="fas fa-sync-alt me-2 text-primary"></i>系统更新检查</h5>
+                        <button type="button" class="btn-close" data-modal-close aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="updateAlert"></div>
+                        <div id="updateProgress" style="display: none;">
+                            <div class="progress mb-3">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                            </div>
+                            <p class="text-center text-muted">正在检查更新...</p>
                         </div>
-                        <p class="text-center text-muted">正在检查更新...</p>
+                        <div id="updateResult" style="display: none;">
+                            <div class="alert" id="updateResultAlert"></div>
+                        </div>
                     </div>
-                    <div id="updateResult" style="display: none;">
-                        <div class="alert" id="updateResultAlert"></div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-modal-close>关闭</button>
+                        <button type="button" class="btn btn-success" onclick="checkGitUpdates()">
+                            <i class="fas fa-code-branch me-2"></i>检查Git仓库更新
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="checkUpdates()">
+                            <i class="fas fa-download me-2"></i>检查前端资源更新
+                        </button>
+                        <button type="button" class="btn btn-warning" onclick="forceUpdates()">
+                            <i class="fas fa-redo me-2"></i>强制更新前端资源
+                        </button>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-modal-close>关闭</button>
-                    <button type="button" class="btn btn-success" onclick="checkGitUpdates()">
-                        <i class="fas fa-code-branch me-2"></i>检查Git仓库更新
-                    </button>
-                    <button type="button" class="btn btn-primary" onclick="checkUpdates()">
-                        <i class="fas fa-download me-2"></i>检查前端资源更新
-                    </button>
-                    <button type="button" class="btn btn-warning" onclick="forceUpdates()">
-                        <i class="fas fa-redo me-2"></i>强制更新前端资源
-                    </button>
                 </div>
             </div>
         </div>
