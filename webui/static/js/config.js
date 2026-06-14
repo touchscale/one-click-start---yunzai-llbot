@@ -670,39 +670,11 @@ async function checkGitUpdates() {
     function showModal(modalId) {
         try {
             console.log('[config.js] showModal: opening', modalId);
-
-            // 检查 modal 是否存在
             var modal = document.getElementById(modalId);
-
-            // 如果 modal 不存在，用 MutationObserver 监听它何时被插入 DOM
             if (!modal) {
-                console.warn('[config.js] showModal: modal not found, setting up MutationObserver');
-                var cachedId = modalId;
-                var observer = new MutationObserver(function(mutations, obs) {
-                    var retryModal = document.getElementById(cachedId);
-                    if (retryModal) {
-                        console.log('[config.js] showModal: found via MutationObserver:', cachedId);
-                        obs.disconnect();
-                        // 再 defer 一点，确保 DOM 完全稳定
-                        setTimeout(function() {
-                            openModalDirect(retryModal);
-                        }, 10);
-                    }
-                });
-                observer.observe(document.body, { childList: true, subtree: true });
+                console.error('[config.js] showModal: modal not found:', modalId);
                 return;
             }
-
-            console.log('[config.js] showModal: found immediately:', modalId);
-            openModalDirect(modal);
-        } catch (err) {
-            console.error('[config.js] showModal error:', err);
-        }
-    }
-
-    // 直接打开 modal（内部函数，不检查存在性）
-    function openModalDirect(modal) {
-        try {
 
             var oldBackdrop = document.querySelector('.modal-backdrop.config-modal-backdrop');
             if (oldBackdrop && oldBackdrop.parentNode) oldBackdrop.parentNode.removeChild(oldBackdrop);
@@ -726,9 +698,9 @@ async function checkGitUpdates() {
 
             document.body.classList.add('modal-open');
             document.body.style.overflow = 'hidden';
-            console.log('[config.js] openModalDirect: done');
+            console.log('[config.js] showModal: done');
         } catch (err) {
-            console.error('[config.js] openModalDirect error:', err);
+            console.error('[config.js] showModal error:', err);
         }
     }
 
