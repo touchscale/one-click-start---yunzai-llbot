@@ -424,26 +424,24 @@ function showUpdateResultAlert(alertHTML, alertClass) {
     var updateResultAlert = document.getElementById('updateResultAlert');
 
     console.log('[config.js] showUpdateResultAlert: updateResult=', !!updateResult, 'updateResultAlert=', !!updateResultAlert);
-    console.log('[config.js] alertHTML preview=', String(alertHTML).substring(0, 150));
 
-    // 如果 updateResult 不存在，整个函数失败
     if (!updateResult) {
-        console.error('[config.js] FATAL: #updateResult element not found in DOM!');
+        console.error('[config.js] FATAL: #updateResult element not found!');
         return;
     }
 
-    // 先隐藏进度条
     hideUpdateProgress();
 
-    // 如果 updateResultAlert 不存在，使用 fallback 方式直接显示
+    // 如果 updateResultAlert 不存在（可能因 theme.js 的 innerHTML 替换而丢失），
+    // 动态创建它，确保后续调用也能正常工作
     if (!updateResultAlert) {
-        console.warn('[config.js] #updateResultAlert not found, using fallback display');
-        updateResult.style.display = 'block';
-        updateResult.innerHTML = '<div class="alert ' + (alertClass || 'alert-info') + '">' + alertHTML + '</div>';
-        return;
+        console.warn('[config.js] #updateResultAlert not found, recreating it');
+        updateResultAlert = document.createElement('div');
+        updateResultAlert.id = 'updateResultAlert';
+        updateResult.innerHTML = '';
+        updateResult.appendChild(updateResultAlert);
     }
 
-    // 正常路径
     updateResult.style.display = 'block';
     updateResultAlert.className = 'alert ' + (alertClass || 'alert-info');
     updateResultAlert.innerHTML = alertHTML;
