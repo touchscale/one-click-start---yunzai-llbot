@@ -610,104 +610,142 @@ async function checkGitUpdates() {
     }
 }
 
-// 手动绑定模态框按钮 - 不依赖 Bootstrap data-api，确保动态 DOM 加载后能正常工作
-function setupModalButtons() {
-    if (typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+// ==============================================
+// 纯 CSS/DOM Modal 控制 - 完全绕过 Bootstrap JS API
+// ==============================================
+// 使用事件委托（绑定到 document），即使 DOM 被动态替换也始终能工作
+
+// 全局标志：防止事件委托被重复绑定
+if (typeof window.__configModalSetupDone === 'undefined') {
+    window.__configModalSetupDone = false;
+}
+
+// 显示模态框：直接操作 CSS class 和 DOM
+function showConfigModal(modalId) {
+    var modal = document.getElementById(modalId);
+    if (!modal) {
         return;
     }
 
-    // 为所有 modal 触发器按钮手动绑定事件
-    // 移除 data-bs-toggle 属性，并用自己的逻辑处理
-    var modalTriggers = document.querySelectorAll('[data-bs-toggle="modal"]');
-    modalTriggers.forEach(function(trigger) {
-        if (trigger.hasAttribute('data-modal-bound')) {
-            return;
-        }
-        trigger.setAttribute('data-modal-bound', 'true');
+    // 清理可能存在的旧 backdrop
+    var oldBackdrop = document.querySelector('.modal-backdrop.config-modal-backdrop');
+    if (oldBackdrop) {
+        oldBackdrop.parentNode && oldBackdrop.parentNode.removeChild(oldBackdrop);
+    }
 
-        // 获取目标 modal 的 ID
-        var targetSelector = trigger.getAttribute('data-bs-target');
-        if (!targetSelector) {
-            targetSelector = trigger.getAttribute('href');
-            if (targetSelector && targetSelector.indexOf('#') !== 0) {
-                return;
+    // 创建新 backdrop（背景遮罩）
+    var backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop fade config-modal-backdrop';
+    document.body.appendChild(backdrop);
+
+    // 强制 reflow 后添加 show（触发动画）
+    // eslint-disable-next-line no-unused-expressions
+    backdrop.offsetWidth;
+    backdrop.classList.add('show');
+
+    // 显示 modal
+    modal.style.display = 'block';
+    modal.style.position = 'fixed';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.width = '100%';
+    modal.style.height = '100%';
+    modal.style.zIndex = '1055';
+    modal.setAttribute('aria-hidden', 'false');
+
+    // 强制 reflow 后添加 show
+    // eslint-disable-next-line no-unused-expressions
+    modal.offsetWidth;
+    modal.classList.add('show');
+
+    // 防止 body 滚动
+    document.body.classList.add('modal-open');
+    document.body.style.overflow = 'hidden';
+}
+
+// 隐藏模态框
+function hideConfigModal(modal) {
+    if (!modal) {
+        return;
+    }
+
+    // 移除 modal 的 show 状态
+    modal.classList.remove('show');
+    modal.style.display = 'none';
+    modal.setAttribute('aria-hidden', 'true');
+
+    // 移除 backdrop（有延迟以配合动画）
+    var backdrop = document.querySelector('.modal-backdrop.config-modal-backdrop');
+    if (backdrop) {
+        backdrop.classList.remove('show');
+        setTimeout(function() {
+            if (backdrop && backdrop.parentNode) {
+                backdrop.parentNode.removeChild(backdrop);
             }
-        }
-        if (!targetSelector) {
-            return;
-        }
+        }, 150);
+    }
 
-        // 移除 data-bs-toggle 属性（我们自己控制）
-        trigger.removeAttribute('data-bs-toggle');
+    // 恢复 body 滚动
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+}
 
-        trigger.addEventListener('click', function(e) {
+// 设置事件委托绑定（在 document 级别，DOM 被替换也始终有效）
+function setupModalButtons() {
+    if (window.__configModalSetupDone) {
+        return;
+    }
+    window.__configModalSetupDone = true;
+
+    // 1. 委托：点击带有 data-bs-toggle="modal" 的元素时，打开对应 modal
+    document.addEventListener('click', function(e) {
+        var trigger = e.target.closest('[data-bs-toggle="modal"]');
+        if (trigger) {
             e.preventDefault();
             e.stopPropagation();
 
-            var modalElement = document.querySelector(targetSelector);
-            if (!modalElement) {
-                return;
-            }
-
-            // 关键修复：每次点击时先销毁旧实例再创建新实例
-            // 这解决了动态 DOM 加载时 Bootstrap 无法正确初始化的问题
-            try {
-                var existingInstance = bootstrap.Modal.getInstance(modalElement);
-                if (existingInstance) {
-                    existingInstance.dispose();
+            // 获取目标 modal 的 ID
+            var targetId = trigger.getAttribute('data-bs-target');
+            if (!targetId) {
+                targetId = trigger.getAttribute('href');
+                if (targetId && targetId.indexOf('#') === 0) {
+                    showConfigModal(targetId.substring(1));
                 }
-            } catch (err) {
-                // 忽略销毁失败，继续创建新实例
+            } else if (targetId.charAt(0) === '#') {
+                showConfigModal(targetId.substring(1));
             }
-
-            // 清除 Bootstrap 在元素上可能残留的数据
-            try {
-                for (var key in modalElement) {
-                    if (key.indexOf('bs') === 0 || key.indexOf('data') === 0) {
-                        try {
-                            delete modalElement[key];
-                        } catch (innerErr) {
-                            // 忽略
-                        }
-                    }
-                }
-            } catch (err2) {
-                // 忽略
-            }
-
-            // 创建新的 Modal 实例并显示
-            var modal = new bootstrap.Modal(modalElement, {
-                backdrop: true,
-                keyboard: true,
-                focus: true
-            });
-            modal.show();
-        });
+        }
     });
 
-    // 额外处理：为 modal 内的关闭按钮也手动绑定
-    var modalCloseButtons = document.querySelectorAll('[data-bs-dismiss="modal"]');
-    modalCloseButtons.forEach(function(btn) {
-        if (btn.hasAttribute('data-modal-close-bound')) {
-            return;
-        }
-        btn.setAttribute('data-modal-close-bound', 'true');
-
-        // 找最近的 modal 元素
-        btn.addEventListener('click', function(e) {
-            var parentModal = btn.closest('.modal');
+    // 2. 委托：点击带有 data-bs-dismiss="modal" 的元素时，关闭 modal
+    document.addEventListener('click', function(e) {
+        var closeBtn = e.target.closest('[data-bs-dismiss="modal"]');
+        if (closeBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            var parentModal = closeBtn.closest('.modal');
             if (parentModal) {
-                e.preventDefault();
-                try {
-                    var modalInstance = bootstrap.Modal.getInstance(parentModal);
-                    if (modalInstance) {
-                        modalInstance.hide();
-                    }
-                } catch (err) {
-                    // 忽略
-                }
+                hideConfigModal(parentModal);
             }
-        });
+        }
+    });
+
+    // 3. 委托：点击 modal 背景（非内容区）时关闭 modal
+    document.addEventListener('click', function(e) {
+        // 只有点击 .modal 本身（不是 .modal-dialog 或其子元素）才关闭
+        if (e.target.classList && e.target.classList.contains('modal')) {
+            hideConfigModal(e.target);
+        }
+    });
+
+    // 4. ESC 键关闭 modal
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            var visibleModals = document.querySelectorAll('.modal.show');
+            visibleModals.forEach(function(m) {
+                hideConfigModal(m);
+            });
+        }
     });
 }
 
