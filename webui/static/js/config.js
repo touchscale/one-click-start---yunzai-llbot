@@ -425,136 +425,159 @@ function showUpdateResultAlert(alertHTML, alertClass) {
     }
 }
 
-// 通用 fetch 包装函数 - 确保返回有效的 JSON 响应或抛出有意义的错误
-// 注意：这个函数不会在 HTTP 错误状态时抛出，而是返回响应让调用者处理
+// 通用 fetch 包装函数 - 简化版：2xx 一律返回，非 2xx 且非 JSON 才抛错
 async function safeFetch(url, options) {
     var response = await fetch(url, options);
 
-    // 检查是否是重定向到登录页（返回 HTML 而不是 JSON）
-    var contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-        // 非 JSON 响应，尝试读取文本作为错误信息
-        var responseText = '';
-        try {
-            responseText = await response.text();
-        } catch (e) {
-            responseText = '（无法读取响应内容）';
-        }
-
-        if (response.status === 401) {
-            throw new Error('登录已过期，请刷新页面重新登录');
-        } else if (response.status === 403) {
-            throw new Error('没有权限执行此操作');
-        } else if (response.status >= 500) {
-            throw new Error('服务器内部错误: ' + (responseText.substring(0, 80) || 'HTTP ' + response.status));
-        } else {
-            throw new Error('请求失败: ' + (responseText.substring(0, 80) || 'HTTP ' + response.status));
-        }
+    // 2xx 成功响应 - 直接返回
+    if (response.ok) {
+        return response;
     }
 
-    // JSON 响应，无论 HTTP 状态码是什么都返回给调用者处理
-    return response;
+    // 非 2xx 响应 - 检查是否是 JSON 格式
+    var contentType = response.headers.get('content-type') || '';
+
+    // 如果是 JSON 格式的错误响应（如 429），返回给调用者处理
+    if (contentType.indexOf('application/json') !== -1) {
+        return response;
+    }
+
+    // 非 JSON 错误响应 - 可能是 HTML 登录页或其他错误页
+    if (response.status === 401) {
+        throw new Error('登录已过期，请刷新页面重新登录');
+    } else if (response.status === 403) {
+        throw new Error('没有权限执行此操作');
+    } else if (response.status >= 500) {
+        throw new Error('服务器错误 (HTTP ' + response.status + ')');
+    } else {
+        throw new Error('请求失败 (HTTP ' + response.status + ')');
+    }
 }
 
-// 检查更新 - 添加防御性代码和 429 处理
+// 安全解析 JSON - 带 fallback 的响应解析
+async function parseJsonResponse(response) {
+    try {
+        return await response.json();
+    } catch (e) {
+        try {
+            var text = await response.text();
+            return { message: text, _raw_text: true };
+        } catch (e2) {
+            return { message: '（无响应内容）' };
+        }
+    }
+}
+
+// 检查更新
 async function checkUpdates() {
     try {
         showUpdateProgress();
 
         var response = await safeFetch('/api/check-updates', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: { 'Content-Type': 'application/json' }
         });
 
-        var data = await response.json();
+        var data = await parseJsonResponse(response);
 
         if (response.ok) {
-            var result = data.result;
-            var message = '<strong>' + data.message + '</strong><br><br>';
-            message += '<ul>';
-            if (result.updated > 0) {
-                message += '<li class="text-success">✓ 已更新 ' + result.updated + ' 个文件</li>';
+            if (data.result) {
+                var result = data.result;
+                var message = '<strong>' + (data.message || '更新检查完成') + '</strong><br><br>';
+                message += '<ul>';
+                if (typeof result.updated === 'number' && result.updated > 0) {
+                    message += '<li class="text-success">✓ 已更新 ' + result.updated + ' 个文件</li>';
+                }
+                if (typeof result.skipped === 'number' && result.skipped > 0) {
+                    message += '<li class="text-info">ℹ 跳过 ' + result.skipped + ' 个文件（已是最新）</li>';
+                }
+                if (typeof result.failed === 'number' && result.failed > 0) {
+                    message += '<li class="text-danger">✗ 失败 ' + result.failed + ' 个文件</li>';
+                }
+                if (message.indexOf('<li>') === -1 && message.indexOf('class="text-') === -1) {
+                    message += '<li class="text-muted">无需更新</li>';
+                }
+                message += '</ul>';
+                if (result.timestamp) {
+                    message += '<small class="text-muted">检查时间: ' + result.timestamp + '</small>';
+                }
+                showUpdateResultAlert(message, 'alert-info');
+            } else {
+                // 没有 result 字段，直接显示 message
+                showUpdateResultAlert('<strong>' + (data.message || '更新检查完成') + '</strong>', 'alert-info');
             }
-            if (result.skipped > 0) {
-                message += '<li class="text-info">ℹ 跳过 ' + result.skipped + ' 个文件（已是最新）</li>';
-            }
-            if (result.failed > 0) {
-                message += '<li class="text-danger">✗ 失败 ' + result.failed + ' 个文件</li>';
-            }
-            message += '</ul>';
-            message += '<small class="text-muted">检查时间: ' + result.timestamp + '</small>';
-
-            showUpdateResultAlert(message, 'alert-info');
         } else if (response.status === 429) {
             showUpdateResultAlert('<strong>操作进行中</strong><br>' + (data.error || '请稍后再试'), 'alert-warning');
         } else {
-            showUpdateResultAlert('<strong>更新检查失败</strong><br>' + (data.error || '未知错误'), 'alert-danger');
+            showUpdateResultAlert('<strong>更新检查失败</strong><br>' + (data.error || 'HTTP ' + response.status), 'alert-danger');
         }
     } catch (error) {
-        console.error('checkUpdates error:', error);
         showUpdateResultAlert('<strong>更新检查失败</strong><br>' + (error.message || String(error)), 'alert-danger');
     }
 }
 
-// 强制更新 - 添加防御性代码和 429 处理
+// 强制更新
 async function forceUpdates() {
     try {
         showUpdateProgress();
 
         var response = await safeFetch('/api/force-updates', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: { 'Content-Type': 'application/json' }
         });
 
-        var data = await response.json();
+        var data = await parseJsonResponse(response);
 
         if (response.ok) {
-            var result = data.result;
-            var message = '<strong>' + data.message + '</strong><br><br>';
-            message += '<ul>';
-            if (result.updated > 0) {
-                message += '<li class="text-success">✓ 成功更新 ' + result.updated + ' 个文件</li>';
+            if (data.result) {
+                var result = data.result;
+                var message = '<strong>' + (data.message || '强制更新完成') + '</strong><br><br>';
+                message += '<ul>';
+                if (typeof result.updated === 'number' && result.updated > 0) {
+                    message += '<li class="text-success">✓ 成功更新 ' + result.updated + ' 个文件</li>';
+                }
+                if (typeof result.failed === 'number' && result.failed > 0) {
+                    message += '<li class="text-danger">✗ 失败 ' + result.failed + ' 个文件</li>';
+                }
+                if (message.indexOf('<li>') === -1 && message.indexOf('class="text-') === -1) {
+                    message += '<li class="text-muted">无需更新</li>';
+                }
+                message += '</ul>';
+                if (result.timestamp) {
+                    message += '<small class="text-muted">更新时间: ' + result.timestamp + '</small>';
+                }
+                showUpdateResultAlert(message, 'alert-warning');
+            } else {
+                showUpdateResultAlert('<strong>' + (data.message || '强制更新完成') + '</strong>', 'alert-warning');
             }
-            if (result.failed > 0) {
-                message += '<li class="text-danger">✗ 失败 ' + result.failed + ' 个文件</li>';
-            }
-            message += '</ul>';
-            message += '<small class="text-muted">更新时间: ' + result.timestamp + '</small>';
-
-            showUpdateResultAlert(message, 'alert-warning');
         } else if (response.status === 429) {
             showUpdateResultAlert('<strong>操作进行中</strong><br>' + (data.error || '请稍后再试'), 'alert-warning');
         } else {
-            showUpdateResultAlert('<strong>强制更新失败</strong><br>' + (data.error || '未知错误'), 'alert-danger');
+            showUpdateResultAlert('<strong>强制更新失败</strong><br>' + (data.error || 'HTTP ' + response.status), 'alert-danger');
         }
     } catch (error) {
-        console.error('forceUpdates error:', error);
         showUpdateResultAlert('<strong>强制更新失败</strong><br>' + (error.message || String(error)), 'alert-danger');
     }
 }
 
-// 检查Git仓库更新 - 添加防御性代码和 429 处理
+// 检查Git仓库更新
 async function checkGitUpdates() {
     try {
         showUpdateProgress();
 
         var response = await safeFetch('/api/check-git-updates', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: { 'Content-Type': 'application/json' }
         });
 
-        var data = await response.json();
+        var data = await parseJsonResponse(response);
 
         if (response.ok) {
-            var message = '<strong>' + data.message + '</strong><br><br>';
+            var message = '<strong>' + (data.message || 'Git仓库检查完成') + '</strong><br><br>';
             message += '<div style="font-size: 14px; margin: 10px 0;">';
-            message += '<div><strong>当前分支:</strong> <code>' + (data.branch || '未知') + '</code></div>';
+            if (data.branch) {
+                message += '<div><strong>当前分支:</strong> <code>' + data.branch + '</code></div>';
+            }
             if (data.local_commit) {
                 message += '<div><strong>本地提交:</strong> <code>' + String(data.local_commit).substring(0, 8) + '</code></div>';
             }
@@ -580,10 +603,9 @@ async function checkGitUpdates() {
         } else if (response.status === 429) {
             showUpdateResultAlert('<strong>操作进行中</strong><br>' + (data.error || '请稍后再试'), 'alert-warning');
         } else {
-            showUpdateResultAlert('<strong>检查Git仓库更新失败</strong><br>' + (data.error || '未知错误'), 'alert-danger');
+            showUpdateResultAlert('<strong>检查Git仓库更新失败</strong><br>' + (data.error || 'HTTP ' + response.status), 'alert-danger');
         }
     } catch (error) {
-        console.error('checkGitUpdates error:', error);
         showUpdateResultAlert('<strong>检查Git仓库更新失败</strong><br>' + (error.message || String(error)), 'alert-danger');
     }
 }
