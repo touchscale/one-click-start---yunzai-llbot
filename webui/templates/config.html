@@ -98,7 +98,7 @@
                         <i class="fas fa-user-circle me-1"></i>账户管理
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
-                        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#passwordModal"><i class="fas fa-key me-2"></i>修改密码</a></li>
+                        <li><a class="dropdown-item" href="#" data-modal-open="#passwordModal"><i class="fas fa-key me-2"></i>修改密码</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item text-danger" href="/logout"><i class="fas fa-sign-out-alt me-2"></i>退出登录</a></li>
                     </ul>
@@ -453,7 +453,7 @@
                         <a href="/" class="btn btn-back">
                             <i class="fas fa-arrow-left me-2"></i>返回监控页面
                         </a>
-                        <button class="btn btn-info ms-2" data-bs-toggle="modal" data-bs-target="#updateModal">
+                        <button class="btn btn-info ms-2" data-modal-open="#updateModal">
                             <i class="fas fa-download me-2"></i>检查更新
                         </button>
                     </div>
@@ -476,7 +476,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="passwordModalLabel"><i class="fas fa-key me-2 text-primary"></i>修改账户密码</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-modal-close aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <form id="passwordForm">
@@ -514,7 +514,7 @@
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-outline-secondary" data-modal-close>取消</button>
                     <button type="button" class="btn btn-primary" onclick="changePassword()">保存更改</button>
                 </div>
             </div>
@@ -527,7 +527,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="updateModalLabel"><i class="fas fa-sync-alt me-2 text-primary"></i>系统更新检查</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-modal-close aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div id="updateAlert"></div>
@@ -542,7 +542,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="button" class="btn btn-outline-secondary" data-modal-close>关闭</button>
                     <button type="button" class="btn btn-success" onclick="checkGitUpdates()">
                         <i class="fas fa-code-branch me-2"></i>检查Git仓库更新
                     </button>

@@ -662,58 +662,19 @@ async function checkGitUpdates() {
 // ============================================================
 
 (function setupConfigModalSystem() {
-    // --- 防止重复绑定 ---
     if (window.__configModalSystemReady === true) {
         return;
     }
     window.__configModalSystemReady = true;
 
-    // ---------- 工具函数 ----------
-    function stripBootstrapAttrs(root) {
-        if (!root) return;
-        try {
-            var toggles = root.querySelectorAll && root.querySelectorAll('[data-bs-toggle="modal"]');
-            if (toggles) {
-                for (var ti = 0; ti < toggles.length; ti++) {
-                    toggles[ti].removeAttribute('data-bs-toggle');
-                }
-            }
-            var dismisses = root.querySelectorAll && root.querySelectorAll('[data-bs-dismiss="modal"]');
-            if (dismisses) {
-                for (var di = 0; di < dismisses.length; di++) {
-                    dismisses[di].removeAttribute('data-bs-dismiss');
-                }
-            }
-        } catch (e) {
-            // 忽略
-        }
-    }
-
-    // ---------- 第一层：立即清理当前 DOM ----------
-    stripBootstrapAttrs(document.body);
-
-    // ---------- 第二层：MutationObserver 监视 DOM 变化 ----------
-    if (typeof MutationObserver !== 'undefined') {
-        try {
-            var mo = new MutationObserver(function(mutations) {
-                for (var i = 0; i < mutations.length; i++) {
-                    var added = mutations[i].addedNodes;
-                    if (added) {
-                        for (var j = 0; j < added.length; j++) {
-                            stripBootstrapAttrs(added[j]);
-                        }
-                    }
-                }
-            });
-            mo.observe(document.body, { childList: true, subtree: true });
-        } catch (e) { /* observer 失败静默降级 */ }
-    }
-
-    // ---------- Modal show/hide ----------
     function showModal(modalId) {
         try {
+            console.log('[config.js] showModal: opening', modalId);
             var modal = document.getElementById(modalId);
-            if (!modal) return;
+            if (!modal) {
+                console.error('[config.js] showModal: modal not found:', modalId);
+                return;
+            }
 
             var oldBackdrop = document.querySelector('.modal-backdrop.config-modal-backdrop');
             if (oldBackdrop && oldBackdrop.parentNode) oldBackdrop.parentNode.removeChild(oldBackdrop);
@@ -721,7 +682,6 @@ async function checkGitUpdates() {
             var backdrop = document.createElement('div');
             backdrop.className = 'modal-backdrop fade config-modal-backdrop';
             document.body.appendChild(backdrop);
-            // eslint-disable-next-line no-unused-expressions
             backdrop.offsetWidth;
             backdrop.classList.add('show');
 
@@ -733,12 +693,12 @@ async function checkGitUpdates() {
             modal.style.height = '100%';
             modal.style.zIndex = '1055';
             modal.setAttribute('aria-hidden', 'false');
-            // eslint-disable-next-line no-unused-expressions
             modal.offsetWidth;
             modal.classList.add('show');
 
             document.body.classList.add('modal-open');
             document.body.style.overflow = 'hidden';
+            console.log('[config.js] showModal: done');
         } catch (err) {
             console.error('[config.js] showModal error:', err);
         }
@@ -746,10 +706,15 @@ async function checkGitUpdates() {
 
     function hideModal(modalOrId) {
         try {
+            console.log('[config.js] hideModal called');
             var modal = typeof modalOrId === 'string'
                 ? document.getElementById(modalOrId)
                 : modalOrId;
-            if (!modal) return;
+
+            if (!modal) {
+                console.warn('[config.js] hideModal: modal not found');
+                return;
+            }
 
             modal.classList.remove('show');
             modal.style.display = 'none';
@@ -766,93 +731,83 @@ async function checkGitUpdates() {
                 bd.classList.remove('show');
                 var bdRef = bd;
                 setTimeout(function() {
-                    if (bdRef && bdRef.parentNode) bdRef.parentNode.removeChild(bdRef);
+                    if (bdRef && bdRef.parentNode) {
+                        bdRef.parentNode.removeChild(bdRef);
+                    }
                 }, 150);
             }
 
             document.body.classList.remove('modal-open');
             document.body.style.overflow = '';
+            console.log('[config.js] hideModal: done');
         } catch (err) {
             console.error('[config.js] hideModal error:', err);
         }
     }
 
-    // ---------- 第三层：捕获阶段事件委托（在 Bootstrap 之前拦截）----------
-    // 关键：第三个参数 true = 捕获阶段，确保比 Bootstrap 的冒泡阶段更早执行
+    // 捕获阶段事件委托（使用自定义属性 data-modal-open / data-modal-close）
     document.addEventListener('click', function(e) {
         try {
-            // --- 路径 1：打开 modal（点击带 data-bs-target="#xxxModal" 的元素）---
             var el = e.target;
             var depth = 0;
-            var foundTarget = null;
+            var foundModalTarget = null;
+            var foundModalClose = false;
 
             while (el && depth < 6 && el.nodeType === 1) {
-                if (el.hasAttribute && el.hasAttribute('data-bs-target')) {
-                    var t = el.getAttribute('data-bs-target');
-                    if (t && t.charAt(0) === '#' && (
-                        t.indexOf('Modal') !== -1 ||
-                        document.getElementById(t.substring(1)) &&
-                        document.getElementById(t.substring(1)).classList &&
-                        document.getElementById(t.substring(1)).classList.contains('modal')
-                    )) {
-                        foundTarget = t.substring(1);
+                if (el.hasAttribute && el.hasAttribute('data-modal-open')) {
+                    var t = el.getAttribute('data-modal-open');
+                    if (t && t.charAt(0) === '#') {
+                        foundModalTarget = t.substring(1);
                         break;
                     }
+                }
+                if (el.hasAttribute && el.hasAttribute('data-modal-close')) {
+                    foundModalClose = true;
+                    break;
                 }
                 el = el.parentNode;
                 depth++;
             }
 
-            if (foundTarget) {
+            if (foundModalTarget) {
                 e.preventDefault();
                 e.stopPropagation();
                 if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-                showModal(foundTarget);
+                console.log('[config.js] modal trigger: opening', foundModalTarget);
+                showModal(foundModalTarget);
                 return;
             }
 
-            // --- 路径 2：关闭 modal（点击"关闭"、"取消"按钮、或背景）---
-            var clicked = e.target;
-            var depth2 = 0;
-            var isCloseBtn = false;
-            var parentModal = null;
-
-            while (clicked && depth2 < 6 && clicked.nodeType === 1) {
-                // 先看是否到达了 modal 容器
-                if (clicked.classList && clicked.classList.contains('modal')) {
-                    parentModal = clicked;
-                    break;
-                }
-                // 检查是否是关闭类按钮
-                if (clicked.tagName === 'BUTTON' || clicked.tagName === 'A') {
-                    var text = (clicked.textContent || '').trim();
-                    if (text === '关闭' || text === '取消' ||
-                        (clicked.classList && clicked.classList.contains('btn-close'))) {
-                        isCloseBtn = true;
+            if (foundModalClose) {
+                var parentEl = e.target;
+                var parentModal = null;
+                var d2 = 0;
+                while (parentEl && d2 < 6 && parentEl.nodeType === 1) {
+                    if (parentEl.classList && parentEl.classList.contains('modal')) {
+                        parentModal = parentEl;
+                        break;
                     }
+                    parentEl = parentEl.parentNode;
+                    d2++;
                 }
-                clicked = clicked.parentNode;
-                depth2++;
+
+                if (parentModal) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+                    hideModal(parentModal);
+                    return;
+                }
             }
 
-            if (isCloseBtn && parentModal) {
-                e.preventDefault();
-                e.stopPropagation();
-                if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-                hideModal(parentModal);
-                return;
-            }
-
-            // --- 路径 3：点击 modal 背景（但不在内容区）关闭 ---
             if (e.target.classList && e.target.classList.contains('modal')) {
                 hideModal(e.target);
             }
         } catch (err) {
             console.error('[config.js] modal click handler error:', err);
         }
-    }, true); // <-- 捕获阶段！
+    }, true);
 
-    // ---------- ESC 键关闭 modal ----------
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             var modals = document.querySelectorAll('.modal.show');
@@ -862,9 +817,9 @@ async function checkGitUpdates() {
         }
     });
 
-    // ---------- 暴露到 window ----------
     window.showConfigModal = showModal;
     window.hideConfigModal = hideModal;
+    console.log('[config.js] Modal system initialized');
 })();
 
 // （旧的 Modal 代码已删除 - 见上方 setupConfigModalSystem IIFE）
