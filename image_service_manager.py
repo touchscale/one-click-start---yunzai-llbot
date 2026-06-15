@@ -385,57 +385,10 @@ class ImageServiceManager:
                     self.process = subprocess.Popen(
                         ["node", self.node_script],
                         cwd=self.image_generator_dir,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                        encoding='utf-8',
-                        errors='replace',
-                        bufsize=1
+                        # 不捕获 stdout/stderr，让其直接输出到控制台
+                        # 避免管道缓冲区填满导致进程阻塞或被 SIGPIPE 杀死
                     )
-
-                    # 启动线程实时读取 stdout/stderr（避免管道缓冲区溢出）
-                    # 区分 stdout 的日志级别
-                    def _stdout_reader():
-                        try:
-                            for line in iter(self.process.stdout.readline, ''):
-                                if line:
-                                    stripped = line.rstrip()
-                                    extra = {
-                                        'event_type': EventType.INFO,
-                                        'feature': 'image_service'
-                                    }
-                                    if '[ERROR]' in stripped:
-                                        image_logger.error(stripped, extra=extra)
-                                    elif '[WARN]' in stripped or '[WARNING]' in stripped:
-                                        image_logger.warning(stripped, extra=extra)
-                                    else:
-                                        image_logger.info(stripped, extra=extra)
-                        except Exception:
-                            pass
-                        finally:
-                            try:
-                                self.process.stdout.close()
-                            except Exception:
-                                pass
-
-                    def _stderr_reader():
-                        try:
-                            for line in iter(self.process.stderr.readline, ''):
-                                if line:
-                                    image_logger.error(line.rstrip(), extra={
-                                        'event_type': EventType.ERROR,
-                                        'feature': 'image_service'
-                                    })
-                        except Exception:
-                            pass
-                        finally:
-                            try:
-                                self.process.stderr.close()
-                            except Exception:
-                                pass
-
-                    threading.Thread(target=_stdout_reader, daemon=True).start()
-                    threading.Thread(target=_stderr_reader, daemon=True).start()
+                    # 注意：不使用管道，因此无需启动 reader 线程
 
                     # 保存 PID（原子性写入）
                     temp_pid_file = self.pid_file + '.tmp'
