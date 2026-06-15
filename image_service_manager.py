@@ -96,16 +96,7 @@ class ImageServiceManager:
                         raise
 
         return False
-        """初始化图片服务管理器"""
-        self.script_dir = os.path.dirname(os.path.abspath(__file__))
-        self.image_generator_dir = os.path.join(self.script_dir, "image_generator")
-        self.node_script = os.path.join(self.image_generator_dir, "image-service.js")
-        self.pid_file = os.path.join(self.script_dir, "pids", "image_service.pid")
-        self.process: Optional[subprocess.Popen] = None
-        self.service_url = "http://localhost:3001"
-        self._running = False
-        self._lock = threading.RLock()
-    
+
     def check_node_installed(self) -> bool:
         """检查 Node.js 是否已安装"""
         try:
@@ -334,182 +325,163 @@ class ImageServiceManager:
                 })
                 return False
 
-        # 持锁检查状态和启动服务
+        # 持锁检查状态和启动服务（不做阻塞等待）
+        start_result = None  # 'already_running' | 'started' | 'failed'
         with self._lock:
             if self._running:
                 image_logger.warning("图片服务已在运行中", extra={
                     'event_type': EventType.WARNING,
                     'feature': 'image_service'
                 })
-                return True
-
-            # 检查是否已有实例在运行（使用不加锁的版本）
-            if self._is_running_unlocked():
+                start_result = 'already_running'
+            elif self._is_running_unlocked():
                 image_logger.info("检测到图片服务已在运行，跳过启动", extra={
                     'event_type': EventType.INFO,
                     'feature': 'image_service'
                 })
                 self._running = True
-                return True
+                start_result = 'already_running'
+            else:
+                # 创建 pids 目录
+                pids_dir = os.path.dirname(self.pid_file)
+                if not os.path.exists(pids_dir):
+                    os.makedirs(pids_dir, exist_ok=True)
 
-            # 创建 pids 目录
-            pids_dir = os.path.dirname(self.pid_file)
-            if not os.path.exists(pids_dir):
-                os.makedirs(pids_dir, exist_ok=True)
-
-            # 清理可能存在的旧 PID 文件
-            if os.path.exists(self.pid_file):
-                try:
-                    # 先尝试读取旧 PID，确认进程是否存在
-                    with open(self.pid_file, 'r', encoding='utf-8') as f:
-                        old_pid_str = f.read().strip()
-                        if old_pid_str and old_pid_str.isdigit():
-                            old_pid = int(old_pid_str)
-                            if not psutil.pid_exists(old_pid):
-                                # 旧进程不存在，使用强制删除
-                                if self._force_delete_file(self.pid_file, max_retries=5, retry_delay=0.2):
-                                    image_logger.info(f"清理旧的 PID 文件 (进程 {old_pid} 不存在)", extra={
-                                        'event_type': EventType.INFO,
-                                        'feature': 'image_service'
-                                    })
-                                else:
-                                    # 如果删除失败，记录警告但继续启动（可能需要管理员权限或文件被锁定）
-                                    image_logger.warning(f"无法删除旧的PID文件，但将尝试覆盖启动新进程", extra={
-                                        'event_type': EventType.WARNING,
-                                        'feature': 'image_service'
-                                    })
-                            else:
-                                # 旧进程还存在，尝试优雅终止
-                                try:
-                                    old_proc = psutil.Process(old_pid)
-                                    old_proc.terminate()
-                                    try:
-                                        old_proc.wait(timeout=3)
-                                    except psutil.TimeoutExpired:
-                                        old_proc.kill()
-                                        old_proc.wait(timeout=2)
-                                    image_logger.info(f"终止旧的图片服务进程 {old_pid}", extra={
-                                        'event_type': EventType.INFO,
-                                        'feature': 'image_service'
-                                    })
-                                    # 终止后删除PID文件
+                # 清理可能存在的旧 PID 文件
+                if os.path.exists(self.pid_file):
+                    try:
+                        with open(self.pid_file, 'r', encoding='utf-8') as f:
+                            old_pid_str = f.read().strip()
+                            if old_pid_str and old_pid_str.isdigit():
+                                old_pid = int(old_pid_str)
+                                if not psutil.pid_exists(old_pid):
                                     self._force_delete_file(self.pid_file, max_retries=5, retry_delay=0.2)
-                                except:
-                                    # 无法终止旧进程，记录警告但继续
-                                    image_logger.warning(f"无法终止旧进程 {old_pid}，尝试继续", extra={
-                                        'event_type': EventType.WARNING,
-                                        'feature': 'image_service'
-                                    })
-                except Exception as e:
-                    # 如果清理失败，记录警告但继续
-                    image_logger.warning(f"清理 PID 文件失败: {str(e)}，将尝试覆盖启动", extra={
-                        'event_type': EventType.WARNING,
-                        'feature': 'image_service',
-                        'error': str(e)
+                                else:
+                                    try:
+                                        old_proc = psutil.Process(old_pid)
+                                        old_proc.terminate()
+                                        try:
+                                            old_proc.wait(timeout=3)
+                                        except psutil.TimeoutExpired:
+                                            old_proc.kill()
+                                            old_proc.wait(timeout=2)
+                                        self._force_delete_file(self.pid_file, max_retries=5, retry_delay=0.2)
+                                    except:
+                                        pass
+                    except Exception as e:
+                        image_logger.warning(f"清理 PID 文件失败: {str(e)}", extra={
+                            'event_type': EventType.WARNING,
+                            'feature': 'image_service',
+                            'error': str(e)
+                        })
+
+                # 启动服务
+                try:
+                    image_logger.info("正在启动图片生成服务...", extra={
+                        'event_type': EventType.INFO,
+                        'feature': 'image_service'
                     })
 
-            # 启动服务
-            try:
-                image_logger.info("正在启动图片生成服务...", extra={
-                    'event_type': EventType.INFO,
-                    'feature': 'image_service'
-                })
+                    self.process = subprocess.Popen(
+                        ["node", self.node_script],
+                        cwd=self.image_generator_dir,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        encoding='utf-8',
+                        errors='replace',
+                        bufsize=1
+                    )
 
-                # 不使用 CREATE_NO_WINDOW，允许日志输出到控制台
-                self.process = subprocess.Popen(
-                    ["node", self.node_script],
-                    cwd=self.image_generator_dir,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    encoding='utf-8',
-                    errors='replace',
-                    bufsize=1,
-                    universal_newlines=True
-                )
+                    # 启动线程实时读取 stdout/stderr（避免管道缓冲区溢出）
+                    # 区分 stdout 的日志级别
+                    def _stdout_reader():
+                        try:
+                            for line in iter(self.process.stdout.readline, ''):
+                                if line:
+                                    stripped = line.rstrip()
+                                    extra = {
+                                        'event_type': EventType.INFO,
+                                        'feature': 'image_service'
+                                    }
+                                    if '[ERROR]' in stripped:
+                                        image_logger.error(stripped, extra=extra)
+                                    elif '[WARN]' in stripped or '[WARNING]' in stripped:
+                                        image_logger.warning(stripped, extra=extra)
+                                    else:
+                                        image_logger.info(stripped, extra=extra)
+                        except Exception:
+                            pass
+                        finally:
+                            try:
+                                self.process.stdout.close()
+                            except Exception:
+                                pass
 
-                # 启动线程实时读取 stdout
-                def read_stdout():
-                    for line in iter(self.process.stdout.readline, ''):
-                        if line:
-                            line = line.rstrip()
-                            # 解析日志级别
-                            if '[ERROR]' in line:
-                                image_logger.error(line, extra={
-                                    'event_type': EventType.ERROR,
-                                    'feature': 'image_service'
-                                })
-                            elif '[WARN]' in line:
-                                image_logger.warning(line, extra={
-                                    'event_type': EventType.WARNING,
-                                    'feature': 'image_service'
-                                })
-                            else:
-                                image_logger.info(line, extra={
-                                    'event_type': EventType.INFO,
-                                    'feature': 'image_service'
-                                })
-                    self.process.stdout.close()
+                    def _stderr_reader():
+                        try:
+                            for line in iter(self.process.stderr.readline, ''):
+                                if line:
+                                    image_logger.error(line.rstrip(), extra={
+                                        'event_type': EventType.ERROR,
+                                        'feature': 'image_service'
+                                    })
+                        except Exception:
+                            pass
+                        finally:
+                            try:
+                                self.process.stderr.close()
+                            except Exception:
+                                pass
 
-                # 启动线程实时读取 stderr
-                def read_stderr():
-                    for line in iter(self.process.stderr.readline, ''):
-                        if line:
-                            line = line.rstrip()
-                            image_logger.error(line, extra={
-                                'event_type': EventType.ERROR,
-                                'feature': 'image_service'
-                            })
-                    self.process.stderr.close()
+                    threading.Thread(target=_stdout_reader, daemon=True).start()
+                    threading.Thread(target=_stderr_reader, daemon=True).start()
 
-                stdout_thread = threading.Thread(target=read_stdout, daemon=True)
-                stderr_thread = threading.Thread(target=read_stderr, daemon=True)
-                stdout_thread.start()
-                stderr_thread.start()
-
-                # 保存 PID（使用更可靠的方法）
-                temp_pid_file = self.pid_file + '.tmp'
-                try:
-                    with open(temp_pid_file, 'w', encoding='utf-8') as f:
-                        f.write(str(self.process.pid))
-                    # 原子性重命名
-                    if os.name == 'nt':
-                        # Windows 下可能无法直接重命名目标文件已存在的情况
-                        if os.path.exists(self.pid_file):
+                    # 保存 PID（原子性写入）
+                    temp_pid_file = self.pid_file + '.tmp'
+                    try:
+                        with open(temp_pid_file, 'w', encoding='utf-8') as f:
+                            f.write(str(self.process.pid))
+                        if os.name == 'nt' and os.path.exists(self.pid_file):
                             os.replace(temp_pid_file, self.pid_file)
                         else:
                             os.rename(temp_pid_file, self.pid_file)
-                    else:
-                        os.rename(temp_pid_file, self.pid_file)
-                except Exception as e:
-                    # 如果重命名失败，至少确保临时文件存在
-                    image_logger.warning(f"使用原子性重命名失败: {str(e)}，直接写入", extra={
-                        'event_type': EventType.WARNING,
-                        'feature': 'image_service'
+                    except Exception as e:
+                        image_logger.warning(f"写入 PID 文件失败: {str(e)}，尝试直接写入", extra={
+                            'event_type': EventType.WARNING,
+                            'feature': 'image_service'
+                        })
+                        try:
+                            with open(self.pid_file, 'w', encoding='utf-8') as f:
+                                f.write(str(self.process.pid))
+                        except Exception:
+                            pass
+
+                    self._running = True
+                    image_logger.info(f"图片生成服务进程已启动 (PID: {self.process.pid})", extra={
+                        'event_type': EventType.INFO,
+                        'feature': 'image_service',
+                        'pid': self.process.pid
                     })
-                    with open(self.pid_file, 'w', encoding='utf-8') as f:
-                        f.write(str(self.process.pid))
+                    start_result = 'started'
 
-                self._running = True
+                except Exception as e:
+                    image_logger.error(f"启动图片服务失败: {str(e)}", extra={
+                        'event_type': EventType.ERROR,
+                        'feature': 'image_service',
+                        'error': str(e)
+                    })
+                    self._running = False
+                    start_result = 'failed'
 
-                image_logger.info(f"图片生成服务进程已启动 (PID: {self.process.pid})", extra={
-                    'event_type': EventType.INFO,
-                    'feature': 'image_service',
-                    'pid': self.process.pid
-                })
+        # 锁外部：处理启动结果和就绪等待
+        if start_result == 'failed':
+            return False
 
-                return True
+        if start_result == 'already_running':
+            return True
 
-            except Exception as e:
-                image_logger.error(f"启动图片服务失败: {str(e)}", extra={
-                    'event_type': EventType.ERROR,
-                    'feature': 'image_service',
-                    'error': str(e)
-                })
-                self._running = False
-                return False
-
-        # 等待服务就绪（在锁外部）
+        # start_result == 'started'：在锁外部等待就绪，避免长时间持有锁
         if wait_ready:
             image_logger.info(f"等待图片服务就绪（最长等待 {timeout} 秒）...", extra={
                 'event_type': EventType.INFO,
@@ -517,12 +489,19 @@ class ImageServiceManager:
                 'timeout': timeout
             })
             if not self.wait_for_ready(timeout):
-                image_logger.error("图片服务启动超时", extra={
+                image_logger.error("图片服务启动超时，正在回滚停止...", extra={
                     'event_type': EventType.ERROR,
                     'feature': 'image_service'
                 })
-                self.stop()
+                try:
+                    self.stop()
+                except Exception:
+                    pass
                 return False
+            image_logger.info("图片服务已就绪", extra={
+                'event_type': EventType.INFO,
+                'feature': 'image_service'
+            })
 
         return True
     
