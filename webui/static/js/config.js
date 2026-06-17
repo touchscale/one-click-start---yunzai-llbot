@@ -620,6 +620,9 @@ async function checkGitUpdates() {
             if (data.remote_commit) {
                 message += '<div><strong>远程提交:</strong> <code>' + String(data.remote_commit).substring(0, 8) + '</code></div>';
             }
+            if (data.latest_commit_message) {
+                message += '<div><strong>最新提交:</strong> <code>' + data.latest_commit_message + '</code></div>';
+            }
             message += '</div>';
 
             if (data.has_update) {

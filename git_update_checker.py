@@ -194,6 +194,21 @@ def get_remote_commit(repo_path, use_git_bash=False, git_bash_path=None):
         })
         return None
 
+def get_latest_commit_message(repo_path, use_git_bash=False, git_bash_path=None):
+    """获取最新一条提交信息"""
+    try:
+        success, stdout, stderr = run_git_command(repo_path, 'git log -1 --oneline', use_git_bash, git_bash_path)
+        if success:
+            return stdout.strip()
+        return None
+    except Exception as e:
+        logger.error(f"获取最新提交信息时出错: {str(e)}", extra={
+            'event_type': EventType.ERROR,
+            'repo_path': repo_path,
+            'error': str(e)
+        })
+        return None
+
 def is_git_repo(repo_path):
     """检查路径是否是Git仓库"""
     git_dir = os.path.join(repo_path, '.git')
