@@ -1257,7 +1257,7 @@ def register_routes(app):
             return jsonify({'error': '更新操作正在进行中，请稍后再试'}), 429
 
         try:
-            from git_update_checker import check_repo_update, get_current_branch, get_local_commit, get_remote_commit
+            from git_update_checker import check_repo_update, get_current_branch, get_local_commit, get_remote_commit, get_latest_commit_message
             import os
 
             # 获取当前脚本所在目录
@@ -1271,7 +1271,8 @@ def register_routes(app):
                     'has_update': False,
                     'branch': None,
                     'local_commit': None,
-                    'remote_commit': None
+                    'remote_commit': None,
+                    'latest_commit_message': None
                 }), 400
 
             # 获取当前分支
@@ -1280,6 +1281,9 @@ def register_routes(app):
             # 获取本地和远程提交哈希
             local_commit = get_local_commit(current_dir)
             remote_commit = get_remote_commit(current_dir)
+
+            # 获取最新提交信息
+            latest_commit_message = get_latest_commit_message(current_dir)
 
             # 检查是否有更新
             has_update, status_output = check_repo_update(current_dir)
@@ -1298,6 +1302,7 @@ def register_routes(app):
                     'branch': branch,
                     'local_commit': local_commit,
                     'remote_commit': remote_commit,
+                    'latest_commit_message': latest_commit_message,
                     'status_output': status_output
                 })
             else:
@@ -1307,6 +1312,7 @@ def register_routes(app):
                     'branch': branch,
                     'local_commit': local_commit,
                     'remote_commit': remote_commit,
+                    'latest_commit_message': latest_commit_message,
                     'status_output': status_output
                 })
         except Exception as e:
