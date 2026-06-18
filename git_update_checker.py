@@ -17,8 +17,13 @@ git_update_running = False
 git_update_thread = None
 
 def run_git_command(repo_path, command, use_git_bash=False, git_bash_path=None):
-    """执行Git命令"""
+    """执行Git命令（非交互式，禁止凭证提示）"""
     try:
+        # 设置环境变量，防止Git在非交互环境下卡死在凭证输入
+        env = os.environ.copy()
+        env['GIT_TERMINAL_PROMPT'] = '0'
+        env['GCM_INTERACTIVE'] = 'never'
+
         if use_git_bash and git_bash_path:
             # 使用Git Bash执行命令
             cmd = f'cd "{repo_path}" && {command}'
@@ -28,7 +33,8 @@ def run_git_command(repo_path, command, use_git_bash=False, git_bash_path=None):
                 text=True,
                 timeout=30,
                 encoding='utf-8',
-                errors='replace'
+                errors='replace',
+                env=env
             )
         else:
             # 使用系统Git执行命令
@@ -40,7 +46,8 @@ def run_git_command(repo_path, command, use_git_bash=False, git_bash_path=None):
                 timeout=30,
                 shell=True,
                 encoding='utf-8',
-                errors='replace'
+                errors='replace',
+                env=env
             )
         
         return result.returncode == 0, result.stdout, result.stderr
