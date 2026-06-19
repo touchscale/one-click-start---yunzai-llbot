@@ -301,7 +301,9 @@ def is_git_repo(repo_path):
 
 _git_update_running = False
 _git_update_thread = None
-_git_state_lock = threading.Lock()
+# 采用 RLock 以允许同一线程内部对状态进行"嵌套式"更新（例如启动流程中
+# 多次读写 _git_update_running ），同时对外保持线程安全。
+_git_state_lock = threading.RLock()
 
 
 class _GitUpdateMonitorConfig:
