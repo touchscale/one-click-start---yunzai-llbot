@@ -368,8 +368,7 @@ def register_routes(app):
                 logger.info(f"Web界面请求: {process} {action}", extra={
                     'event_type': EventType.INFO,
                     'action': 'api_control_received',
-                    'process': process,
-                    'action': action,
+                    'target_process': process,
                     'source': 'web_interface'
                 })
                 
